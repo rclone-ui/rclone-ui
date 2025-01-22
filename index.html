@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" class="bg-neutral-900 dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rclone UI</title>
+    <style>
+      #drag-region {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        /* pointer-events: none; */
+		pointer-events: auto;
+      }
+      /* #drag-region.draggable {
+        pointer-events: auto;
+      } */
+    </style>
+  </head>
+
+  <body class="min-h-screen">
+    <!-- <div id="drag-region" data-tauri-drag-region></div> -->
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

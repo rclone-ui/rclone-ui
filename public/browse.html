@@ -1,0 +1,495 @@
+<!-- 
+This file is needed in order to add dark mode to the default Rclone browser. 
+It's not pretty, but at the same time Adobe's .PSD implementation exists.
+-->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      html {
+        overscroll-behavior: none;
+      }
+
+      /* Header positioning */
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        padding: 10px;
+        background-color: #f2f2f2;
+      }
+
+      /* Meta div positioning */
+      .meta {
+        position: sticky;
+        top: 63px; /* Adjust based on header height + padding */
+        z-index: 99;
+        /* padding: 10px; */
+        background-color: #f2f2f2;
+      }
+
+      .loading-spinner {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 50px;
+        height: 50px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      .nav-spinner {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 30px;
+        height: 30px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        display: none;
+        z-index: 9999;
+      }
+      
+      @keyframes spin {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+      }
+
+      /* Dark mode styles */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark !important;
+        }
+
+        html {
+          background-color: #1d1d1d !important;
+          min-height: 100% !important;
+        }
+
+        body {
+          background-color: #1d1d1d !important;
+          color: #e0e0e0 !important	;
+          min-height: 100vh !important;
+          margin: 0 !important;
+        }
+
+        /* Header styles */
+        header {
+          background-color: #242424 !important;
+        }
+        
+        header h1 a {
+          color: #e0e0e0 !important;
+        }
+		
+        /* Table styles */
+        table {
+          background-color: #242424 !important;
+          border-color: #404040 !important;
+        }
+
+        tr {
+          border-color: #404040 !important;
+        }
+
+        tr:hover {
+          background-color: #2a2a2a !important;
+        }
+
+        th {
+          background-color: #2c2c2c !important;
+          color: #e0e0e0 !important;
+        }
+
+        td {
+          border-color: #404040 !important;
+        }
+
+        /* Links */
+        a {
+          color: #66b3ff !important;
+        }
+
+        a:visited {
+          color: #b366ff !important;
+        }
+
+        a:hover {
+          color: #99ccff !important;
+        }
+
+        /* Filter input */
+        #filter {
+          background-color: #2c2c2c !important;
+          color: #e0e0e0 !important;
+          border: 1px solid #404040 !important;
+          padding: 5px 10px !important;
+        }
+
+        #filter:focus {
+          outline: 1px solid #66b3ff !important;
+          border-color: #66b3ff !important;
+        }
+
+        /* SVG icons */
+        svg {
+          filter: invert(0.8) !important;
+        }
+
+        /* Go up link */
+        .goup {
+          color: #e0e0e0 !important;
+        }
+
+        /* Time display */
+        time {
+          color: #b0b0b0 !important;
+        }
+
+        /* Sort icons */
+        .icon.sort {
+          opacity: 0.8 !important;
+        }
+
+        /* Meta section */
+        .meta {
+          border-color: #404040 !important;
+          background-color: #242424 !important;
+        }
+
+        /* Ensure text remains readable */
+        td[data-order="-1"],
+        .hideable {
+          color: #b0b0b0 !important;
+        }
+
+        .download-link {
+          background-color: #2e7d32 !important;
+          color: #ffffff !important;
+        }
+
+        .download-link:hover {
+          background-color: #1b5e20 !important;
+        }
+
+        thead {
+          background-color: #242424 !important;
+        }
+      }
+
+      /* Download button styles */
+      .download-cell {
+        width: 30px;
+        text-align: center;
+      }
+
+      .download-link {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        text-decoration: none;
+        background-color: #4CAF50;
+        color: white !important;
+        font-size: 0.8em;
+        margin-left: 8px;
+        vertical-align: middle;
+      }
+
+      .download-link:hover {
+        background-color: #45a049;
+      }
+
+      /* Adjust the name span to align with download button */
+      .name {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* Table header positioning */
+      thead {
+        position: sticky;
+        top: 109px; /* header + meta  */
+        z-index: 98;
+        background-color: #f2f2f2;
+      }
+
+      /* Ensure table layout works with sticky header */
+      table {
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+    </style>
+    <script>
+		
+		console.log(window.__TAURI__)
+		
+      // Create a persistent spinner element outside the body
+      const navSpinner = document.createElement('div');
+      navSpinner.id = 'nav-spinner';
+      navSpinner.className = 'nav-spinner';
+      
+      // Function to show/hide navigation spinner
+      function toggleNavSpinner(show) {
+        if (!document.getElementById('nav-spinner')) {
+          document.body.appendChild(navSpinner);
+        }
+        navSpinner.style.display = show ? 'block' : 'none';
+      }
+
+      // Function to check if we're at root URL
+      function isRootUrl(url) {
+        try {
+          const parsedUrl = new URL(url);
+          // Remove trailing slash for consistent comparison
+          const path = parsedUrl.pathname.replace(/\/$/, '');
+          // Count segments (excluding empty strings from leading/trailing slashes)
+          const segments = path.split('/').filter(Boolean);
+          return segments.length <= 1;
+        } catch (e) {
+          console.error('Error parsing URL:', e);
+          return false;
+        }
+      }
+
+      // Function to hide "Go up" row if at root
+      function hideGoUpIfRoot(url) {
+        const goUpRow = document.querySelector('tr:has(span.goup)');
+        if (goUpRow) {
+          goUpRow.style.display = isRootUrl(url) ? 'none' : '';
+        }
+      }
+
+      // Function to fetch and modify webpage content
+      async function fetchAndInjectContent(url, isInitialLoad = false) {
+        try {
+          // Only show navigation spinner for non-initial loads
+          if (!isInitialLoad) {
+            toggleNavSpinner(true);
+          }
+          
+          const fetch = window.__TAURI__.http.fetch
+          // Fetch the webpage content
+          const response = await fetch(url);
+          const html = await response.text();
+          
+          // Create a temporary DOM parser
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          
+          // Modify the title if it exists
+          const title = doc.querySelector('title');
+          if (title) {
+            title.textContent = 'Modified: ' + title.textContent;
+            // Update current page title
+            document.title = title.textContent;
+          }
+
+          // Remove existing injected styles
+          const existingStyles = document.querySelectorAll('style[data-injected="true"]');
+          existingStyles.forEach(style => style.remove());
+          
+          // Copy over all style elements from the fetched document
+          const newStyles = doc.getElementsByTagName('style');
+          Array.from(newStyles).forEach(style => {
+            const clonedStyle = style.cloneNode(true);
+            clonedStyle.setAttribute('data-injected', 'true');
+            document.head.appendChild(clonedStyle);
+          });
+          
+          // Store the spinner temporarily
+          const spinnerParent = navSpinner.parentElement;
+          if (spinnerParent) {
+            spinnerParent.removeChild(navSpinner);
+          }
+          
+          // Replace only the body content
+          document.body.innerHTML = doc.body.innerHTML;
+          
+          // Hide "Go up" row if at root
+          hideGoUpIfRoot(url);
+          
+          // Add download buttons to the table
+          addDownloadButtons();
+          
+          // Re-add the spinner
+          document.body.appendChild(navSpinner);
+          
+          // Update the URL in the address bar without reloading
+          window.history.pushState({}, '', `?url=${encodeURIComponent(url)}`);
+          
+          // Re-add our event handlers
+          setupEventHandlers();
+          
+        } catch (error) {
+          console.error('Error fetching webpage:', error);
+          document.body.innerHTML = `<div>Error loading webpage: ${error.message}</div>`;
+          // Make sure spinner is still available in error case
+          document.body.appendChild(navSpinner);
+        } finally {
+          toggleNavSpinner(false);
+        }
+      }
+
+      // Function to handle clicks on links
+      function handleLinkClick(event) {
+        const link = event.target.closest('a');
+        if (!link) return;
+
+        // Don't interfere with download links
+        if (link.hasAttribute('download')) {
+            event.preventDefault();
+            
+            const save = window.__TAURI__.dialog.save;
+            const writeTextFile = window.__TAURI__.fs.writeTextFile;
+			const writeFile = window.__TAURI__.fs.writeFile;
+            const http = window.__TAURI__.http;
+            
+            // Get the full URL for the download
+            const href = link.getAttribute('href');
+            const currentUrl = new URLSearchParams(window.location.search).get('url');
+            const baseUrl = new URL(currentUrl).href;
+            const downloadUrl = new URL(href, baseUrl).href;
+            
+            // Get the filename from the download attribute or URL
+            const filename = link.getAttribute('download') || href.split('/').pop();
+            
+            save({ 
+                title: 'Save File',
+                defaultPath: filename
+            }).then(async (result) => {
+                if (result) {
+                    try {
+						console.log('downloading', downloadUrl)
+                        // Fetch the file contents
+                        const response = await http.fetch(downloadUrl, {
+                            method: 'GET',
+                            responseType: 2 // ResponseType.Binary
+                        });
+						
+						const data = await response.arrayBuffer();
+                        
+                        // Write the file contents
+                        await writeFile(result, data);
+                    } catch (err) {
+                        console.error('Failed to download file:', err);
+                    }
+                }
+            });
+            
+            return;
+        }
+
+        const href = link.getAttribute('href');
+        if (!href || href === '') {
+          event.preventDefault();
+          return;
+        }
+
+        // Handle different types of URLs
+        let fullUrl;
+        if (href.startsWith('http')) {
+          fullUrl = href;
+        } else if (href.startsWith('//')) {
+          fullUrl = 'https:' + href;
+        } else if (href.startsWith('/')) {
+          // Get the base URL from the current URL parameter
+          const currentUrl = new URLSearchParams(window.location.search).get('url');
+          const baseUrl = new URL(currentUrl).origin;
+          fullUrl = baseUrl + href;
+        } else {
+          // Relative URL
+          const currentUrl = new URLSearchParams(window.location.search).get('url');
+          const baseUrl = new URL(currentUrl).href;
+          fullUrl = new URL(href, baseUrl).href;
+        }
+
+        // Check if the target URL is the same as the current one
+        const currentPageUrl = new URLSearchParams(window.location.search).get('url');
+        console.log('fullUrl', fullUrl)
+        console.log('currentPageUrl', currentPageUrl)
+        if (fullUrl === currentPageUrl) {
+          event.preventDefault();
+          return;
+        }
+
+        // Prevent default navigation
+        event.preventDefault();
+        
+        // Fetch and inject the new content
+        fetchAndInjectContent(fullUrl);
+      }
+
+      // Function to set up event handlers
+      function setupEventHandlers() {
+        // Handle all click events at the document level
+        document.addEventListener('click', handleLinkClick);
+
+        // Prevent form submissions and handle them manually
+        document.addEventListener('submit', (event) => {
+          event.preventDefault();
+          // You can add form handling logic here if needed
+        });
+      }
+
+      // Function to modify the table structure after content load
+      function addDownloadButtons() {
+        // Find all file rows
+        const fileRows = document.querySelectorAll('tr.file');
+        fileRows.forEach(row => {
+          // Check if this is a file (not a folder) by looking for the file icon
+          const isFolder = row.querySelector('svg use').getAttribute('xlink:href') === '#folder';
+          
+          if (!isFolder) {
+            // Get the file link container
+            const nameSpan = row.querySelector('.name');
+            if (nameSpan) {
+              // Create download link
+              const downloadLink = document.createElement('a');
+              const fileLink = nameSpan.querySelector('a');
+              // keep only the last part of the url, otherwise it uses the wrong root url
+              downloadLink.href = fileLink.href.split('/').pop();
+              downloadLink.className = 'download-link';
+              downloadLink.setAttribute('download', '');
+              downloadLink.textContent = '⇩';
+              nameSpan.appendChild(downloadLink);
+            }
+          }
+        });
+      }
+
+      // Wait for DOM to be ready before initializing
+      document.addEventListener('DOMContentLoaded', () => {
+        // Initial setup
+        const urlParams = new URLSearchParams(window.location.search);
+        const url = urlParams.get('url');
+        if (url) {
+          // Pass true to indicate this is the initial load
+          fetchAndInjectContent(url, true);
+        } else {
+          document.body.innerHTML = '<div>Error: No URL provided. Use ?url= parameter.</div>';
+        }
+
+        // Set up initial event handlers
+        setupEventHandlers();
+
+        // Handle browser back/forward buttons
+        window.addEventListener('popstate', () => {
+          const newUrl = new URLSearchParams(window.location.search).get('url');
+          if (newUrl) {
+            fetchAndInjectContent(newUrl);
+          }
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <div class="loading-spinner"></div>
+  </body>
+</html>
