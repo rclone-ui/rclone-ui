@@ -4,6 +4,8 @@ import { getAllWindows } from '@tauri-apps/api/window'
 import { handleIconState } from '@tauri-apps/plugin-positioner'
 import { buildMenu } from './menu'
 import { resetMainWindow } from './window'
+import { resolveResource } from '@tauri-apps/api/path';
+import { defaultWindowIcon } from "@tauri-apps/api/app";
 
 export async function getMainTray() {
     return await TrayIcon.getById('main-tray')
@@ -51,21 +53,23 @@ export async function initTray(): Promise<void> {
 
         await TrayIcon.new({
             id: 'main-tray',
-            icon: 'icons/icon.png',
+            icon: (await defaultWindowIcon())!,
             tooltip: 'S-Tray App',
             menu,
             menuOnLeftClick: true,
             action: onTrayAction,
         })
     } catch (error) {
-        console.error('Failed to create tray:', error)
+        console.error('Failed to create tray')
+        console.error(error)
     }
 }
 
 export async function initLoadingTray() {
+    const iconPath = await resolveResource('icons/favicon/frame_00_delay-0.1s.png');
     const loadingTray = await TrayIcon.new({
         id: 'loading-tray',
-        icon: 'icons/favicon/frame_00_delay-0.1s.png',
+        icon: iconPath,
     })
 
     let currentIcon = 1
@@ -74,9 +78,12 @@ export async function initLoadingTray() {
         if (currentIcon > 17) {
             currentIcon = 1
         }
-        await loadingTray?.setIcon(
-            `icons/favicon/frame_${currentIcon < 10 ? '0' : ''}${currentIcon}_delay-0.1s.png`
-        )
+        const iconPath = await resolveResource(
+          `icons/favicon/frame_${
+            currentIcon < 10 ? "0" : ""
+          }${currentIcon}_delay-0.1s.png`
+        );
+        await loadingTray?.setIcon(iconPath)
         currentIcon = currentIcon + 1
     }, 200)
 }
