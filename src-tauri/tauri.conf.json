@@ -38,7 +38,9 @@
             "icons/128x128.png",
             "icons/128x128@2x.png",
             "icons/icon.icns",
-            "icons/icon.ico",
+            "icons/icon.ico"
+        ],
+        "resources": [
             "icons/favicon/frame_00_delay-0.1s.png",
             "icons/favicon/frame_01_delay-0.1s.png",
             "icons/favicon/frame_02_delay-0.1s.png",
