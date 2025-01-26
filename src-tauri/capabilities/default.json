@@ -191,6 +191,11 @@
                     "name": "fuse",
                     "cmd": "go-nfsv4",
                     "args": true
+                },
+                {
+                    "name": "mount_nfs",
+                    "cmd": "mount_nfs",
+                    "args": true
                 }
             ]
         },
