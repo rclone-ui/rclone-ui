@@ -163,6 +163,7 @@
         "shell:allow-spawn",
         "shell:allow-stdin-write",
         "shell:allow-open",
+        "shell:allow-execute",
         {
             "identifier": "shell:allow-execute",
             "allow": [
@@ -177,8 +178,18 @@
                     "args": true
                 },
                 {
+                    "name": "mount",
+                    "cmd": "mount",
+                    "args": true
+                },
+                {
                     "name": "qjs",
                     "cmd": "qjs",
+                    "args": true
+                },
+                {
+                    "name": "fuse",
+                    "cmd": "go-nfsv4",
                     "args": true
                 }
             ]
@@ -195,12 +206,30 @@
         },
         "log:default",
         "dialog:default",
-        "fs:read-all",
-        "fs:write-all",
-        "fs:allow-open",
-        "fs:allow-download-write-recursive",
-        "fs:allow-download-read-recursive",
-        "fs:allow-download-meta-recursive",
+        {
+            "identifier": "fs:write-all",
+            "allow": [
+                {
+                    "path": "/**"
+                }
+            ]
+        },
+        {
+            "identifier": "fs:read-all",
+            "allow": [
+                {
+                    "path": "/**"
+                }
+            ]
+        },
+        {
+            "identifier": "fs:allow-open",
+            "allow": [
+                {
+                    "path": "/**"
+                }
+            ]
+        },
         "opener:default",
         "positioner:default",
         {

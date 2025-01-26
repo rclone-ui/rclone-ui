@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { isDirectoryEmpty } from '../../lib/fs'
 import { getGlobalFlags, getMountFlags, getVfsFlags, mountRemote } from '../../lib/rclone'
 import { usePersistedStore } from '../../lib/store'
 import OptionsSection from '../components/OptionsSection'
@@ -92,6 +93,19 @@ export default function Mount() {
 
             if (!('VolumeName' in _mountOptions) && ['windows', 'macos'].includes(platform())) {
                 _mountOptions.VolumeName = source!.split('/').pop()!
+            }
+
+            // Check if directory is empty
+            const isEmpty = await isDirectoryEmpty(dest!)
+            if (!isEmpty) {
+                // await resetMainWindow()
+
+                await message('The selected directory must be empty to mount a remote.', {
+                    title: 'Mount Error',
+                    kind: 'error',
+                })
+
+                return
             }
 
             await mountRemote({
