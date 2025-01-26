@@ -30,3 +30,4 @@ dist-ssr
 .work/*
 src-tauri/binaries/*
 !src-tauri/binaries/.gitkeep
+/public/out.js
