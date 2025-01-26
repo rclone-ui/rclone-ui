@@ -7,7 +7,7 @@ import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
 import { deleteRemote, mountRemote, unmountRemote } from './rclone'
 import { usePersistedStore, useStore } from './store'
-import { getLoadingTray, getMainTray } from './tray'
+import { getLoadingTray, getMainTray, rebuildTrayMenu } from './tray'
 import { lockWindows, openFullWindow, openTrayWindow, openWindow, unlockWindows } from './window'
 
 // Function to rebuild and update the menu
@@ -44,7 +44,7 @@ export async function buildMenu() {
                         }
                         await unmountRemote(mountPoint)
                         delete storeState.mountedRemotes[remote]
-                        // await rebuildTrayMenu()
+                        await rebuildTrayMenu()
                         await message(`Successfully unmounted ${remote} from ${mountPoint}`, {
                             title: 'Unmount Success',
                         })
@@ -90,7 +90,9 @@ export async function buildMenu() {
                     try {
                         await lockWindows()
 
-                        let selectedPath = remoteConfig.defaultMountPoint || null
+                        console.log('remoteConfig', remoteConfig)
+
+                        let selectedPath = remoteConfig?.defaultMountPoint || null
 
                         if (!selectedPath) {
                             selectedPath = await open({
@@ -125,14 +127,12 @@ export async function buildMenu() {
 
                         // Mount the remote
                         await mountRemote({
-                            remotePath: `${remote}:${remoteConfig.defaultRemotePath || ''}`,
+                            remotePath: `${remote}:${remoteConfig?.defaultRemotePath || ''}`,
                             mountPoint: selectedPath,
-                            mountOptions: remoteConfig.mountDefaults,
-                            vfsOptions: remoteConfig.vfsDefaults,
+                            mountOptions: remoteConfig?.mountDefaults,
+                            vfsOptions: remoteConfig?.vfsDefaults,
                         })
                         storeState.mountedRemotes[remote] = selectedPath
-
-                        // await rebuildTrayMenu()
 
                         let permissionGranted = await isPermissionGranted()
 
@@ -148,7 +148,7 @@ export async function buildMenu() {
                             })
                         }
 
-                        if (!remoteConfig.defaultMountPoint) {
+                        if (!remoteConfig?.defaultMountPoint) {
                             const answer = await ask(
                                 `Mount successful! Do you want to set ${selectedPath} as the default mount point for ${remote}? You can always change it later in Remote settings.`,
                                 {
@@ -169,6 +169,8 @@ export async function buildMenu() {
                                 }))
                             }
                         }
+
+                        await rebuildTrayMenu()
                     } catch (err) {
                         // await resetMainWindow()
                         console.error('Mount operation failed:', err)

@@ -276,7 +276,12 @@ export async function mountRemote({
 
     const r = await fetch(`http://localhost:5572/mount/mount?${options.toString()}`, {
         method: 'POST',
-    }).then((res) => res.json() as Promise<{ remotes: string[] } | Promise<{ error: string }>>)
+    })
+        .then((res) => res.json() as Promise<{ remotes: string[] } | Promise<{ error: string }>>)
+        .catch((e) => {
+            console.log('error', e)
+            throw e
+        })
 
     if ('error' in r) {
         throw new Error(r.error)
