@@ -17,7 +17,7 @@ export async function listRemotes() {
         throw new Error('Failed to fetch remotes')
     }
 
-    return r.remotes
+    return r.remotes || []
 }
 
 export async function getRemote(remote: string) {
