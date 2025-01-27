@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { isDirectoryEmpty } from '../../lib/fs'
-import { getGlobalFlags, getMountFlags, getVfsFlags, mountRemote } from '../../lib/rclone'
+import { getGlobalFlags, getMountFlags, getVfsFlags, mountRemote } from '../../lib/rclone/api'
 import { usePersistedStore } from '../../lib/store'
 import OptionsSection from '../components/OptionsSection'
 import PathFinder from '../components/PathFinder'

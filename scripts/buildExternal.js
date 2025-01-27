@@ -40,7 +40,10 @@ async function buildExternal() {
         console.log('Cleaning up...')
         await Promise.all([
             // Remove lib/*.js files
-            execSync('rm -rf ./lib/**.js', { stdio: 'inherit', cwd: projectRoot }),
+            execSync('rm -rf ./lib/**/**.js && rm -rf ./lib/**.js', {
+                stdio: 'inherit',
+                cwd: projectRoot,
+            }),
             // Remove main.js
             unlink(join(projectRoot, 'main.js')).catch(() => {}), // Ignore if file doesn't exist
         ])

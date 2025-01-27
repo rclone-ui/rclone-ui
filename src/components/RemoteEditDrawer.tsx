@@ -4,7 +4,7 @@ import { Button, Input } from '@nextui-org/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { getBackends, getRemote, updateRemote } from '../../lib/rclone'
+import { getBackends, getRemote, updateRemote } from '../../lib/rclone/api'
 import type { Backend, BackendOption } from '../../types/rclone'
 
 export default function RemoteEditDrawer({

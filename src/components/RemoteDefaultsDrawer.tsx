@@ -20,7 +20,7 @@ import {
     getMountFlags,
     getSyncFlags,
     getVfsFlags,
-} from '../../lib/rclone'
+} from '../../lib/rclone/api'
 import { type RemoteConfig, usePersistedStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import { lockWindows, unlockWindows } from '../../lib/window'

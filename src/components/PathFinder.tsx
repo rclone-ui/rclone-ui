@@ -4,7 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { ArrowDownUp, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { isRemotePath } from '../../lib/fs'
-import { listPath } from '../../lib/rclone'
+import { listPath } from '../../lib/rclone/api'
 import { useStore } from '../../lib/store'
 import { lockWindows, unlockWindows } from '../../lib/window'
 

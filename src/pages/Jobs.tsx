@@ -6,7 +6,7 @@ import { Trash2Icon } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useState } from 'react'
 import { formatBytes } from '../../lib/format'
-import { listJobs, stopJob } from '../../lib/rclone'
+import { listJobs, stopJob } from '../../lib/rclone/api'
 
 export default function Jobs() {
     const [isInitialLoad, setIsInitialLoad] = useState(true)
