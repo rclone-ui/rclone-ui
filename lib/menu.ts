@@ -88,17 +88,15 @@ export async function buildMenu() {
 
                     await getLoadingTray().then((t) => t?.setVisible(true))
 
-                    const needsPlugin = await needsMountPlugin()
-                    if (needsPlugin) {
-                        console.log('Mount plugin not installed')
-                        await dialogGetMountPlugin()
-                        await getLoadingTray().then((t) => t?.setVisible(false))
-                        await getMainTray().then((t) => t?.setVisible(true))
-                        return
-                    }
-                    console.log('Mount plugin installed')
-
                     try {
+                        const needsPlugin = await needsMountPlugin()
+                        if (needsPlugin) {
+                            console.log('Mount plugin not installed')
+                            await dialogGetMountPlugin()
+                            return
+                        }
+                        console.log('Mount plugin installed')
+
                         await lockWindows()
 
                         console.log('remoteConfig', remoteConfig)

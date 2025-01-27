@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { isDirectoryEmpty } from '../../lib/fs'
 import { getGlobalFlags, getMountFlags, getVfsFlags, mountRemote } from '../../lib/rclone/api'
+import { dialogGetMountPlugin } from '../../lib/rclone/mount'
+import { needsMountPlugin } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../lib/store'
 import OptionsSection from '../components/OptionsSection'
 import PathFinder from '../components/PathFinder'
@@ -89,6 +91,14 @@ export default function Mount() {
         setIsLoading(true)
 
         try {
+            const needsPlugin = await needsMountPlugin()
+            if (needsPlugin) {
+                console.log('Mount plugin not installed')
+                await dialogGetMountPlugin()
+                return
+            }
+            console.log('Mount plugin installed')
+
             const _mountOptions = { ...mountOptions }
 
             if (!('VolumeName' in _mountOptions) && ['windows', 'macos'].includes(platform())) {
