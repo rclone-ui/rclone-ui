@@ -5,7 +5,8 @@ import { sendNotification } from '@tauri-apps/plugin-notification'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
-import { deleteRemote, mountRemote, unmountRemote } from './rclone'
+import { deleteRemote, mountRemote, unmountRemote } from './rclone/api'
+import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
 import { getLoadingTray, getMainTray, rebuildTrayMenu } from './tray'
 import { lockWindows, openFullWindow, openTrayWindow, openWindow, unlockWindows } from './window'
@@ -86,6 +87,16 @@ export async function buildMenu() {
                     await getMainTray().then((t) => t?.setVisible(false))
 
                     await getLoadingTray().then((t) => t?.setVisible(true))
+
+                    const needsPlugin = await needsMountPlugin()
+                    if (needsPlugin) {
+                        console.log('Mount plugin not installed')
+                        await dialogGetMountPlugin()
+                        await getLoadingTray().then((t) => t?.setVisible(false))
+                        await getMainTray().then((t) => t?.setVisible(true))
+                        return
+                    }
+                    console.log('Mount plugin installed')
 
                     try {
                         await lockWindows()
