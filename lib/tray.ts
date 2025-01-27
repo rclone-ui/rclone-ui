@@ -1,11 +1,15 @@
+import { defaultWindowIcon } from '@tauri-apps/api/app'
+import { Menu } from '@tauri-apps/api/menu'
+import { MenuItem } from '@tauri-apps/api/menu'
+import { resolveResource } from '@tauri-apps/api/path'
 import type { TrayIconEvent } from '@tauri-apps/api/tray'
 import { TrayIcon } from '@tauri-apps/api/tray'
 import { getAllWindows } from '@tauri-apps/api/window'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { handleIconState } from '@tauri-apps/plugin-positioner'
+import { exit } from '@tauri-apps/plugin-process'
 import { buildMenu } from './menu'
 import { resetMainWindow } from './window'
-import { resolveResource } from '@tauri-apps/api/path';
-import { defaultWindowIcon } from "@tauri-apps/api/app";
 
 export async function getMainTray() {
     return await TrayIcon.getById('main-tray')
@@ -66,10 +70,28 @@ export async function initTray(): Promise<void> {
 }
 
 export async function initLoadingTray() {
-    const iconPath = await resolveResource('icons/favicon/frame_00_delay-0.1s.png');
+    const iconPath = await resolveResource('icons/favicon/frame_00_delay-0.1s.png')
+
+    const quitItem = await MenuItem.new({
+        id: 'quit-loading',
+        text: 'Quit',
+        action: async () => {
+            const answer = await ask('An operation is in progress, are you sure you want to exit?')
+            if (answer) {
+                await exit(0)
+            }
+        },
+    })
+
+    const loadingMenu = await Menu.new({
+        id: 'main-menu',
+        items: [quitItem],
+    })
+
     const loadingTray = await TrayIcon.new({
         id: 'loading-tray',
         icon: iconPath,
+        menu: loadingMenu,
     })
 
     let currentIcon = 1
@@ -79,10 +101,8 @@ export async function initLoadingTray() {
             currentIcon = 1
         }
         const iconPath = await resolveResource(
-          `icons/favicon/frame_${
-            currentIcon < 10 ? "0" : ""
-          }${currentIcon}_delay-0.1s.png`
-        );
+            `icons/favicon/frame_${currentIcon < 10 ? '0' : ''}${currentIcon}_delay-0.1s.png`
+        )
         await loadingTray?.setIcon(iconPath)
         currentIcon = currentIcon + 1
     }, 200)
