@@ -7,30 +7,89 @@ import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { Command } from '@tauri-apps/plugin-shell'
 
+export async function init() {
+    const system = await isSystemRcloneInstalled()
+    let internal = await isInternalRcloneInstalled()
+    const sidecar = await isSidecarRcloneInstalled()
+
+    // rclone not available, let's download it
+    if (!(system || internal || sidecar)) {
+        await provisionRclone()
+        internal = true
+    }
+
+    return {
+        system: system
+            ? async (args: string[]) => {
+                console.log('running system rclone')
+                return Command.create("rclone-system", args)
+            }
+            : null,
+        internal: internal
+            ? async (args: string[]) => {
+                console.log('running internal rclone')
+                return Command.create("rclone-internal", args, {
+                  cwd: `${await appLocalDataDir()}`,
+                })
+            }
+            : null,
+        sidecar: sidecar
+            ? async (args: string[]) => {
+                console.log('running sidecar rclone')
+                return Command.sidecar("binaries/rclone", args)
+            }
+            : null,
+    };
+}
+
 /**
  * Checks if rclone is installed and accessible from the system PATH
  * @returns {Promise<boolean>} True if rclone is installed and working
  */
-export async function checkRcloneInstalled() {
-    const output = await Command.create('rclone').execute()
-    // console.log('[checkRcloneInstalled] output', output)
-    return (
-        output.stdout.includes('Available commands') || output.stderr.includes('Available commands')
-    )
+export async function isSystemRcloneInstalled() {
+    try {
+        const output = await Command.create('rclone-system').execute()
+        // console.log('[checkRcloneInstalled] output', output)
+        return (
+            output.stdout.includes('Available commands') || output.stderr.includes('Available commands')
+        )
+    } catch (_) {
+        return false
+    }
 }
 
 /**
- * Checks if rclone is bundled with the application in the app's local data directory
- * @returns {Promise<boolean>} True if bundled rclone is present and working
+ * Checks if rclone is downloaded by the application in the app's local data directory
+ * @returns {Promise<boolean>} True if downloaded rclone is present and working
  */
-export async function checkRcloneBundled() {
-    const output = await Command.create('./rclone', [], {
-        cwd: `${await appLocalDataDir()}`,
-    }).execute()
-    // console.log('[checkRcloneBundled] output', output)
-    return (
-        output.stdout.includes('Available commands') || output.stderr.includes('Available commands')
-    )
+export async function isInternalRcloneInstalled() {
+    try {
+        const output = await Command.create('rclone-internal', [], {
+            cwd: `${await appLocalDataDir()}`,
+        }).execute()
+        // console.log('[checkRcloneBundled] output', output)
+        return (
+            output.stdout.includes('Available commands') || output.stderr.includes('Available commands')
+        )
+    } catch (_) {
+        return false
+    }
+}
+
+/**
+ * Checks if rclone is available as a sidecar
+ * @returns {Promise<boolean>} True if sidecar rclone is present and working
+ */
+export async function isSidecarRcloneInstalled() {
+    try {
+        const output = await Command.sidecar('binaries/rclone').execute()
+        // console.log('[checkRcloneBundled] output', output)
+        return (
+            output.stdout.includes('Available commands') || output.stderr.includes('Available commands')
+        )
+    } catch (_) {
+        return false
+    }
 }
 
 /**
@@ -113,7 +172,7 @@ export async function provisionRclone() {
 
     await copyFile(rcloneBinaryPath, `${await appLocalDataDir()}/rclone`)
 
-    const hasInstalled = await checkRcloneInstalled()
+    const hasInstalled = await isInternalRcloneInstalled();
 
     if (!hasInstalled) {
         throw new Error('Failed to install rclone')

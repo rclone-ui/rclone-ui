@@ -163,28 +163,22 @@
         "shell:allow-spawn",
         "shell:allow-stdin-write",
         "shell:allow-open",
-        "shell:allow-execute",
         {
             "identifier": "shell:allow-execute",
             "allow": [
                 {
-                    "name": "./rclone",
-                    "cmd": "./rclone",
-                    "args": true
+                    "name": "binaries/rclone",
+                    "args": true,
+                    "sidecar": true
                 },
                 {
-                    "name": "rclone",
+                    "name": "rclone-system",
                     "cmd": "rclone",
                     "args": true
                 },
                 {
-                    "name": "umount",
-                    "cmd": "umount",
-                    "args": true
-                },
-                {
-                    "name": "mount",
-                    "cmd": "mount",
+                    "name": "rclone-internal",
+                    "cmd": "$APPLOCALDATA/rclone",
                     "args": true
                 }
             ]
@@ -198,14 +192,14 @@
                     "sidecar": true
                 },
                 {
-                    "name": "./rclone",
-                    "args": true,
-                    "sidecar": true
+                    "name": "rclone-system",
+                    "cmd": "rclone",
+                    "args": true
                 },
                 {
-                    "name": "rclone",
-                    "args": true,
-                    "sidecar": true
+                    "name": "rclone-internal",
+                    "cmd": "$APPLOCALDATA/rclone",
+                    "args": true
                 }
             ]
         },
