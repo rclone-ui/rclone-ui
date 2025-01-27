@@ -168,6 +168,11 @@
             "identifier": "shell:allow-execute",
             "allow": [
                 {
+                    "name": "./rclone",
+                    "cmd": "./rclone",
+                    "args": true
+                },
+                {
                     "name": "rclone",
                     "cmd": "rclone",
                     "args": true
@@ -181,21 +186,6 @@
                     "name": "mount",
                     "cmd": "mount",
                     "args": true
-                },
-                {
-                    "name": "qjs",
-                    "cmd": "qjs",
-                    "args": true
-                },
-                {
-                    "name": "fuse",
-                    "cmd": "go-nfsv4",
-                    "args": true
-                },
-                {
-                    "name": "mount_nfs",
-                    "cmd": "mount_nfs",
-                    "args": true
                 }
             ]
         },
@@ -204,6 +194,16 @@
             "allow": [
                 {
                     "name": "binaries/rclone",
+                    "args": true,
+                    "sidecar": true
+                },
+                {
+                    "name": "./rclone",
+                    "args": true,
+                    "sidecar": true
+                },
+                {
+                    "name": "rclone",
                     "args": true,
                     "sidecar": true
                 }
@@ -235,6 +235,22 @@
                 }
             ]
         },
+        {
+            "identifier": "fs:allow-mkdir",
+            "allow": [
+                {
+                    "path": "/**"
+                }
+            ]
+        },
+        {
+            "identifier": "fs:allow-remove",
+            "allow": [
+                {
+                    "path": "/**"
+                }
+            ]
+        },
         "opener:default",
         "positioner:default",
         {
@@ -245,6 +261,12 @@
                 },
                 {
                     "url": "https://www.google.com"
+                },
+                {
+                    "url": "https://downloads.rclone.org/**"
+                },
+                {
+                    "url": "https://github.com/**"
                 }
             ]
         },

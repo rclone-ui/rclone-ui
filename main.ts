@@ -1,9 +1,12 @@
+import { appLocalDataDir } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { message } from '@tauri-apps/plugin-dialog'
+import { confirm, message } from '@tauri-apps/plugin-dialog'
+import {} from '@tauri-apps/plugin-fs'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { exit } from '@tauri-apps/plugin-process'
 import { Command } from '@tauri-apps/plugin-shell'
-import { listRemotes } from './lib/rclone'
+import { listRemotes } from './lib/rclone/api'
+import { checkRcloneBundled, checkRcloneInstalled, provisionRclone } from './lib/rclone/init'
 import { useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
 
@@ -31,23 +34,69 @@ console.log('main')
 console.error('main')
 
 async function startRclone() {
+    let hasLocalRclone = false
+    try {
+        hasLocalRclone = await checkRcloneInstalled()
+        console.log('hasLocalRclone', hasLocalRclone)
+    } catch (error) {
+        console.error('Failed to check if rclone is installed', error)
+    }
+    console.log('hasLocalRclone', hasLocalRclone)
+
+    let hasBundledRclone = false
+    try {
+        hasBundledRclone = await checkRcloneBundled()
+        console.log('hasBundledRclone', hasBundledRclone)
+    } catch (error) {
+        console.error('Failed to check if rclone is bundled', error)
+    }
+    console.log('hasBundledRclone', hasBundledRclone)
+
+    if (!hasLocalRclone && !hasBundledRclone) {
+        try {
+            await provisionRclone()
+        } catch (error) {
+            await confirm(error?.message || 'Failed to provision rclone, please try again later.', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return await exit(0)
+        }
+    }
+
     try {
         const remotes = await listRemotes()
-        console.log('rclone already running', remotes)
+        console.log('rclone rcd already running')
         useStore.setState({ rcloneLoaded: true })
         useStore.setState({ remotes: remotes })
         return
-    } catch (e) {
-        console.error('Failed to start rclone', e)
-    }
+    } catch {}
 
-    const command = Command.sidecar('binaries/rclone', [
-        'rcd',
-        '--rc-no-auth',
-        '--rc-serve',
-        // '-rc-addr',
-        // ':5572',
-    ])
+    //! this works
+    // const command = Command.sidecar('binaries/rclone', [
+    //     'rcd',
+    //     '--rc-no-auth',
+    //     '--rc-serve',
+    //     // '-rc-addr',
+    //     // ':5572',
+    // ])
+
+    //! sidecar does not work with global or appdata binaries
+    const command = Command.create(
+        hasLocalRclone ? 'rclone' : './rclone',
+        [
+            'rcd',
+            '--rc-no-auth',
+            '--rc-serve',
+            // '-rc-addr',
+            // ':5572',
+        ],
+        hasLocalRclone
+            ? undefined
+            : {
+                  cwd: `${await appLocalDataDir()}`,
+              }
+    )
 
     command.addListener('close', async (event) => {
         console.log('close', event)
@@ -65,11 +114,11 @@ async function startRclone() {
         console.log('error', event)
     })
 
-    // console.log('command', command)
+    //! so we have to do this:
+    //! not await the call
+    const childProcess = command.execute()
 
-    const childProcess = await command.spawn()
-
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await new Promise((resolve) => setTimeout(resolve, 200))
 
     useStore.setState({ rcloneLoaded: true })
 
@@ -94,7 +143,3 @@ getCurrentWindow().listen('rebuild-tray', async (e) => {
 initLoadingTray()
     .then(() => startRclone())
     .then(() => initTray())
-
-// await initLoadingTray()
-// await startRclone()
-// await initTray()
