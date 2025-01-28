@@ -55,7 +55,7 @@ export default function Jobs() {
 
     if (isInitialLoad) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen">
+            <div className="flex flex-col items-center justify-center h-screen">
                 <Spinner size="lg" />
             </div>
         )
@@ -63,14 +63,14 @@ export default function Jobs() {
 
     if (jobs.active.length === 0 && jobs.inactive.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen">
+            <div className="flex flex-col items-center justify-center h-screen">
                 <h1 className="text-2xl font-bold">No jobs found</h1>
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col overflow-scroll">
+        <div className="flex flex-col h-screen overflow-scroll">
             {jobs.active.map((job) => (
                 <Card key={job.id} radius="none">
                     <CardHeader>

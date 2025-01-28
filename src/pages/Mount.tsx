@@ -157,7 +157,7 @@ export default function Mount() {
     }, [isLoading, jsonError, source, dest, isMounted])
 
     return (
-        <div className="flex flex-col min-h-screen gap-10 pt-10">
+        <div className="flex flex-col h-screen gap-10 pt-10">
             {/* Main Content */}
             <div className="flex flex-col flex-1 w-full max-w-xl gap-6 mx-auto">
                 {/* Paths Display */}
