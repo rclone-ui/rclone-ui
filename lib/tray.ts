@@ -58,7 +58,7 @@ export async function initTray(): Promise<void> {
         await TrayIcon.new({
             id: 'main-tray',
             icon: (await defaultWindowIcon())!,
-            tooltip: 'S-Tray App',
+            tooltip: 'Rclone',
             menu,
             menuOnLeftClick: true,
             action: onTrayAction,

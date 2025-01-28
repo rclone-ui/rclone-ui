@@ -1,6 +1,6 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "s-tray",
+    "productName": "Rclone UI",
     "version": "0.1.0",
     "identifier": "com.stray.app",
     "build": {
@@ -12,7 +12,7 @@
     "app": {
         "windows": [
             {
-                "title": "STray",
+                "title": "Rclone UI",
                 "width": 0,
                 "height": 0,
                 "center": true,
@@ -60,7 +60,6 @@
             "icons/favicon/frame_16_delay-0.1s.png",
             "icons/favicon/frame_17_delay-0.1s.png"
         ],
-        "externalBin": ["binaries/rclone"],
         "category": "Utility",
         "copyright": "FarFetched",
         "macOS": {
