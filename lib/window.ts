@@ -107,7 +107,7 @@ export async function openTrayWindow({
     await w.setSize(new LogicalSize(400, 600))
     // await w.center()
     await w.show()
-    await moveWindow(Position.TopRight)
+    await moveWindow(Position.TrayCenter)
 
     return w
 }
