@@ -1,12 +1,10 @@
-import { appLocalDataDir } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { confirm, message } from '@tauri-apps/plugin-dialog'
 import {} from '@tauri-apps/plugin-fs'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { exit } from '@tauri-apps/plugin-process'
-import { Command } from '@tauri-apps/plugin-shell'
 import { listRemotes } from './lib/rclone/api'
-import { init as initRclone } from "./lib/rclone/init";
+import { initRclone } from './lib/rclone/init'
 import { useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
 
@@ -34,21 +32,6 @@ console.log('main')
 console.error('main')
 
 async function startRclone() {
-    let rclone;
-
-    try {
-        rclone = await initRclone();
-    } catch (error) {
-        await confirm(
-        error.message || "Failed to provision rclone, please try again later.",
-        {
-            title: "Error",
-            kind: "error",
-        }
-        );
-        return await exit(0);
-    }
-
     try {
         const remotes = await listRemotes()
         console.log('rclone rcd already running')
@@ -57,22 +40,34 @@ async function startRclone() {
         return
     } catch {}
 
-    const rcloneCommandFn = rclone.system || rclone.internal || rclone.sidecar;
+    let rclone
+
+    try {
+        rclone = await initRclone()
+    } catch (error) {
+        await confirm(error.message || 'Failed to provision rclone, please try again later.', {
+            title: 'Error',
+            kind: 'error',
+        })
+        return await exit(0)
+    }
+
+    const rcloneCommandFn = rclone.system || rclone.internal
 
     const command = await rcloneCommandFn([
-        "rcd",
-        "--rc-no-auth",
-        "--rc-serve",
+        'rcd',
+        '--rc-no-auth',
+        '--rc-serve',
         // '-rc-addr',
         // ':5572',
-    ]);
+    ])
 
-    command.stdout.on("data", (line) => {
-        console.log("[rclone] " + line);
-    });
-    command.stderr.on("data", (line) => {
-        console.log("[[rclone]] " + line);
-    });
+    // command.stdout.on('data', (line) => {
+    //     console.log('stdout ' + line)
+    // })
+    // command.stderr.on('data', (line) => {
+    //     console.log('stderr ' + line)
+    // })
 
     command.addListener('close', async (event) => {
         console.log('close', event)
@@ -107,11 +102,11 @@ async function startRclone() {
 }
 
 getCurrentWindow().listen('tauri://close-requested', async (e) => {
-    console.log('MAIN window close requested')
+    console.log('(main) window close requested')
 })
 
 getCurrentWindow().listen('rebuild-tray', async (e) => {
-    console.log('MAIN window rebuild-tray requested')
+    console.log('(main) window rebuild-tray requested')
     await rebuildTrayMenu()
 })
 

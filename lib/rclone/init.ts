@@ -1,19 +1,18 @@
 import { invoke } from '@tauri-apps/api/core'
 import { BaseDirectory, appLocalDataDir } from '@tauri-apps/api/path'
 import { tempDir } from '@tauri-apps/api/path'
-import { copyFile, mkdir, remove } from '@tauri-apps/plugin-fs'
+import { copyFile, exists, mkdir, remove } from '@tauri-apps/plugin-fs'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { Command } from '@tauri-apps/plugin-shell'
 
-export async function init() {
+export async function initRclone() {
     const system = await isSystemRcloneInstalled()
     let internal = await isInternalRcloneInstalled()
-    const sidecar = await isSidecarRcloneInstalled()
 
     // rclone not available, let's download it
-    if (!(system || internal || sidecar)) {
+    if (!system && !internal) {
         await provisionRclone()
         internal = true
     }
@@ -21,25 +20,17 @@ export async function init() {
     return {
         system: system
             ? async (args: string[]) => {
-                console.log('running system rclone')
-                return Command.create("rclone-system", args)
-            }
+                  console.log('running system rclone')
+                  return Command.create('rclone-system', args)
+              }
             : null,
         internal: internal
             ? async (args: string[]) => {
-                console.log('running internal rclone')
-                return Command.create("rclone-internal", args, {
-                  cwd: `${await appLocalDataDir()}`,
-                })
-            }
+                  console.log('running internal rclone')
+                  return Command.create('rclone-internal', args)
+              }
             : null,
-        sidecar: sidecar
-            ? async (args: string[]) => {
-                console.log('running sidecar rclone')
-                return Command.sidecar("binaries/rclone", args)
-            }
-            : null,
-    };
+    }
 }
 
 /**
@@ -49,9 +40,10 @@ export async function init() {
 export async function isSystemRcloneInstalled() {
     try {
         const output = await Command.create('rclone-system').execute()
-        // console.log('[checkRcloneInstalled] output', output)
+        // console.log('[isSystemRcloneInstalled] output', output)
         return (
-            output.stdout.includes('Available commands') || output.stderr.includes('Available commands')
+            output.stdout.includes('Available commands') ||
+            output.stderr.includes('Available commands')
         )
     } catch (_) {
         return false
@@ -64,28 +56,11 @@ export async function isSystemRcloneInstalled() {
  */
 export async function isInternalRcloneInstalled() {
     try {
-        const output = await Command.create('rclone-internal', [], {
-            cwd: `${await appLocalDataDir()}`,
-        }).execute()
-        // console.log('[checkRcloneBundled] output', output)
+        const output = await Command.create('rclone-internal').execute()
+        // console.log('[isInternalRcloneInstalled] output', output)
         return (
-            output.stdout.includes('Available commands') || output.stderr.includes('Available commands')
-        )
-    } catch (_) {
-        return false
-    }
-}
-
-/**
- * Checks if rclone is available as a sidecar
- * @returns {Promise<boolean>} True if sidecar rclone is present and working
- */
-export async function isSidecarRcloneInstalled() {
-    try {
-        const output = await Command.sidecar('binaries/rclone').execute()
-        // console.log('[checkRcloneBundled] output', output)
-        return (
-            output.stdout.includes('Available commands') || output.stderr.includes('Available commands')
+            output.stdout.includes('Available commands') ||
+            output.stderr.includes('Available commands')
         )
     } catch (_) {
         return false
@@ -135,46 +110,67 @@ export async function provisionRclone() {
     console.log('downloadUrl', downloadUrl)
 
     const downloadedFile = await fetch(downloadUrl).then((res) => res.arrayBuffer())
+    console.log('downloadedFile')
 
-    await remove('rclone', {
-        recursive: true,
-        baseDir: BaseDirectory.Temp,
-    })
+    const tempDirExists = await exists(`${tempDirPath}/rclone`)
+    console.log('tempDirExists', tempDirExists)
+
+    if (tempDirExists) {
+        await remove('rclone', {
+            recursive: true,
+            baseDir: BaseDirectory.Temp,
+        })
+        console.log('removed rclone temp dir')
+    }
 
     await mkdir('rclone', {
         baseDir: BaseDirectory.Temp,
     })
+    console.log('created rclone temp dir')
 
     const zipPath = `${tempDirPath}/rclone/rclone-v${currentVersion}-${currentOs}-${arch}.zip`
     console.log('zipPath', zipPath)
 
     await writeFile(zipPath, new Uint8Array(downloadedFile))
+    console.log('wrote zip file')
 
     await invoke('unzip_file', {
         zipPath,
         outputFolder: `${tempDirPath}/rclone/rclone-ui`,
     })
-
     console.log('Successfully unzipped file')
 
     const unarchivedPath = `${tempDirPath}/rclone/rclone-ui/rclone-v${currentVersion}-${currentOs}-${arch}`
     console.log('unarchivedPath', unarchivedPath)
 
-    // const unarchivedFolder = await readDir(unarchivedPath)
-    // console.log('unarchivedFolder', unarchivedFolder)
-
     const rcloneBinaryPath = unarchivedPath + '/' + 'rclone'
     console.log('rcloneBinaryPath', rcloneBinaryPath)
 
-    if (!rcloneBinaryPath) {
+    if (!(await exists(rcloneBinaryPath))) {
         throw new Error('Could not find rclone binary in zip')
     }
 
-    await copyFile(rcloneBinaryPath, `${await appLocalDataDir()}/rclone`)
+    const appLocalDataDirPath = await appLocalDataDir()
+    console.log('appLocalDataDirPath', appLocalDataDirPath)
 
-    const hasInstalled = await isInternalRcloneInstalled();
+    const appLocalDataDirPathExists = await exists(appLocalDataDirPath)
+    console.log('appLocalDataDirPathExists', appLocalDataDirPathExists)
+
+    if (!appLocalDataDirPathExists) {
+        await mkdir(appLocalDataDirPath, {
+            recursive: true,
+        })
+        console.log('appLocalDataDirPath created')
+    }
+
+    await copyFile(rcloneBinaryPath, `${appLocalDataDirPath}/rclone`)
+    console.log('copied rclone binary')
+
+    const hasInstalled = await isInternalRcloneInstalled()
 
     if (!hasInstalled) {
         throw new Error('Failed to install rclone')
     }
+
+    console.log('rclone has been installed')
 }
