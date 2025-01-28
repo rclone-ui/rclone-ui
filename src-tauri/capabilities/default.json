@@ -167,11 +167,6 @@
             "identifier": "shell:allow-execute",
             "allow": [
                 {
-                    "name": "binaries/rclone",
-                    "args": true,
-                    "sidecar": true
-                },
-                {
                     "name": "rclone-system",
                     "cmd": "rclone",
                     "args": true
@@ -180,17 +175,17 @@
                     "name": "rclone-internal",
                     "cmd": "$APPLOCALDATA/rclone",
                     "args": true
+                },
+                {
+                    "name": "umount",
+                    "cmd": "umount",
+                    "args": true
                 }
             ]
         },
         {
             "identifier": "shell:allow-spawn",
             "allow": [
-                {
-                    "name": "binaries/rclone",
-                    "args": true,
-                    "sidecar": true
-                },
                 {
                     "name": "rclone-system",
                     "cmd": "rclone",
