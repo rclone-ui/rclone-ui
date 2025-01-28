@@ -101,6 +101,10 @@ export async function openTrayWindow({
         url: url,
     })
 
+    // await getAllWindows()
+    //     .then((w) => w.find((w) => w.label === 'main'))
+    //     ?.then((w) => w?.setSize(new LogicalSize(400, 600)))
+
     await new Promise((resolve) => setTimeout(resolve, 1500))
 
     await w.hide()
