@@ -2,13 +2,14 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { confirm, message } from '@tauri-apps/plugin-dialog'
 import {} from '@tauri-apps/plugin-fs'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
+import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { listRemotes } from './lib/rclone/api'
 import { initRclone } from './lib/rclone/init'
 import { useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
 
-// forward console logs in webviews to the tauri logger, so they show up in the console
+// forward console logs in webviews to the tauri logger, so they show up in terminal
 function forwardConsole(
     fnName: 'log' | 'debug' | 'info' | 'warn' | 'error',
     logger: (message: string) => Promise<void>
@@ -27,9 +28,6 @@ forwardConsole('debug', debug)
 forwardConsole('info', info)
 forwardConsole('warn', warn)
 forwardConsole('error', error)
-
-console.log('main')
-console.error('main')
 
 async function startRclone() {
     try {
@@ -52,12 +50,19 @@ async function startRclone() {
         return await exit(0)
     }
 
+    const sessionPassword = Math.random().toString(36).substring(2, 15)
+    useStore.setState({ rcloneAuth: sessionPassword })
+    useStore.setState({ rcloneAuthHeader: 'Basic ' + btoa(`admin:${sessionPassword}`) })
+
     const rcloneCommandFn = rclone.system || rclone.internal
 
     const command = await rcloneCommandFn([
         'rcd',
-        '--rc-no-auth',
+        ...(platform() === 'macos'
+            ? ['--rc-no-auth'] // webkit doesn't allow for credentials in the url
+            : ['--rc-user', 'admin', '--rc-pass', sessionPassword]),
         '--rc-serve',
+        // defaults
         // '-rc-addr',
         // ':5572',
     ])
@@ -97,8 +102,6 @@ async function startRclone() {
     useStore.setState({ remotes: remotes })
 
     // console.log('childProcess', JSON.stringify(childProcess)) // prints `pid`
-
-    // console.log('command', JSON.stringify(command))
 }
 
 getCurrentWindow().listen('tauri://close-requested', async (e) => {

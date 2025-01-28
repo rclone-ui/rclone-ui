@@ -28,6 +28,8 @@ interface State {
     increment: () => void
 
     rcloneLoaded: boolean
+    rcloneAuth: string
+    rcloneAuthHeader: string
     mountedRemotes: Record<string, string>
 
     serveList: { pid: number; protocol: string; remote: string }[]
@@ -73,6 +75,8 @@ export const useStore = create<State>()(
             increment: () => set((state) => ({ count: state.count + 1 })),
 
             rcloneLoaded: false,
+            rcloneAuth: '',
+            rcloneAuthHeader: '',
             mountedRemotes: {},
 
             serveList: [],

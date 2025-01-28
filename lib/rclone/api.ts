@@ -1,12 +1,29 @@
-import { ask } from '@tauri-apps/plugin-dialog'
 import { fetch } from '@tauri-apps/plugin-http'
-import { Command } from '@tauri-apps/plugin-shell'
+import { platform } from '@tauri-apps/plugin-os'
+import { useStore } from '../store'
+
+/* UTILS */
+const SUPPORRTED_BACKENDS = ['sftp', 's3', 'b2', 'drive']
+
+function getAuthHeader() {
+    if (platform() === 'macos') {
+        return
+    }
+
+    const state = useStore.getState()
+
+    if (!state.rcloneAuthHeader) {
+        throw new Error('Rclone auth header is not set')
+    }
+
+    return { Authorization: state.rcloneAuthHeader }
+}
 
 /* DATA */
-
 export async function listRemotes() {
     const r = await fetch('http://localhost:5572/config/listremotes', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<{ remotes: string[] }>)
     // .catch((e) => {
     // 	console.log("error", e);
@@ -23,6 +40,7 @@ export async function listRemotes() {
 export async function getRemote(remote: string) {
     const r = await fetch(`http://localhost:5572/config/get?name=${remote}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then(
         (res) => res.json() as Promise<{ type: string } & Record<string, string | number | boolean>>
     )
@@ -48,6 +66,7 @@ export async function updateRemote(
 
     await fetch(`http://localhost:5572/config/update?${options.toString()}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     })
 
     // console.log(JSON.stringify(r, null, 2))
@@ -67,6 +86,7 @@ export async function createRemote(
 
     await fetch(`http://localhost:5572/config/create?${options.toString()}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     })
 
     // console.log(JSON.stringify(r, null, 2))
@@ -75,6 +95,7 @@ export async function createRemote(
 export async function deleteRemote(remote: string) {
     await fetch(`http://localhost:5572/config/delete?name=${remote}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     })
 
     // console.log(JSON.stringify(r, null, 2))
@@ -83,6 +104,7 @@ export async function deleteRemote(remote: string) {
 export async function getMountPoints() {
     const r = await fetch('http://localhost:5572/mount/listmounts', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then(
         (res) =>
             res.json() as Promise<{
@@ -99,11 +121,10 @@ export async function getMountPoints() {
     return r.mountPoints
 }
 
-const SUPPORRTED_BACKENDS = ['sftp', 's3', 'b2', 'drive']
-
 export async function getBackends() {
     const providers = await fetch('http://localhost:5572/config/providers', {
         method: 'POST',
+        headers: getAuthHeader(),
     })
         .then((res) => res.json() as Promise<any>)
         .then((r) => r.providers)
@@ -142,6 +163,7 @@ export async function listPath(remote: string, path: string = '', options: ListO
 
     const response = await fetch(`http://localhost:5572/operations/list?${params.toString()}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then(
         (res) =>
             res.json() as Promise<{
@@ -170,12 +192,14 @@ export async function listPath(remote: string, path: string = '', options: ListO
 export async function listJobs() {
     const allStats = await fetch('http://localhost:5572/core/stats', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as any)
 
     const transferring = allStats?.transferring
 
     const transferredStats = await fetch('http://localhost:5572/core/transferred', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as any)
 
     const transferred = transferredStats?.transferred
@@ -195,6 +219,7 @@ export async function listJobs() {
     for (const jobId of activeJobIds) {
         const job = await fetch(`http://localhost:5572/core/stats?group=job/${jobId}`, {
             method: 'POST',
+            headers: getAuthHeader(),
         }).then((res) => res.json() as Promise<any>)
 
         jobs.active.push({
@@ -223,6 +248,7 @@ export async function listJobs() {
     for (const jobId of inactiveJobIds) {
         const job = await fetch(`http://localhost:5572/core/stats?group=job/${jobId}`, {
             method: 'POST',
+            headers: getAuthHeader(),
         }).then((res) => res.json() as Promise<any>)
 
         jobs.inactive.push({
@@ -246,11 +272,11 @@ export async function listJobs() {
 export async function stopJob(jobId: number) {
     await fetch(`http://localhost:5572/job/stopgroup?group=job/${jobId}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     })
 }
 
 /* OPERATIONS */
-
 export async function mountRemote({
     remotePath,
     mountPoint,
@@ -276,6 +302,7 @@ export async function mountRemote({
 
     const r = await fetch(`http://localhost:5572/mount/mount?${options.toString()}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     })
         .then((res) => res.json() as Promise<{ remotes: string[] } | Promise<{ error: string }>>)
         .catch((e) => {
@@ -285,36 +312,6 @@ export async function mountRemote({
 
     if ('error' in r) {
         throw new Error(r.error)
-    }
-
-    return
-}
-
-export async function unmountRemote(mountPoint: string, force = false) {
-    const command = Command.create('umount', [force ? '-f' : '', mountPoint])
-
-    const output = await command.execute()
-
-    // console.log('output')
-    // console.log(JSON.stringify(output, null, 2))
-
-    if (output.code !== 0) {
-        if (output.stderr.toLowerCase().includes('busy')) {
-            const answer = await ask('This resource is busy, do you want to force unmount?', {
-                title: 'Could not unmount',
-                kind: 'warning',
-            })
-            if (answer) {
-                return await unmountRemote(mountPoint, true)
-            }
-            throw new Error(output.stderr)
-        }
-
-        if (output.stderr.toLowerCase().includes('not currently mounted')) {
-            return
-        }
-
-        throw new Error(output.stderr)
     }
 
     return
@@ -351,6 +348,7 @@ export async function startCopy({
 
     const r = await fetch(`http://localhost:5572/sync/copy?${params.toString()}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<{ jobid: string }>)
 
     console.log('Copy operation started:', r)
@@ -409,6 +407,7 @@ export async function startSync({
 
     const r = await fetch(`http://localhost:5572/sync/sync?${params.toString()}`, {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<{ jobid: string }>)
 
     console.log('Sync operation started:', r)
@@ -441,6 +440,7 @@ export async function startSync({
 export async function getGlobalFlags() {
     const r = await fetch('http://localhost:5572/options/get', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
     return r
@@ -449,6 +449,7 @@ export async function getGlobalFlags() {
 export async function getCopyFlags() {
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
     const mainFlags = r.main
@@ -463,6 +464,7 @@ export async function getCopyFlags() {
 export async function getSyncFlags() {
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
     const mainFlags = r.main
@@ -480,6 +482,7 @@ export async function getSyncFlags() {
 export async function getFilterFlags() {
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
     const filterFlags = r.filter
@@ -493,6 +496,7 @@ export async function getFilterFlags() {
 export async function getVfsFlags() {
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
     const vfsFlags = r.vfs
@@ -507,6 +511,7 @@ export async function getVfsFlags() {
 export async function getMountFlags() {
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
+        headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
     const mountFlags = r.mount

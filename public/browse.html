@@ -267,16 +267,25 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
       }
 
       // Function to fetch and modify webpage content
-      async function fetchAndInjectContent(url, isInitialLoad = false) {
+      async function fetchAndInjectContent(url, pass, isInitialLoad = false) {
         try {
           // Only show navigation spinner for non-initial loads
           if (!isInitialLoad) {
             toggleNavSpinner(true);
           }
+		  
+		  let newUrl = url
+		  if (pass) {
+			newUrl = url.replace('localhost:5572', 'admin:' + pass + '@localhost:5572')
+		  } else {
+			console.log('no pass')
+		  }
+		  
+		  console.log('newUrl', newUrl)
           
           const fetch = window.__TAURI__.http.fetch
           // Fetch the webpage content
-          const response = await fetch(url);
+          const response = await fetch(newUrl);
           const html = await response.text();
           
           // Create a temporary DOM parser
@@ -322,7 +331,7 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           document.body.appendChild(navSpinner);
           
           // Update the URL in the address bar without reloading
-          window.history.pushState({}, '', `?url=${encodeURIComponent(url)}`);
+          window.history.pushState({}, '', `?url=${encodeURIComponent(url)}` + (pass ? `&pass=${encodeURIComponent(pass)}` : ''));
           
           // Re-add our event handlers
           setupEventHandlers();
@@ -469,9 +478,10 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
         // Initial setup
         const urlParams = new URLSearchParams(window.location.search);
         const url = urlParams.get('url');
+        const pass = urlParams.get('pass');
         if (url) {
           // Pass true to indicate this is the initial load
-          fetchAndInjectContent(url, true);
+          fetchAndInjectContent(url, pass, true);
         } else {
           document.body.innerHTML = '<div>Error: No URL provided. Use ?url= parameter.</div>';
         }
