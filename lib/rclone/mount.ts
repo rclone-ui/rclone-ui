@@ -1,10 +1,11 @@
 import { downloadDir } from '@tauri-apps/api/path'
-import { confirm } from '@tauri-apps/plugin-dialog'
+import { ask, confirm } from '@tauri-apps/plugin-dialog'
 import { exists, writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
+import { Command } from '@tauri-apps/plugin-shell'
 
 export async function needsMountPlugin() {
     const currentPlatform = platform()
@@ -71,4 +72,34 @@ export async function dialogGetMountPlugin() {
             return await exit(0)
         }
     }
+}
+
+export async function unmountRemote(mountPoint: string, force = false) {
+    const command = Command.create('umount', [force ? '-f' : '', mountPoint])
+
+    const output = await command.execute()
+
+    // console.log('output')
+    // console.log(JSON.stringify(output, null, 2))
+
+    if (output.code !== 0) {
+        if (output.stderr.toLowerCase().includes('busy')) {
+            const answer = await ask('This resource is busy, do you want to force unmount?', {
+                title: 'Could not unmount',
+                kind: 'warning',
+            })
+            if (answer) {
+                return await unmountRemote(mountPoint, true)
+            }
+            throw new Error(output.stderr)
+        }
+
+        if (output.stderr.toLowerCase().includes('not currently mounted')) {
+            return
+        }
+
+        throw new Error(output.stderr)
+    }
+
+    return
 }
