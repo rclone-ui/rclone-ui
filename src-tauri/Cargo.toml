@@ -28,7 +28,6 @@ tauri-plugin-shell = "2.2.0"
 tauri-plugin-dialog = "2.2.0"
 tauri-plugin-fs = "2.2.0"
 tauri-plugin-opener = "2.2.3"
-tauri-plugin-positioner = { version = "2.2.0", features = ["tray-icon"] }
 tauri-plugin-http = "2.2.0"
 tauri-plugin-store = "2.2.0"
 tauri-plugin-process = "2"

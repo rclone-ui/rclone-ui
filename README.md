@@ -52,8 +52,6 @@
     - @tauri-apps/plugin-fs : 2.2.0
     - tauri-plugin-opener 🦀: 2.2.3
     - @tauri-apps/plugin-opener : 2.2.5
-    - tauri-plugin-positioner 🦀: 2.2.0
-    - @tauri-apps/plugin-positioner : 2.2.0
 
 #### App
     - build-type: bundle
