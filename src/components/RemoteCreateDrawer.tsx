@@ -1,7 +1,16 @@
 import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@nextui-org/drawer'
-import { Button, DrawerContent } from '@nextui-org/react'
+import {
+    Autocomplete,
+    AutocompleteItem,
+    Button,
+    Checkbox,
+    DrawerContent,
+    Input,
+    Select,
+    SelectItem,
+} from '@nextui-org/react'
 import { message } from '@tauri-apps/plugin-dialog'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCcwIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createRemote } from '../../lib/rclone/api'
 import { getBackends } from '../../lib/rclone/api'
@@ -27,7 +36,9 @@ export default function RemoteCreateDrawer({
 
     const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newType = e.target.value
-        setConfig({ type: newType })
+
+        // preserve name when resetting type
+        setConfig((prev) => ({ name: prev.name, type: newType }))
     }
 
     const renderField = (option: BackendOption) => {
@@ -45,92 +56,117 @@ export default function RemoteCreateDrawer({
         switch (option.Type) {
             case 'bool':
                 return (
-                    <div key={option.Name} className="space-y-2">
-                        <label className="flex items-center space-x-2">
-                            <input
-                                type="checkbox"
-                                id={fieldId}
-                                name={option.Name}
-                                className="form-checkbox"
-                                defaultChecked={fieldValue === 'true'}
-                                onChange={(e) =>
-                                    setConfig({ ...config, [option.Name]: e.target.checked })
-                                }
-                                autoComplete="off"
-                                autoCapitalize="off"
-                                autoCorrect="off"
-                                spellCheck={false}
-                            />
-                            <span className="text-sm font-medium">
-                                {option.Help.split('\n')[0]}
-                            </span>
-                        </label>
+                    <div key={option.Name} className="flex flex-col gap-0.5">
+                        <Checkbox
+                            checked={fieldValue === 'true'}
+                            name={option.Name}
+                            radius="sm"
+                            onValueChange={(checked) =>
+                                setConfig({ ...config, [option.Name]: checked })
+                            }
+                        >
+                            {option.Name}
+                        </Checkbox>
                         {option.Help.includes('\n') && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-foreground-400">
                                 {option.Help.split('\n').slice(1).join('\n')}
                             </p>
                         )}
                     </div>
+                    //         <input
+                    //             type="checkbox"
+                    //             id={fieldId}
+                    //             name={option.Name}
+                    //             className="form-checkbox"
+                    //             defaultChecked={fieldValue === 'true'}
+                    //             onChange={(e) =>
+                    //                 setConfig({ ...config, [option.Name]: e.target.checked })
+                    //             }
+                    //             autoComplete="off"
+                    //             autoCapitalize="off"
+                    //             autoCorrect="off"
+                    //             spellCheck={false}
+                    //         />
                 )
             case 'string': {
                 if (option.Examples && option.Examples.length > 0) {
                     return (
-                        <div key={option.Name} className="space-y-2">
-                            <label htmlFor={fieldId} className="block text-sm font-medium">
-                                {option.Help.split('\n')[0]}
-                            </label>
-                            <select
-                                id={fieldId}
-                                name={option.Name}
-                                className="w-full p-2 border rounded dark:bg-gray-800"
-                                value={fieldValue}
-                                onChange={(e) =>
-                                    setConfig({ ...config, [option.Name]: e.target.value })
-                                }
-                            >
-                                <option value="">Select {option.Name}</option>
-                                {option.Examples.map((example) => (
-                                    <option key={example.Value} value={example.Value}>
-                                        {example.Help || example.Value}
-                                    </option>
-                                ))}
-                            </select>
-                            {option.Help.includes('\n') && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {option.Help.split('\n').slice(1).join('\n')}
-                                </p>
+                        <Autocomplete
+                            id={fieldId}
+                            name={option.Name}
+                            defaultInputValue={fieldValue}
+                            defaultItems={option.Examples}
+                            label={option.Name}
+                            labelPlacement="outside"
+                            placeholder={option.Help.split('\n')[0]}
+                            description={option.Help.split('\n').slice(1).join('\n')}
+                            isRequired={option.Required}
+                            onInputChange={(value) => {
+                                // console.log(value)
+                                setConfig({ ...config, [option.Name]: value })
+                            }}
+                        >
+                            {(item) => (
+                                <AutocompleteItem key={item.Value}>
+                                    {item.Help || item.Value}
+                                </AutocompleteItem>
                             )}
-                        </div>
+                        </Autocomplete>
                     )
                 }
                 return (
-                    <div key={option.Name} className="space-y-2">
-                        <label htmlFor={fieldId} className="block text-sm font-medium">
-                            {option.Help.split('\n')[0]}
-                            {option.Required && <span className="ml-1 text-red-500">*</span>}
-                        </label>
-                        <input
-                            id={fieldId}
-                            name={option.Name}
-                            type={option.IsPassword ? 'password' : 'text'}
-                            className="w-full p-2 border rounded dark:bg-gray-800"
-                            value={fieldValue || ''}
-                            onChange={(e) =>
-                                setConfig({ ...config, [option.Name]: e.target.value })
-                            }
-                            required={option.Required}
-                            autoComplete="off"
-                            autoCapitalize="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                        />
-                        {option.Help.includes('\n') && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {option.Help.split('\n').slice(1).join('\n')}
-                            </p>
-                        )}
-                    </div>
+                    <Input
+                        key={option.Name}
+                        id={fieldId}
+                        name={option.Name}
+                        label={option.Name}
+                        labelPlacement="outside"
+                        placeholder={option.Help.split('\n')[0]}
+                        type={option.IsPassword ? 'password' : 'text'}
+                        value={fieldValue}
+                        autoComplete="off"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        description={option.Help.split('\n').slice(1).join('\n')}
+                        isRequired={option.Required}
+                        onValueChange={(value) => {
+                            // console.log(value)
+                            setConfig({ ...config, [option.Name]: value })
+                        }}
+                    />
                 )
+                // if (option.Examples && option.Examples.length > 0) {
+                //     return (
+                //             <select
+                //                 id={fieldId}
+                //                 name={option.Name}
+                //                 className="w-full p-2 border rounded dark:bg-gray-800"
+                //                 value={fieldValue}
+                //                 onChange={(e) =>
+                //                     setConfig({ ...config, [option.Name]: e.target.value })
+                //                 }
+                //             >
+                //                 <option value="">Select {option.Name}</option>
+                //                 {option.Examples.map((example) => (
+                //                     <option key={example.Value} value={example.Value}>
+                //                         {example.Help || example.Value}
+                //                     </option>
+                //                 ))}
+                //             </select>
+                //     )
+                // }
+                // return (
+                //         <input
+                //             id={fieldId}
+                //             name={option.Name}
+                //             type={option.IsPassword ? 'password' : 'text'}
+                //             value={fieldValue || ''}
+                //             onChange={(e) =>
+                //                 setConfig({ ...config, [option.Name]: e.target.value })
+                //             }
+                //         />
+                // )
             }
             default:
                 return null
@@ -208,55 +244,59 @@ export default function RemoteCreateDrawer({
             <DrawerContent>
                 {(close) => (
                     <>
-                        <DrawerHeader className="flex flex-col gap-1">Create Remote</DrawerHeader>
+                        <DrawerHeader className="flex flex-row justify-between gap-1">
+                            <span>Create Remote</span>
+                            <Button
+                                size="sm"
+                                variant="faded"
+                                color="danger"
+                                startContent={<RefreshCcwIcon className="w-3 h-3" />}
+                                onPress={() => setConfig({})}
+                                data-focus-visible="false"
+                            >
+                                Reset
+                            </Button>
+                        </DrawerHeader>
                         <DrawerBody>
-                            <form className="space-y-6" onSubmit={handleSubmit} id="create-form">
-                                <div className="space-y-2">
-                                    <label htmlFor="name" className="block text-sm font-medium">
-                                        Remote Name <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                        id="name"
-                                        name="name"
-                                        type="text"
-                                        className="w-full p-2 border rounded dark:bg-gray-800"
-                                        value={config.name || ''}
-                                        onChange={(e) =>
-                                            setConfig({ ...config, name: e.target.value })
-                                        }
-                                        required={true}
-                                        autoComplete="off"
-                                        autoCapitalize="off"
-                                        autoCorrect="off"
-                                        spellCheck={false}
-                                    />
-                                </div>
+                            <form
+                                className="flex flex-col gap-4"
+                                onSubmit={handleSubmit}
+                                id="create-form"
+                            >
+                                <Input
+                                    id="remote-name"
+                                    name="name"
+                                    label="name"
+                                    labelPlacement="outside"
+                                    placeholder="Remote Name"
+                                    value={config.name || ''}
+                                    onValueChange={(value) => setConfig({ ...config, name: value })}
+                                    isRequired={true}
+                                    autoComplete="off"
+                                    autoCapitalize="off"
+                                    autoCorrect="off"
+                                    spellCheck={false}
+                                />
 
-                                <div className="space-y-2">
-                                    <label
-                                        htmlFor="remote-type"
-                                        className="block text-sm font-medium"
-                                    >
-                                        Type <span className="text-red-500">*</span>
-                                    </label>
-                                    <select
-                                        id="remote-type"
-                                        name="type"
-                                        className="w-full p-2 border rounded dark:bg-gray-800"
-                                        value={config.type || ''}
-                                        onChange={handleTypeChange}
-                                        required={true}
-                                    >
-                                        <option value="">Select Type</option>
-                                        {backends.map((backend) => (
-                                            <option key={backend.Name} value={backend.Name}>
-                                                {backend.Description.includes('Compliant')
-                                                    ? `${backend.Description.split('Compliant')[0]} Compliant`
-                                                    : backend.Description || backend.Name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <Select
+                                    id="remote-type"
+                                    name="type"
+                                    label="type"
+                                    labelPlacement="outside"
+                                    selectionMode="single"
+                                    placeholder="Select Type"
+                                    selectedKeys={[config.type]}
+                                    onChange={handleTypeChange}
+                                    isRequired={true}
+                                >
+                                    {backends.map((backend) => (
+                                        <SelectItem key={backend.Name} value={backend.Name}>
+                                            {backend.Description.includes('Compliant')
+                                                ? `${backend.Description.split('Compliant')[0]} Compliant`
+                                                : backend.Description || backend.Name}
+                                        </SelectItem>
+                                    ))}
+                                </Select>
 
                                 {/* Normal Fields */}
                                 {currentBackendFields
@@ -279,7 +319,7 @@ export default function RemoteCreateDrawer({
                                             <span>More Options</span>
                                         </button>
                                         {showMoreOptions && (
-                                            <div className="pt-4 mt-4 space-y-6 border-t dark:border-gray-700">
+                                            <div className="flex flex-col gap-4 pt-4 mt-4">
                                                 {currentBackendFields
                                                     .filter((opt) => opt.Advanced)
                                                     .map(renderField)}

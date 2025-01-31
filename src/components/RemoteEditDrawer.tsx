@@ -1,6 +1,13 @@
 import { Checkbox } from '@nextui-org/checkbox'
 import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@nextui-org/drawer'
-import { Button, Input } from '@nextui-org/react'
+import {
+    Autocomplete,
+    AutocompleteItem,
+    Button,
+    Input,
+    Select,
+    SelectItem,
+} from '@nextui-org/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -59,7 +66,7 @@ export default function RemoteEditDrawer({
         switch (option.Type) {
             case 'bool':
                 return (
-                    <div key={option.Name} className="space-y-2">
+                    <div key={option.Name} className="flex flex-col gap-0.5">
                         <Checkbox
                             defaultChecked={fieldValue === 'true'}
                             name={option.Name}
@@ -68,7 +75,7 @@ export default function RemoteEditDrawer({
                             {option.Name}
                         </Checkbox>
                         {option.Help.includes('\n') && (
-                            <p className="text-sm text-gray-400">
+                            <p className="text-xs text-foreground-400">
                                 {option.Help.split('\n').slice(1).join('\n')}
                             </p>
                         )}
@@ -77,34 +84,26 @@ export default function RemoteEditDrawer({
             case 'string': {
                 if (option.Examples && option.Examples.length > 0) {
                     return (
-                        <div key={option.Name} className="space-y-2">
-                            <label htmlFor={fieldId} className="block text-sm font-medium">
-                                {option.Help.split('\n')[0]}
-                            </label>
-                            <select
-                                id={fieldId}
-                                name={option.Name}
-                                className="w-full p-2 border rounded dark:bg-gray-800"
-                                defaultValue={fieldValue}
-                            >
-                                <option value="">Select {option.Name}</option>
-                                {option.Examples.map((example) => (
-                                    <option key={example.Value} value={example.Value}>
-                                        {example.Help || example.Value}
-                                    </option>
-                                ))}
-                            </select>
-                            {option.Help.includes('\n') && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {option.Help.split('\n').slice(1).join('\n')}
-                                </p>
+                        <Autocomplete
+                            id={fieldId}
+                            name={option.Name}
+                            defaultInputValue={fieldValue}
+                            defaultItems={option.Examples}
+                            label={option.Name}
+                            labelPlacement="outside"
+                            placeholder={option.Help.split('\n')[0]}
+                            description={option.Help.split('\n').slice(1).join('\n')}
+                        >
+                            {(item) => (
+                                <AutocompleteItem key={item.Value}>
+                                    {item.Help || item.Value}
+                                </AutocompleteItem>
                             )}
-                        </div>
+                        </Autocomplete>
                     )
                 }
                 return (
                     <Input
-                        // form='remote-form' might not be needed
                         key={option.Name}
                         id={fieldId}
                         name={option.Name}
@@ -197,32 +196,28 @@ export default function RemoteEditDrawer({
                                 className="flex flex-col gap-4"
                                 onSubmit={handleSubmit}
                             >
-                                <div className="space-y-2">
-                                    <label
-                                        htmlFor="edit-remote-type"
-                                        className="block text-sm font-medium"
-                                    >
-                                        Type
-                                    </label>
-                                    <select
-                                        id="edit-remote-type"
-                                        name="type"
-                                        value={config.type}
-                                        className="w-full h-10"
-                                        onChange={(e) =>
-                                            setConfig({ ...config, type: e.target.value })
-                                        }
-                                    >
-                                        <option value="">Select Type</option>
-                                        {backends.map((backend) => (
-                                            <option key={backend.Name} value={backend.Name}>
-                                                {backend.Description.includes('Compliant')
-                                                    ? `${backend.Description.split('Compliant')[0]} Compliant`
-                                                    : backend.Description || backend.Name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <Select
+                                    id="edit-remote-type"
+                                    name="type"
+                                    label="type"
+                                    labelPlacement="outside"
+                                    selectionMode="single"
+                                    placeholder="Select Type"
+                                    selectedKeys={[config.type]}
+                                    // onChange={(e) => {
+                                    //     console.log(e.target.value)
+                                    //     setConfig({ ...config, type: e.target.value })
+                                    // }}
+                                    isDisabled={true}
+                                >
+                                    {backends.map((backend) => (
+                                        <SelectItem key={backend.Name} value={backend.Name}>
+                                            {backend.Description.includes('Compliant')
+                                                ? `${backend.Description.split('Compliant')[0]} Compliant`
+                                                : backend.Description || backend.Name}
+                                        </SelectItem>
+                                    ))}
+                                </Select>
 
                                 {/* Basic Options */}
                                 {currentBackend?.Options.filter((opt) => !opt.Advanced).map(
@@ -268,7 +263,7 @@ export default function RemoteEditDrawer({
                                 color="primary"
                                 type="submit"
                                 form="remote-form"
-                                isLoading={isSaving}
+                                isDisabled={isSaving}
                                 data-focus-visible="false"
                             >
                                 {isSaving ? 'Saving...' : 'Save Changes'}
