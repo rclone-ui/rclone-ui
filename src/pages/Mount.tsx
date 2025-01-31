@@ -32,14 +32,17 @@ export default function Mount() {
     const [isLoading, setIsLoading] = useState(false)
     const [jsonError, setJsonError] = useState<'mount' | 'vfs' | null>(null)
 
+    const [mountOptionsLocked, setMountOptionsLocked] = useState(false)
     const [mountOptions, setMountOptions] = useState<Record<string, string>>({})
     const [mountOptionsJson, setMountOptionsJson] = useState<string>('{}')
 
+    const [vfsOptionsLocked, setVfsOptionsLocked] = useState(false)
     const [vfsOptions, setVfsOptions] = useState<Record<string, string>>({})
     const [vfsOptionsJson, setVfsOptionsJson] = useState<string>('{}')
 
     const [globalOptions, setGlobalOptions] = useState<any[]>([])
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
         const storeData = usePersistedStore.getState()
 
@@ -51,7 +54,8 @@ export default function Mount() {
 
         if (
             storeData.remoteConfigList[remote].mountDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].mountDefaults).length > 0
+            Object.keys(storeData.remoteConfigList[remote].mountDefaults).length > 0 &&
+            !mountOptionsLocked
         ) {
             setMountOptionsJson(
                 JSON.stringify(storeData.remoteConfigList[remote].mountDefaults, null, 2)
@@ -60,7 +64,8 @@ export default function Mount() {
 
         if (
             storeData.remoteConfigList[remote].vfsDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].vfsDefaults).length > 0
+            Object.keys(storeData.remoteConfigList[remote].vfsDefaults).length > 0 &&
+            !vfsOptionsLocked
         ) {
             setVfsOptionsJson(
                 JSON.stringify(storeData.remoteConfigList[remote].vfsDefaults, null, 2)
@@ -199,6 +204,8 @@ export default function Mount() {
                             globalOptions={globalOptions['mount' as keyof typeof globalOptions]}
                             optionsFetcher={getMountFlags}
                             rows={5}
+                            isLocked={mountOptionsLocked}
+                            setIsLocked={setMountOptionsLocked}
                         />
                     </AccordionItem>
                     <AccordionItem
@@ -216,6 +223,8 @@ export default function Mount() {
                             globalOptions={globalOptions['vfs' as keyof typeof globalOptions]}
                             optionsFetcher={getVfsFlags}
                             rows={10}
+                            isLocked={vfsOptionsLocked}
+                            setIsLocked={setVfsOptionsLocked}
                         />
                     </AccordionItem>
                 </Accordion>
