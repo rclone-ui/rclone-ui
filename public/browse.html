@@ -324,9 +324,6 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           // Hide "Go up" row if at root
           hideGoUpIfRoot(url);
           
-          // Add download buttons to the table
-          addDownloadButtons();
-          
           // Re-add the spinner
           document.body.appendChild(navSpinner);
           
@@ -351,50 +348,62 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
         const link = event.target.closest('a');
         if (!link) return;
 
-        // Don't interfere with download links
-        if (link.hasAttribute('download')) {
-            event.preventDefault();
-            
-            const save = window.__TAURI__.dialog.save;
-            const writeTextFile = window.__TAURI__.fs.writeTextFile;
-			const writeFile = window.__TAURI__.fs.writeFile;
-            const http = window.__TAURI__.http;
-            
-            // Get the full URL for the download
-            const href = link.getAttribute('href');
-            const currentUrl = new URLSearchParams(window.location.search).get('url');
-            const baseUrl = new URL(currentUrl).href;
-            const downloadUrl = new URL(href, baseUrl).href;
-            
-            // Get the filename from the download attribute or URL
-            const filename = link.getAttribute('download') || href.split('/').pop();
-            
-            save({ 
-                title: 'Save File',
-                defaultPath: filename
-            }).then(async (result) => {
-                if (result) {
-                    try {
-						console.log('downloading', downloadUrl)
-                        // Fetch the file contents
-                        const response = await http.fetch(downloadUrl, {
-                            method: 'GET',
-                            responseType: 2 // ResponseType.Binary
-                        });
-						
-						const data = await response.arrayBuffer();
-                        
-                        // Write the file contents
-                        await writeFile(result, data);
-                    } catch (err) {
-                        console.error('Failed to download file:', err);
-                    }
-                }
-            });
-            
-            return;
+        // Get the row and check if it's a file
+        const row = link.closest('tr.file');
+        if (!row) return;
+
+        const isFolder = row.querySelector('svg use').getAttribute('xlink:href') === '#folder';
+        
+        if (!isFolder) {
+          // Handle file download
+          event.preventDefault();
+          
+          const save = window.__TAURI__.dialog.save;
+          const writeFile = window.__TAURI__.fs.writeFile;
+          const http = window.__TAURI__.http;
+          
+          // Get the full URL for the download
+          const href = link.getAttribute('href');
+          const currentUrl = new URLSearchParams(window.location.search).get('url');
+          const baseUrl = new URL(currentUrl).href;
+          const downloadUrl = new URL(href, baseUrl).href;
+          
+          // Get the filename from the URL
+          const filename = href.split('/').pop();
+          
+          save({ 
+              title: 'Save File',
+              defaultPath: filename
+          }).then(async (result) => {
+              if (result) {
+                  try {
+                      // Show the loading spinner while downloading
+                      toggleNavSpinner(true);
+                      
+                      console.log('downloading', downloadUrl);
+                      // Fetch the file contents
+                      const response = await http.fetch(downloadUrl, {
+                          method: 'GET',
+                          responseType: 2 // ResponseType.Binary
+                      });
+                      
+                      const data = await response.arrayBuffer();
+                      
+                      // Write the file contents
+                      await writeFile(result, data);
+                  } catch (err) {
+                      console.error('Failed to download file:', err);
+                  } finally {
+                      // Hide the loading spinner when done
+                      toggleNavSpinner(false);
+                  }
+              }
+          });
+          
+          return;
         }
 
+        // Handle folder navigation
         const href = link.getAttribute('href');
         if (!href || href === '') {
           event.preventDefault();
@@ -435,6 +444,75 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
         fetchAndInjectContent(fullUrl);
       }
 
+      // Function to check if an element is in viewport
+      function isInViewport(element) {
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.top >= 0 &&
+          rect.left >= 0 &&
+          rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+          rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+        );
+      }
+
+      // Function to prefetch links
+      async function prefetchVisibleLinks() {
+        const fileRows = document.querySelectorAll('tr.file');
+        const prefetchedUrls = new Set();
+        
+        for (const row of fileRows) {
+          // Skip if not in viewport
+          if (!isInViewport(row)) {
+            continue;
+          }
+
+          // Check if this is a folder by looking for the folder icon
+          const isFolderIcon = row.querySelector('svg use')?.getAttribute('xlink:href') === '#folder';
+          if (!isFolderIcon) {
+            continue;
+          }
+
+          const link = row.querySelector('a');
+          if (!link || prefetchedUrls.has(link.href)) {
+            continue;
+          }
+
+          const href = link.getAttribute('href');
+          if (!href || href === '') continue;
+
+          // Construct full URL similar to handleLinkClick
+          let fullUrl;
+          if (href.startsWith('http')) {
+            fullUrl = href;
+          } else if (href.startsWith('//')) {
+            fullUrl = 'https:' + href;
+          } else if (href.startsWith('/')) {
+            const currentUrl = new URLSearchParams(window.location.search).get('url');
+            const baseUrl = new URL(currentUrl).origin;
+            fullUrl = baseUrl + href;
+          } else {
+            const currentUrl = new URLSearchParams(window.location.search).get('url');
+            const baseUrl = new URL(currentUrl).href;
+            fullUrl = new URL(href, baseUrl).href;
+          }
+
+          try {
+            const pass = new URLSearchParams(window.location.search).get('pass');
+            let prefetchUrl = fullUrl;
+            if (pass) {
+              prefetchUrl = fullUrl.replace('localhost:5572', 'admin:' + pass + '@localhost:5572');
+            }
+
+            // Prefetch the content
+            const fetch = window.__TAURI__.http.fetch;
+            await fetch(prefetchUrl);
+            prefetchedUrls.add(fullUrl);
+          } catch (error) {
+            console.error('Error prefetching:', error);
+          }
+        }
+      }
+
       // Function to set up event handlers
       function setupEventHandlers() {
         // Handle all click events at the document level
@@ -445,32 +523,16 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           event.preventDefault();
           // You can add form handling logic here if needed
         });
-      }
 
-      // Function to modify the table structure after content load
-      function addDownloadButtons() {
-        // Find all file rows
-        const fileRows = document.querySelectorAll('tr.file');
-        fileRows.forEach(row => {
-          // Check if this is a file (not a folder) by looking for the file icon
-          const isFolder = row.querySelector('svg use').getAttribute('xlink:href') === '#folder';
-          
-          if (!isFolder) {
-            // Get the file link container
-            const nameSpan = row.querySelector('.name');
-            if (nameSpan) {
-              // Create download link
-              const downloadLink = document.createElement('a');
-              const fileLink = nameSpan.querySelector('a');
-              // keep only the last part of the url, otherwise it uses the wrong root url
-              downloadLink.href = fileLink.href.split('/').pop();
-              downloadLink.className = 'download-link';
-              downloadLink.setAttribute('download', '');
-              downloadLink.textContent = '⇩';
-              nameSpan.appendChild(downloadLink);
-            }
-          }
-        });
+        // Add scroll event listener for prefetching
+        let scrollTimeout;
+        window.addEventListener('scroll', () => {
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(prefetchVisibleLinks, 150);
+        }, { passive: true });
+
+        // Initial prefetch for visible links
+        prefetchVisibleLinks();
       }
 
       // Wait for DOM to be ready before initializing
