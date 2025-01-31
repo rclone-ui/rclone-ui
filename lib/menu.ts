@@ -1,5 +1,5 @@
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
-import { ask, confirm, message, open } from '@tauri-apps/plugin-dialog'
+import { ask, message, open } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import { sendNotification } from '@tauri-apps/plugin-notification'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
@@ -55,7 +55,7 @@ export async function buildMenu() {
                             delete storeState.mountedRemotes[remote]
                             await rebuildTrayMenu()
                             await message(`Successfully unmounted ${remote} from ${mountPoint}`, {
-                                title: 'Unmount Success',
+                                title: 'Success',
                             })
                         } catch (err) {
                             console.error('Unmount operation failed:', err)
@@ -227,12 +227,12 @@ export async function buildMenu() {
                     id: `remove-${remote}`,
                     text: 'Remove',
                     action: async () => {
-                        const confirmation = await confirm(
+                        const answer = await ask(
                             `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
                             { title: `Removing ${remote}`, kind: 'warning' }
                         )
 
-                        if (!confirmation) {
+                        if (!answer) {
                             return
                         }
 

@@ -23,13 +23,11 @@ export interface RemoteConfig {
 }
 
 interface State {
-    count: number
-    anotherCount: number
-    increment: () => void
 
     rcloneLoaded: boolean
     rcloneAuth: string
     rcloneAuthHeader: string
+
     mountedRemotes: Record<string, string>
 
     serveList: { pid: number; protocol: string; remote: string }[]
@@ -70,13 +68,11 @@ const getStorage = (store: LazyStore): StateStorage => ({
 export const useStore = create<State>()(
     shared(
         (set) => ({
-            count: 0,
-            anotherCount: 0,
-            increment: () => set((state) => ({ count: state.count + 1 })),
 
             rcloneLoaded: false,
             rcloneAuth: '',
             rcloneAuthHeader: '',
+
             mountedRemotes: {},
 
             serveList: [],

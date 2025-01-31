@@ -249,9 +249,6 @@
                     "url": "http://localhost:5572/**"
                 },
                 {
-                    "url": "https://www.google.com"
-                },
-                {
                     "url": "https://downloads.rclone.org/**"
                 },
                 {

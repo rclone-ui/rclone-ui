@@ -1,5 +1,5 @@
 import { downloadDir } from '@tauri-apps/api/path'
-import { ask, confirm } from '@tauri-apps/plugin-dialog'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { exists, writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
@@ -32,7 +32,7 @@ export async function dialogGetMountPlugin() {
     const currentPlatform = platform()
     if (currentPlatform === 'macos') {
         // download fuse-t or osxfuse
-        const wantsDownload = await confirm(
+        const wantsDownload = await ask(
             "Fuse-t is required on macOS to mount remotes. You can open rclone UI again once you're done with the installation.",
             {
                 title: 'Mount plugin not installed',
@@ -53,7 +53,7 @@ export async function dialogGetMountPlugin() {
     }
     if (currentPlatform === 'windows') {
         // download winfsp
-        const wantsDownload = await confirm(
+        const wantsDownload = await ask(
             "WinFsp is required on Windows to mount remotes. You can open rclone UI again once you're done with the installation.",
             {
                 title: 'Mount plugin not installed',
@@ -84,9 +84,11 @@ export async function unmountRemote(mountPoint: string, force = false) {
 
     if (output.code !== 0) {
         if (output.stderr.toLowerCase().includes('busy')) {
-            const answer = await ask('This resource is busy, do you want to force unmount?', {
+            const answer = await ask('This resource is busy, do you wish to force unmount?', {
                 title: 'Could not unmount',
                 kind: 'warning',
+                okLabel: 'Force Unmount',
+                cancelLabel: 'Cancel',
             })
             if (answer) {
                 return await unmountRemote(mountPoint, true)

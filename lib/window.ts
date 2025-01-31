@@ -33,8 +33,6 @@ export async function openFullWindow({
         url: url,
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
     const size = await currentMonitor().then((m) => m?.size)
 
     if (!size) return

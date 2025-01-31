@@ -78,7 +78,6 @@
                 }
             },
             "hardenedRuntime": true,
-            "entitlements": "Entitlements.plist",
             "minimumSystemVersion": "10.13"
         }
     }

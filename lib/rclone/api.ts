@@ -49,7 +49,7 @@ export async function getRemote(remote: string) {
     // 	throw e;
     // });
 
-    console.log(JSON.stringify(r, null, 2))
+    // console.log(JSON.stringify(r, null, 2))
 
     return r
 }
