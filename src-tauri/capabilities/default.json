@@ -242,6 +242,15 @@
         },
         "opener:default",
 
+        "updater:allow-download",
+        "updater:allow-download-and-install",
+        "updater:allow-check",
+        "updater:allow-install",
+
+        "autostart:allow-enable",
+        "autostart:allow-disable",
+        "autostart:allow-is-enabled",
+
         {
             "identifier": "http:default",
             "allow": [
@@ -253,6 +262,9 @@
                 },
                 {
                     "url": "https://github.com/**"
+                },
+                {
+                    "url": "https://rcloneui.com/**"
                 }
             ]
         },

@@ -1,12 +1,12 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { confirm, message } from '@tauri-apps/plugin-dialog'
-import {} from '@tauri-apps/plugin-fs'
+import { ask, message } from '@tauri-apps/plugin-dialog'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
+import { validateLicense } from './lib/license'
 import { listRemotes } from './lib/rclone/api'
 import { initRclone } from './lib/rclone/init'
-import { useStore } from './lib/store'
+import { usePersistedStore, useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
 
 // forward console logs in webviews to the tauri logger, so they show up in terminal
@@ -29,6 +29,61 @@ forwardConsole('info', info)
 forwardConsole('warn', warn)
 forwardConsole('error', error)
 
+async function waitForHydration() {
+    console.log('waiting for store hydration')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    if (!usePersistedStore.persist.hasHydrated()) {
+        await waitForHydration()
+    }
+    console.log('store hydrated')
+}
+
+async function validateInstance() {
+    const isOnline = navigator.onLine
+
+    if (!isOnline) {
+        await ask(
+            'You are not connected to the internet. Please check your internet connection and try again.',
+            {
+                title: 'Error',
+                kind: 'error',
+                okLabel: 'Exit',
+                cancelLabel: '',
+            }
+        )
+        return await exit(0)
+    }
+
+    const licenseKey = usePersistedStore.getState().licenseKey
+    if (!licenseKey) {
+        usePersistedStore.setState({ licenseValid: false })
+        return
+    }
+
+    try {
+        await validateLicense(licenseKey)
+    } catch (e) {
+        if (e instanceof Error) {
+            await ask(e.message, {
+                title: 'Error',
+                kind: 'error',
+                okLabel: 'Exit',
+                cancelLabel: '',
+            })
+            await exit(0)
+            return
+        }
+
+        await ask('An error occurred while validating your license. Please try again.', {
+            title: 'Error',
+            kind: 'error',
+            okLabel: 'Exit',
+            cancelLabel: '',
+        })
+        await exit(0)
+    }
+}
+
 async function startRclone() {
     try {
         const remotes = await listRemotes()
@@ -43,9 +98,11 @@ async function startRclone() {
     try {
         rclone = await initRclone()
     } catch (error) {
-        await confirm(error.message || 'Failed to provision rclone, please try again later.', {
+        await ask(error.message || 'Failed to provision rclone, please try again later.', {
             title: 'Error',
             kind: 'error',
+            okLabel: 'Exit',
+            cancelLabel: '',
         })
         return await exit(0)
     }
@@ -110,10 +167,24 @@ getCurrentWindow().listen('tauri://close-requested', async (e) => {
 
 getCurrentWindow().listen('rebuild-tray', async (e) => {
     console.log('(main) window rebuild-tray requested')
+
+    // wait for store to be updated
+    await new Promise((resolve) => setTimeout(resolve, 250))
+
     await rebuildTrayMenu()
 })
 
+// function handleNetworkStatusChange() {
+//     console.log('Network status changed. Online:', navigator.onLine)
+//     // rebuildTrayMenu().catch(console.error)
+// }
+
+// window.addEventListener('online', handleNetworkStatusChange)
+// window.addEventListener('offline', handleNetworkStatusChange)
+
 initLoadingTray()
+    .then(() => waitForHydration())
+    .then(() => validateInstance())
     .then(() => startRclone())
     .then(() => initTray())
     .catch(console.error)

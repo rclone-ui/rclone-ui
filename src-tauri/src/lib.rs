@@ -6,71 +6,76 @@
 //     cwd: String,
 // }
 
-
-
+use machine_uid;
 use std::fs::{self, File};
 use std::path::Path;
 use zip::ZipArchive;
 
 #[tauri::command]
 fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
-	// Open the zip file
-	let file = File::open(zip_path).map_err(|e| e.to_string())?;
-	
-	// Create output directory if it doesn't exist
-	fs::create_dir_all(output_folder).map_err(|e| e.to_string())?;
-	
-	// Create ZIP archive reader
-	let mut archive = ZipArchive::new(file).map_err(|e| e.to_string())?;
-	
-	// Extract everything
-	for i in 0..archive.len() {
-		let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
-		let outpath = Path::new(output_folder).join(file.name());
-		
-		if file.name().ends_with('/') {
-			fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
-		} else {
-			if let Some(p) = outpath.parent() {
-				fs::create_dir_all(p).map_err(|e| e.to_string())?;
-			}
-			let mut outfile = File::create(&outpath).map_err(|e| e.to_string())?;
-			std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
-		}
-		
-		// Get and set permissions (Unix only)
-		#[cfg(unix)]
-		{
-			use std::os::unix::fs::PermissionsExt;
-			if let Some(mode) = file.unix_mode() {
-				fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))
-					.map_err(|e| e.to_string())?;
-			}
-		}
-	}
-	
-	Ok(())
+    // Open the zip file
+    let file = File::open(zip_path).map_err(|e| e.to_string())?;
+
+    // Create output directory if it doesn't exist
+    fs::create_dir_all(output_folder).map_err(|e| e.to_string())?;
+
+    // Create ZIP archive reader
+    let mut archive = ZipArchive::new(file).map_err(|e| e.to_string())?;
+
+    // Extract everything
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let outpath = Path::new(output_folder).join(file.name());
+
+        if file.name().ends_with('/') {
+            fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(p) = outpath.parent() {
+                fs::create_dir_all(p).map_err(|e| e.to_string())?;
+            }
+            let mut outfile = File::create(&outpath).map_err(|e| e.to_string())?;
+            std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
+        }
+
+        // Get and set permissions (Unix only)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Some(mode) = file.unix_mode() {
+                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
 fn get_arch() -> String {
     let arch = std::env::consts::ARCH;
-    
+
     match arch {
         "aarch64" => "arm64".to_string(),
         "x86_64" => "amd64".to_string(),
-		"i386" => "386".to_string(),
+        "i386" => "386".to_string(),
         _ => "unknown".to_string(),
     }
 }
 
+#[tauri::command]
+fn get_uid() -> String {
+    return machine_uid::get().unwrap();
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut app = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
+		// .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![])))
         // .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
         // 	println!("{}, {argv:?}, {cwd}", app.package_info().name);
         // 	// app.emit("single-instance", Payload { args: argv, cwd }).unwrap();
@@ -88,7 +93,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-		.invoke_handler(tauri::generate_handler![unzip_file, get_arch])
+        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid])
         .setup(|_app| Ok(()))
         // .setup(|app| {
         //     if cfg!(debug_assertions) {

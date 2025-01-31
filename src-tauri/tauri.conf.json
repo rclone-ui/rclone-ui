@@ -32,7 +32,7 @@
     },
     "bundle": {
         "active": true,
-        "targets": "all",
+        "targets": ["nsis", "dmg", "app", "appimage", "deb", "rpm"],
         "icon": [
             "icons/32x32.png",
             "icons/128x128.png",
@@ -79,6 +79,19 @@
             },
             "hardenedRuntime": true,
             "minimumSystemVersion": "10.13"
+        },
+        "windows": {
+            "nsis": {
+                "installMode": "both"
+            },
+            "signCommand": "trusted-signing-cli %1 -e https://eus.codesigning.azure.net -a sign-1 -c Sign1"
+        },
+        "createUpdaterArtifacts": true
+    },
+    "plugins": {
+        "updater": {
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyNDFENEZGNjFDNTBGOEYKUldTUEQ4VmgvOVJCSWhVZmw0enhmcW1kWFk3TS9mMzBDRjVEZWdxKzQ5ZmRhTlYvT2gvdFNMbE8K",
+            "endpoints": ["https://github.com/FTCHD/rclone-ui/releases/latest/download/latest.json"]
         }
     }
 }

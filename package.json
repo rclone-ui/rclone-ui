@@ -21,6 +21,7 @@
     "dependencies": {
         "@nextui-org/react": "^2.6.11",
         "@tauri-apps/api": "~2.2.0",
+        "@tauri-apps/plugin-autostart": "^2.2.0",
         "@tauri-apps/plugin-dialog": "^2.2.0",
         "@tauri-apps/plugin-fs": "^2.2.0",
         "@tauri-apps/plugin-http": "^2.2.0",
@@ -31,6 +32,7 @@
         "@tauri-apps/plugin-process": "^2.2.0",
         "@tauri-apps/plugin-shell": "^2.2.0",
         "@tauri-apps/plugin-store": "^2.2.0",
+        "@tauri-apps/plugin-updater": "^2.4.0",
         "@tauri-apps/plugin-window-state": "^2.2.0",
         "framer-motion": "^11.17.0",
         "lucide-react": "^0.471.0",
