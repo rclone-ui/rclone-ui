@@ -10,6 +10,7 @@ use machine_uid;
 use std::fs::{self, File};
 use std::path::Path;
 use zip::ZipArchive;
+use tauri_plugin_sentry::{minidump, sentry};
 
 #[tauri::command]
 fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
@@ -70,6 +71,16 @@ fn get_uid() -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+	let client = sentry::init((
+        "https://7c7c55918ff850112780d2b2b29121a6@o4508503751983104.ingest.de.sentry.io/4508739164110928",
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            ..Default::default()
+        },
+    ));
+
+    let _guard = minidump::init(&client);
+	
     let mut app = tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())

@@ -36,6 +36,7 @@ tauri-plugin-os = "2"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 zip = "0.6.6"
 machine-uid = "0.5.3"
+tauri-plugin-sentry = "0.4.1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

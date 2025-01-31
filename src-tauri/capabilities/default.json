@@ -271,6 +271,7 @@
         "store:default",
         "process:default",
         "notification:default",
-        "os:default"
+        "os:default",
+        "sentry:default"
     ]
 }
