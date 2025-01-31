@@ -1,5 +1,5 @@
 import { Chip, Textarea, Tooltip } from '@nextui-org/react'
-import { XIcon } from 'lucide-react'
+import { LockKeyholeIcon, LockOpenIcon, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { replaceSmartQuotes } from '../../lib/format'
 
@@ -9,12 +9,16 @@ export default function OptionsSection({
     globalOptions,
     optionsFetcher,
     rows = 14,
+    isLocked,
+    setIsLocked,
 }: {
     optionsJson: string
     setOptionsJson: (value: string) => void
     globalOptions: any[]
     optionsFetcher: () => Promise<any>
     rows?: number
+    isLocked?: boolean
+    setIsLocked?: (value: boolean) => void
 }) {
     const [copyAvailableOptions, setCopyAvailableOptions] = useState<any[]>([])
 
@@ -87,6 +91,24 @@ export default function OptionsSection({
                 onClear={() => {
                     setOptionsJson('{}')
                 }}
+                endContent={
+                    setIsLocked && (
+                        <Tooltip content="Lock to prevent changes when switching paths">
+                            {isLocked ? (
+                                <LockKeyholeIcon
+                                    className="w-3 h-3 cursor-pointer"
+                                    onClick={() => setIsLocked(false)}
+                                />
+                            ) : (
+                                <LockOpenIcon
+                                    className="w-3 h-3 cursor-pointer"
+                                    onClick={() => setIsLocked(true)}
+                                />
+                            )}
+                        </Tooltip>
+                    )
+                }
+                data-focus-visible="false"
             />
 
             <div className="flex flex-wrap w-1/2 gap-2">
