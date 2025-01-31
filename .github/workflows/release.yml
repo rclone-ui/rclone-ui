@@ -19,6 +19,8 @@ jobs:
         #     args: ''
           - platform: 'windows-latest'
             args: ''
+          - platform: "windows-latest"
+            args: "--target aarch64-pc-windows-msvc"
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -36,8 +38,8 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          # used on macos and windows arm
+          targets: ${{ matrix.platform != 'ubuntu-22.04' && 'aarch64-apple-darwin,x86_64-apple-darwin,aarch64-pc-windows-msvc' || '' }}
 
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
