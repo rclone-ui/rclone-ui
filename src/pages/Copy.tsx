@@ -4,9 +4,10 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { AlertOctagonIcon, CopyIcon, FilterIcon, FoldersIcon, PlayIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { getRemoteName } from '../../lib/format'
 import { getCopyFlags, getFilterFlags, getGlobalFlags, startCopy } from '../../lib/rclone/api'
 import { usePersistedStore } from '../../lib/store'
-import { getLoadingTray, getMainTray } from '../../lib/tray'
+import {} from '../../lib/tray'
 import { openTrayWindow } from '../../lib/window'
 import OptionsSection from '../components/OptionsSection'
 import PathFinder from '../components/PathFinder'
@@ -19,44 +20,63 @@ export default function Copy() {
     )
     const [dest, setDest] = useState<string | undefined>(undefined)
 
+    const [isStarted, setIsStarted] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [jsonError, setJsonError] = useState<'copy' | 'filter' | null>(null)
 
+    const [copyOptionsLocked, setCopyOptionsLocked] = useState(false)
     const [copyOptions, setCopyOptions] = useState<Record<string, string>>({})
     const [copyOptionsJson, setCopyOptionsJson] = useState<string>('{}')
 
+    const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
     const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
 
     const [globalOptions, setGlobalOptions] = useState<any[]>([])
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
         const storeData = usePersistedStore.getState()
 
-        const remote = source?.split(':')[0]
+        const sourceRemote = getRemoteName(source)
+        const destRemote = getRemoteName(dest)
 
-        if (!remote) return
+        let mergedCopyDefaults = {}
+        let mergedFilterDefaults = {}
 
-        if (!(remote in storeData.remoteConfigList)) return
+        // Helper function to merge defaults from a remote
+        const mergeRemoteDefaults = (remote: string | null) => {
+            if (!remote || !(remote in storeData.remoteConfigList)) return
 
-        if (
-            storeData.remoteConfigList[remote].copyDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].copyDefaults).length > 0
-        ) {
-            setCopyOptionsJson(
-                JSON.stringify(storeData.remoteConfigList[remote].copyDefaults, null, 2)
-            )
+            const remoteConfig = storeData.remoteConfigList[remote]
+
+            if (remoteConfig.copyDefaults) {
+                mergedCopyDefaults = {
+                    ...mergedCopyDefaults,
+                    ...remoteConfig.copyDefaults,
+                }
+            }
+
+            if (remoteConfig.filterDefaults) {
+                mergedFilterDefaults = {
+                    ...mergedFilterDefaults,
+                    ...remoteConfig.filterDefaults,
+                }
+            }
         }
 
-        if (
-            storeData.remoteConfigList[remote].filterDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].filterDefaults).length > 0
-        ) {
-            setFilterOptionsJson(
-                JSON.stringify(storeData.remoteConfigList[remote].filterDefaults, null, 2)
-            )
+        // Only merge defaults for remote paths
+        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
+        if (destRemote) mergeRemoteDefaults(destRemote)
+
+        if (Object.keys(mergedCopyDefaults).length > 0 && !copyOptionsLocked) {
+            setCopyOptionsJson(JSON.stringify(mergedCopyDefaults, null, 2))
         }
-    }, [source])
+
+        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
+            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
+        }
+    }, [source, dest])
 
     useEffect(() => {
         getGlobalFlags().then((flags) => setGlobalOptions(flags))
@@ -81,9 +101,6 @@ export default function Copy() {
         setIsLoading(true)
 
         try {
-            await getMainTray().then((tray) => tray?.setVisible(false))
-            await getLoadingTray().then((tray) => tray?.setVisible(true))
-
             await startCopy({
                 source: source!,
                 dest: dest!,
@@ -91,20 +108,8 @@ export default function Copy() {
                 filterOptions,
             })
 
-            // delay for the job to appear in the API
-            await new Promise((resolve) => setTimeout(resolve, 2500))
-
-            await openTrayWindow({ name: 'Jobs', url: '/jobs' })
-            await getCurrentWindow().hide()
-
-            await getMainTray().then((tray) => tray?.setVisible(true))
-            await getLoadingTray().then((tray) => tray?.setVisible(false))
-
-            await getCurrentWindow().destroy()
+            setIsStarted(true)
         } catch (err) {
-            await getMainTray().then((tray) => tray?.setVisible(true))
-            await getLoadingTray().then((tray) => tray?.setVisible(false))
-
             console.error('Failed to start copy:', err)
             const errorMessage =
                 err instanceof Error ? err.message : 'Failed to start copy operation'
@@ -161,6 +166,8 @@ export default function Copy() {
                             setOptionsJson={setCopyOptionsJson}
                             optionsFetcher={getCopyFlags}
                             rows={20}
+                            isLocked={copyOptionsLocked}
+                            setIsLocked={setCopyOptionsLocked}
                         />
                     </AccordionItem>
                     <AccordionItem
@@ -178,26 +185,62 @@ export default function Copy() {
                             setOptionsJson={setFilterOptionsJson}
                             optionsFetcher={getFilterFlags}
                             rows={4}
+                            isLocked={filterOptionsLocked}
+                            setIsLocked={setFilterOptionsLocked}
                         />
                     </AccordionItem>
                 </Accordion>
             </div>
 
             <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
-                <Button
-                    onPress={handleStartCopy}
-                    size="lg"
-                    fullWidth={true}
-                    type="button"
-                    color="primary"
-                    isDisabled={isLoading || !!jsonError || !source || !dest || source === dest}
-                    isLoading={isLoading}
-                    endContent={buttonIcon}
-                    className="max-w-2xl"
-                    data-focus-visible="false"
-                >
-                    {buttonText}
-                </Button>
+                {isStarted ? (
+                    <>
+                        <Button
+                            fullWidth={true}
+                            size="lg"
+                            onPress={() => {
+                                setCopyOptionsJson('{}')
+                                setFilterOptionsJson('{}')
+                                setSource(undefined)
+                                setDest(undefined)
+                                setIsStarted(false)
+                            }}
+                            data-focus-visible="false"
+                        >
+                            New Copy
+                        </Button>
+
+                        <Button
+                            fullWidth={true}
+                            size="lg"
+                            color="primary"
+                            onPress={async () => {
+                                await openTrayWindow({ name: 'Jobs', url: '/jobs' })
+                                // await getCurrentWindow().hide()
+
+                                await getCurrentWindow().destroy()
+                            }}
+                            data-focus-visible="false"
+                        >
+                            Show Jobs
+                        </Button>
+                    </>
+                ) : (
+                    <Button
+                        onPress={handleStartCopy}
+                        size="lg"
+                        fullWidth={true}
+                        type="button"
+                        color="primary"
+                        isDisabled={isLoading || !!jsonError || !source || !dest || source === dest}
+                        isLoading={isLoading}
+                        endContent={buttonIcon}
+                        className="max-w-2xl"
+                        data-focus-visible="false"
+                    >
+                        {buttonText}
+                    </Button>
+                )}
             </div>
         </div>
     )

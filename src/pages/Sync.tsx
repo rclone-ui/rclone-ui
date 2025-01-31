@@ -1,16 +1,17 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
-import { Window } from '@tauri-apps/api/window'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { AlertOctagonIcon, FilterIcon, FolderSyncIcon, FoldersIcon, PlayIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import { getRemoteName } from '../../lib/format'
 import { getFilterFlags, getGlobalFlags, getSyncFlags, startSync } from '../../lib/rclone/api'
 import { usePersistedStore } from '../../lib/store'
+import { openTrayWindow } from '../../lib/window'
 import OptionsSection from '../components/OptionsSection'
 import PathFinder from '../components/PathFinder'
 
 export default function Sync() {
-    const navigate = useNavigate()
     const [searchParams] = useSearchParams()
 
     const [source, setSource] = useState<string | undefined>(
@@ -18,44 +19,63 @@ export default function Sync() {
     )
     const [dest, setDest] = useState<string | undefined>(undefined)
 
+    const [isStarted, setIsStarted] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [jsonError, setJsonError] = useState<'sync' | 'filter' | null>(null)
 
+    const [syncOptionsLocked, setSyncOptionsLocked] = useState(false)
     const [syncOptions, setSyncOptions] = useState<Record<string, string>>({})
     const [syncOptionsJson, setSyncOptionsJson] = useState<string>('{}')
 
+    const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
     const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
 
     const [globalOptions, setGlobalOptions] = useState<any[]>([])
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
         const storeData = usePersistedStore.getState()
 
-        const remote = source?.split(':')[0]
+        const sourceRemote = getRemoteName(source)
+        const destRemote = getRemoteName(dest)
 
-        if (!remote) return
+        let mergedSyncDefaults = {}
+        let mergedFilterDefaults = {}
 
-        if (!(remote in storeData.remoteConfigList)) return
+        // Helper function to merge defaults from a remote
+        const mergeRemoteDefaults = (remote: string | null) => {
+            if (!remote || !(remote in storeData.remoteConfigList)) return
 
-        if (
-            storeData.remoteConfigList[remote].syncDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].syncDefaults).length > 0
-        ) {
-            setSyncOptionsJson(
-                JSON.stringify(storeData.remoteConfigList[remote].syncDefaults, null, 2)
-            )
+            const remoteConfig = storeData.remoteConfigList[remote]
+
+            if (remoteConfig.syncDefaults) {
+                mergedSyncDefaults = {
+                    ...mergedSyncDefaults,
+                    ...remoteConfig.syncDefaults,
+                }
+            }
+
+            if (remoteConfig.filterDefaults) {
+                mergedFilterDefaults = {
+                    ...mergedFilterDefaults,
+                    ...remoteConfig.filterDefaults,
+                }
+            }
         }
 
-        if (
-            storeData.remoteConfigList[remote].filterDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].filterDefaults).length > 0
-        ) {
-            setFilterOptionsJson(
-                JSON.stringify(storeData.remoteConfigList[remote].filterDefaults, null, 2)
-            )
+        // Only merge defaults for remote paths
+        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
+        if (destRemote) mergeRemoteDefaults(destRemote)
+
+        if (Object.keys(mergedSyncDefaults).length > 0 && !syncOptionsLocked) {
+            setSyncOptionsJson(JSON.stringify(mergedSyncDefaults, null, 2))
         }
-    }, [source])
+
+        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
+            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
+        }
+    }, [source, dest])
 
     useEffect(() => {
         getGlobalFlags().then((flags) => setGlobalOptions(flags))
@@ -86,9 +106,8 @@ export default function Sync() {
                 syncOptions,
                 filterOptions,
             })
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            navigate('/jobs')
-            await Window.getCurrent().setTitle('Jobs')
+
+            setIsStarted(true)
         } catch (err) {
             console.error('Failed to start sync:', err)
             const errorMessage =
@@ -100,7 +119,7 @@ export default function Sync() {
         } finally {
             setIsLoading(false)
         }
-    }, [source, dest, syncOptions, filterOptions, navigate])
+    }, [source, dest, syncOptions, filterOptions])
 
     const buttonText = useMemo(() => {
         if (isLoading) return 'STARTING...'
@@ -146,6 +165,8 @@ export default function Sync() {
                             globalOptions={globalOptions['main' as keyof typeof globalOptions]}
                             optionsFetcher={getSyncFlags}
                             rows={20}
+                            isLocked={syncOptionsLocked}
+                            setIsLocked={setSyncOptionsLocked}
                         />
                     </AccordionItem>
                     <AccordionItem
@@ -163,26 +184,62 @@ export default function Sync() {
                             setOptionsJson={setFilterOptionsJson}
                             optionsFetcher={getFilterFlags}
                             rows={4}
+                            isLocked={filterOptionsLocked}
+                            setIsLocked={setFilterOptionsLocked}
                         />
                     </AccordionItem>
                 </Accordion>
             </div>
 
             <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
-                <Button
-                    onPress={handleStartSync}
-                    size="lg"
-                    fullWidth={true}
-                    type="button"
-                    color="primary"
-                    isDisabled={isLoading || !!jsonError || !source || !dest || source === dest}
-                    isLoading={isLoading}
-                    endContent={buttonIcon}
-                    className="max-w-2xl"
-                    data-focus-visible="false"
-                >
-                    {buttonText}
-                </Button>
+                {isStarted ? (
+                    <>
+                        <Button
+                            fullWidth={true}
+                            size="lg"
+                            onPress={() => {
+                                setSyncOptionsJson('{}')
+                                setFilterOptionsJson('{}')
+                                setDest(undefined)
+                                setSource(undefined)
+                                setIsStarted(false)
+                            }}
+                            data-focus-visible="false"
+                        >
+                            New Sync
+                        </Button>
+
+                        <Button
+                            fullWidth={true}
+                            size="lg"
+                            color="primary"
+                            onPress={async () => {
+                                await openTrayWindow({ name: 'Jobs', url: '/jobs' })
+                                // await getCurrentWindow().hide()
+
+                                await getCurrentWindow().destroy()
+                            }}
+                            data-focus-visible="false"
+                        >
+                            Show Jobs
+                        </Button>
+                    </>
+                ) : (
+                    <Button
+                        onPress={handleStartSync}
+                        size="lg"
+                        fullWidth={true}
+                        type="button"
+                        color="primary"
+                        isDisabled={isLoading || !!jsonError || !source || !dest || source === dest}
+                        isLoading={isLoading}
+                        endContent={buttonIcon}
+                        className="max-w-2xl"
+                        data-focus-visible="false"
+                    >
+                        {buttonText}
+                    </Button>
+                )}
             </div>
         </div>
     )

@@ -26,3 +26,8 @@ export function replaceSmartQuotes(value: string) {
     }
     return value.replace(/[‘’‚“”„]/g, (match) => replacements[match])
 }
+
+export function getRemoteName(path?: string) {
+    if (!path?.includes(':')) return null // Return null for local paths
+    return path.split(':')[0]
+}
