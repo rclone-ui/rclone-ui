@@ -32,7 +32,7 @@ export async function buildMenu() {
         // Add remote submenus
         for (const remote of remotes) {
             const remoteConfig = persistedStoreState.remoteConfigList?.[remote]
-            if (remoteConfig?.hideTray) {
+            if (remoteConfig?.disabledActions?.includes('tray')) {
                 continue
             }
 
@@ -87,7 +87,7 @@ export async function buildMenu() {
                 submenuItems.push(openInFinderItem)
             }
 
-            if (!alreadyMounted && !remoteConfig?.disabledActions?.includes('mount')) {
+            if (!alreadyMounted && !remoteConfig?.disabledActions?.includes('tray-mount')) {
                 const mountMenuItem = await MenuItem.new({
                     id: `mount-${remote}`,
                     text: 'Quick Mount',
@@ -205,7 +205,7 @@ export async function buildMenu() {
                 submenuItems.push(mountMenuItem)
             }
 
-            if (!remoteConfig?.disabledActions?.includes('browse')) {
+            if (!remoteConfig?.disabledActions?.includes('tray-browse')) {
                 const browseMenuItem = await MenuItem.new({
                     id: `browse-${remote}`,
                     text: 'Browse',
@@ -222,7 +222,7 @@ export async function buildMenu() {
                 submenuItems.push(browseMenuItem)
             }
 
-            if (!remoteConfig?.disabledActions?.includes('remove')) {
+            if (!remoteConfig?.disabledActions?.includes('tray-remove')) {
                 const removeMenuItem = await MenuItem.new({
                     id: `remove-${remote}`,
                     text: 'Remove',
@@ -258,7 +258,7 @@ export async function buildMenu() {
         menuItems.push(item)
     })
 
-    if (!persistedStoreState.disabledActions?.includes('mount')) {
+    if (!persistedStoreState.disabledActions?.includes('tray-mount')) {
         const mountToMenuItem = await MenuItem.new({
             id: 'mount',
             text: 'Mount',
@@ -272,7 +272,7 @@ export async function buildMenu() {
         menuItems.push(mountToMenuItem)
     }
 
-    if (!persistedStoreState.disabledActions?.includes('copy')) {
+    if (!persistedStoreState.disabledActions?.includes('tray-copy')) {
         const copyMenuItem = await MenuItem.new({
             id: 'copy',
             text: 'Copy',
@@ -286,7 +286,7 @@ export async function buildMenu() {
         menuItems.push(copyMenuItem)
     }
 
-    if (!persistedStoreState.disabledActions?.includes('sync')) {
+    if (!persistedStoreState.disabledActions?.includes('tray-sync')) {
         const syncMenuItem = await MenuItem.new({
             id: 'sync',
             text: 'Sync',

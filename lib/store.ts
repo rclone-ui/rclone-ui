@@ -7,9 +7,7 @@ import { type StateStorage, createJSONStorage, persist } from 'zustand/middlewar
 const store = new LazyStore('store.json')
 
 export interface RemoteConfig {
-    hideTray?: boolean
-
-    disabledActions?: ('mount' | 'browse' | 'remove')[]
+    disabledActions?: ('tray' | 'tray-mount' | 'tray-browse' | 'tray-remove')[]
 
     defaultRemotePath?: string
     defaultMountPoint?: string
@@ -46,7 +44,18 @@ interface PersistedState {
     setRemoteConfig: (remote: string, config: RemoteConfig) => void
     mergeRemoteConfig: (remote: string, config: RemoteConfig) => void
 
-    disabledActions: ('mount' | 'sync' | 'copy' | 'serve')[]
+    disabledActions: ('tray-mount' | 'tray-sync' | 'tray-copy' | 'tray-serve')[]
+    setDisabledActions: (
+        actions: ('tray-mount' | 'tray-sync' | 'tray-copy' | 'tray-serve')[]
+    ) => void
+
+    settingsPass: string | undefined
+    setSettingsPass: (pass: string | undefined) => void
+
+    licenseKey: string | undefined
+    setLicenseKey: (key: string | undefined) => void
+    licenseValid: boolean
+    setLicenseValid: (valid: boolean) => void
 }
 
 const getStorage = (store: LazyStore): StateStorage => ({
@@ -111,6 +120,17 @@ export const usePersistedStore = create<PersistedState>()(
                 })),
 
             disabledActions: [],
+            setDisabledActions: (
+                actions: ('tray-mount' | 'tray-sync' | 'tray-copy' | 'tray-serve')[]
+            ) => set((_) => ({ disabledActions: actions })),
+
+            settingsPass: undefined,
+            setSettingsPass: (pass: string | undefined) => set((_) => ({ settingsPass: pass })),
+
+            licenseKey: undefined,
+            setLicenseKey: (key: string | undefined) => set((_) => ({ licenseKey: key })),
+            licenseValid: false,
+            setLicenseValid: (valid: boolean) => set((_) => ({ licenseValid: valid })),
         }),
         {
             name: 'store',

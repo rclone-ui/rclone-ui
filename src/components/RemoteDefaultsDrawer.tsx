@@ -58,7 +58,7 @@ export default function RemoteDefaultsDrawer({
         if (config?.disabledActions?.length === 3) {
             setConfig((prev) => ({
                 ...prev,
-                hideTray: true,
+                disabledActions: [...(prev?.disabledActions || []), 'tray'],
             }))
         }
     }, [config?.disabledActions?.length])
@@ -70,7 +70,7 @@ export default function RemoteDefaultsDrawer({
         setConfig(remoteConfig)
 
         console.log('remoteName', remoteName)
-        console.log(JSON.stringify(remoteConfig, null, 2))
+        // console.log(JSON.stringify(remoteConfig, null, 2))
 
         setCopyOptionsJson(JSON.stringify(remoteConfig?.copyDefaults, null, 2) || '{}')
         setSyncOptionsJson(JSON.stringify(remoteConfig?.syncDefaults, null, 2) || '{}')
@@ -82,7 +82,7 @@ export default function RemoteDefaultsDrawer({
     const handleSubmit = useCallback(async () => {
         if (!config) {
             console.log('No config')
-            console.log(JSON.stringify(config, null, 2))
+            // console.log(JSON.stringify(config, null, 2))
             return
         }
 
@@ -177,32 +177,14 @@ export default function RemoteDefaultsDrawer({
                                 >
                                     <div className="flex flex-col gap-2">
                                         <Checkbox
-                                            isSelected={!config?.hideTray || false}
-                                            onValueChange={(value) => {
-                                                if (value) {
-                                                    setConfig((prev) => ({
-                                                        ...prev,
-                                                        hideTray: undefined,
-                                                    }))
-                                                } else {
-                                                    setConfig((prev) => ({
-                                                        ...prev,
-                                                        hideTray: true,
-                                                    }))
-                                                }
-                                            }}
-                                        >
-                                            Show in tray menu
-                                        </Checkbox>
-                                        <Checkbox
-                                            isSelected={!config?.disabledActions?.includes('mount')}
+                                            isSelected={!config?.disabledActions?.includes('tray')}
                                             onValueChange={(value) => {
                                                 if (value) {
                                                     setConfig((prev) => ({
                                                         ...prev,
                                                         disabledActions:
                                                             prev?.disabledActions?.filter(
-                                                                (action) => action !== 'mount'
+                                                                (action) => action !== 'tray'
                                                             ),
                                                     }))
                                                 } else {
@@ -210,7 +192,33 @@ export default function RemoteDefaultsDrawer({
                                                         ...prev,
                                                         disabledActions: [
                                                             ...(prev?.disabledActions || []),
-                                                            'mount',
+                                                            'tray',
+                                                        ],
+                                                    }))
+                                                }
+                                            }}
+                                        >
+                                            Show in tray menu
+                                        </Checkbox>
+                                        <Checkbox
+                                            isSelected={
+                                                !config?.disabledActions?.includes('tray-mount')
+                                            }
+                                            onValueChange={(value) => {
+                                                if (value) {
+                                                    setConfig((prev) => ({
+                                                        ...prev,
+                                                        disabledActions:
+                                                            prev?.disabledActions?.filter(
+                                                                (action) => action !== 'tray-mount'
+                                                            ),
+                                                    }))
+                                                } else {
+                                                    setConfig((prev) => ({
+                                                        ...prev,
+                                                        disabledActions: [
+                                                            ...(prev?.disabledActions || []),
+                                                            'tray-mount',
                                                         ],
                                                     }))
                                                 }
@@ -222,7 +230,7 @@ export default function RemoteDefaultsDrawer({
                                         </Checkbox>
                                         <Checkbox
                                             isSelected={
-                                                !config?.disabledActions?.includes('browse')
+                                                !config?.disabledActions?.includes('tray-browse')
                                             }
                                             onValueChange={(value) => {
                                                 if (value) {
@@ -230,7 +238,7 @@ export default function RemoteDefaultsDrawer({
                                                         ...prev,
                                                         disabledActions:
                                                             prev?.disabledActions?.filter(
-                                                                (action) => action !== 'browse'
+                                                                (action) => action !== 'tray-browse'
                                                             ),
                                                     }))
                                                 } else {
@@ -238,7 +246,7 @@ export default function RemoteDefaultsDrawer({
                                                         ...prev,
                                                         disabledActions: [
                                                             ...(prev?.disabledActions || []),
-                                                            'browse',
+                                                            'tray-browse',
                                                         ],
                                                     }))
                                                 }
@@ -250,7 +258,7 @@ export default function RemoteDefaultsDrawer({
                                         </Checkbox>
                                         <Checkbox
                                             isSelected={
-                                                !config?.disabledActions?.includes('remove')
+                                                !config?.disabledActions?.includes('tray-remove')
                                             }
                                             onValueChange={(value) => {
                                                 if (value) {
@@ -258,7 +266,7 @@ export default function RemoteDefaultsDrawer({
                                                         ...prev,
                                                         disabledActions:
                                                             prev?.disabledActions?.filter(
-                                                                (action) => action !== 'remove'
+                                                                (action) => action !== 'tray-remove'
                                                             ),
                                                     }))
                                                 } else {
@@ -266,7 +274,7 @@ export default function RemoteDefaultsDrawer({
                                                         ...prev,
                                                         disabledActions: [
                                                             ...(prev?.disabledActions || []),
-                                                            'remove',
+                                                            'tray-remove',
                                                         ],
                                                     }))
                                                 }
@@ -524,11 +532,11 @@ export default function RemoteDefaultsDrawer({
                             </Button>
                             <Button
                                 color="primary"
-                                isLoading={isSaving}
+                                isDisabled={isSaving}
                                 onPress={handleSubmit}
                                 data-focus-visible="false"
                             >
-                                {isSaving ? 'Saving...' : 'Save Changes'}
+                                Save Changes
                             </Button>
                         </DrawerFooter>
                     </>
