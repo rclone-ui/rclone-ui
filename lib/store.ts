@@ -115,6 +115,7 @@ export const usePersistedStore = create<PersistedState>()(
         {
             name: 'store',
             storage: createJSONStorage(() => getStorage(store)),
+            version: 1,
         }
     )
 )
