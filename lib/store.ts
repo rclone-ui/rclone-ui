@@ -23,6 +23,7 @@ export interface RemoteConfig {
 }
 
 interface State {
+    firstWindow: boolean
 
     rcloneLoaded: boolean
     rcloneAuth: string
@@ -68,6 +69,7 @@ const getStorage = (store: LazyStore): StateStorage => ({
 export const useStore = create<State>()(
     shared(
         (set) => ({
+            firstWindow: true,
 
             rcloneLoaded: false,
             rcloneAuth: '',

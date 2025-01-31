@@ -1,6 +1,12 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { LogicalSize, PhysicalPosition, PhysicalSize, currentMonitor, getAllWindows } from '@tauri-apps/api/window'
-import { Position, moveWindow } from '@tauri-apps/plugin-positioner'
+import {
+    LogicalSize,
+    PhysicalPosition,
+    PhysicalSize,
+    currentMonitor,
+    getAllWindows,
+} from '@tauri-apps/api/window'
+import { useStore } from './store'
 import { getTrayRect } from './tray'
 
 export async function resetMainWindow() {
@@ -56,6 +62,8 @@ export async function openWindow({
     width?: number
     height?: number
 }) {
+    const isFirstWindow = useStore.getState().firstWindow
+
     const w = new WebviewWindow(name, {
         height: 0,
         width: 0,
@@ -70,12 +78,14 @@ export async function openWindow({
         // parent: 'main',
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 1000 : 100))
 
     await w.hide()
     await w.setSize(new LogicalSize(width, height))
     await w.center()
     await w.show()
+
+    useStore.setState({ firstWindow: false })
 
     return w
 }
@@ -87,6 +97,8 @@ export async function openTrayWindow({
     name: string
     url: string
 }) {
+    const isFirstWindow = useStore.getState().firstWindow
+
     const w = new WebviewWindow(name, {
         height: 0,
         width: 0,
@@ -104,22 +116,29 @@ export async function openTrayWindow({
     //     .then((w) => w.find((w) => w.label === 'main'))
     //     ?.then((w) => w?.setSize(new LogicalSize(400, 600)))
 
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 1000 : 100))
 
     await w.hide()
-		const windowSize = new LogicalSize(400, 600)
-		await w.setSize(windowSize)
-		const trayRect = getTrayRect()
-		const windowPhysicalSize = windowSize.toPhysical(await w.scaleFactor())
-		await w.setPosition(
-			new PhysicalPosition(
-				trayRect.position.x +
-					trayRect.size.width / 2 -
-					windowPhysicalSize.width / 2,
-				trayRect.position.y
-			)
-		)
-		await w.show()
+
+    const windowSize = new LogicalSize(400, 600)
+    await w.setSize(windowSize)
+
+    const trayRect = getTrayRect()
+    const windowPhysicalSize = windowSize.toPhysical(await w.scaleFactor())
+    await w.setPosition(
+        new PhysicalPosition(
+            trayRect.position.x + trayRect.size.width / 2 - windowPhysicalSize.width / 2,
+            trayRect.position.y
+        )
+    )
+
+    await w.show()
+
+    await w.listen('tauri://blur', async () => {
+        await w.destroy()
+    })
+
+    useStore.setState({ firstWindow: false })
 
     return w
 }
