@@ -204,7 +204,7 @@
             "identifier": "fs:write-all",
             "allow": [
                 {
-                    "path": "/**"
+                    "path": "*/**"
                 }
             ]
         },
@@ -212,7 +212,7 @@
             "identifier": "fs:read-all",
             "allow": [
                 {
-                    "path": "/**"
+                    "path": "*/**"
                 }
             ]
         },
@@ -220,7 +220,7 @@
             "identifier": "fs:allow-open",
             "allow": [
                 {
-                    "path": "/**"
+                    "path": "*/**"
                 }
             ]
         },
@@ -228,7 +228,7 @@
             "identifier": "fs:allow-mkdir",
             "allow": [
                 {
-                    "path": "/**"
+                    "path": "*/**"
                 }
             ]
         },
@@ -236,7 +236,7 @@
             "identifier": "fs:allow-remove",
             "allow": [
                 {
-                    "path": "/**"
+                    "path": "*/**"
                 }
             ]
         },
