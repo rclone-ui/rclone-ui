@@ -1,4 +1,5 @@
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message, open } from '@tauri-apps/plugin-dialog'
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import { sendNotification } from '@tauri-apps/plugin-notification'
@@ -334,6 +335,7 @@ export async function buildMenu() {
         id: 'quit',
         text: 'Quit',
         action: async () => {
+            await getCurrentWindow().emit('close-app')
             await exit(0)
         },
     })

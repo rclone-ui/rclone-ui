@@ -3,6 +3,7 @@ import { ask, message } from '@tauri-apps/plugin-dialog'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
+import type { Command } from '@tauri-apps/plugin-shell'
 import { validateLicense } from './lib/license'
 import { listRemotes } from './lib/rclone/api'
 import { initRclone } from './lib/rclone/init'
@@ -113,7 +114,7 @@ async function startRclone() {
 
     const rcloneCommandFn = rclone.system || rclone.internal
 
-    const command = await rcloneCommandFn([
+    const command = (await rcloneCommandFn([
         'rcd',
         ...(platform() === 'macos'
             ? ['--rc-no-auth'] // webkit doesn't allow for credentials in the url
@@ -122,7 +123,7 @@ async function startRclone() {
         // defaults
         // '-rc-addr',
         // ':5572',
-    ])
+    ])) as Command<string>
 
     // command.stdout.on('data', (line) => {
     //     console.log('stdout ' + line)
@@ -149,6 +150,12 @@ async function startRclone() {
 
     console.log('running rclone')
     const childProcess = await command.spawn()
+
+    getCurrentWindow().listen('close-app', async (e) => {
+        console.log('(main) window close-app requested')
+
+        await childProcess.kill()
+    })
 
     await new Promise((resolve) => setTimeout(resolve, 200))
 
