@@ -611,7 +611,7 @@ function RemotesSection() {
     const [creatingDrawerOpen, setCreatingDrawerOpen] = useState(false)
     const [defaultsDrawerOpen, setDefaultsDrawerOpen] = useState(false)
 
-    if (remotes.length === 0) {
+    if (remotes.length === 0 && !creatingDrawerOpen) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen gap-4">
                 <h1 className="text-2xl font-bold">No remotes found</h1>
