@@ -1,9 +1,11 @@
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message, open } from '@tauri-apps/plugin-dialog'
+import { exists, remove } from '@tauri-apps/plugin-fs'
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import { sendNotification } from '@tauri-apps/plugin-notification'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
 import { deleteRemote, mountRemote } from './rclone/api'
@@ -127,19 +129,33 @@ export async function buildMenu() {
 
                             console.log('selectedPath', selectedPath)
 
-                            // Check if directory is empty
-                            const isEmpty = await isDirectoryEmpty(selectedPath)
-                            if (!isEmpty) {
-                                // await resetMainWindow()
+                            const directoryExists = await exists(selectedPath)
 
-                                await message(
-                                    'The selected directory must be empty to mount a remote.',
-                                    {
-                                        title: 'Mount Error',
-                                        kind: 'error',
-                                    }
-                                )
+                            const isPlatformWindows = platform() === 'windows'
+                            if (directoryExists || isPlatformWindows) {
+                                const isEmpty = await isDirectoryEmpty(selectedPath)
+                                if (!isEmpty) {
+                                    // await resetMainWindow()
 
+                                    await message(
+                                        'The selected directory must be empty to mount a remote.',
+                                        {
+                                            title: 'Mount Error',
+                                            kind: 'error',
+                                        }
+                                    )
+
+                                    return
+                                }
+
+                                if (isPlatformWindows) {
+                                    await remove(selectedPath)
+                                }
+                            } else {
+                                await message('The selected directory does not exist.', {
+                                    title: 'Mount Error',
+                                    kind: 'error',
+                                })
                                 return
                             }
 

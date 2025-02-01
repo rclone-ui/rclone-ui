@@ -1,6 +1,7 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
+import { exists, remove } from '@tauri-apps/plugin-fs'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import {
@@ -110,19 +111,32 @@ export default function Mount() {
                 _mountOptions.VolumeName = source!.split('/').pop()!
             }
 
-            // Check if directory is empty
-            const isEmpty = await isDirectoryEmpty(dest!)
-            if (!isEmpty) {
-                // await resetMainWindow()
+            const directoryExists = await exists(dest!)
 
-                await message('The selected directory must be empty to mount a remote.', {
+            const isPlatformWindows = platform() === 'windows'
+            if (directoryExists || isPlatformWindows) {
+                const isEmpty = await isDirectoryEmpty(dest!)
+                if (!isEmpty) {
+                    // await resetMainWindow()
+
+                    await message('The selected directory must be empty to mount a remote.', {
+                        title: 'Mount Error',
+                        kind: 'error',
+                    })
+
+                    return
+                }
+
+                if (isPlatformWindows) {
+                    await remove(dest!)
+                }
+            } else {
+                await message('The selected directory does not exist.', {
                     title: 'Mount Error',
                     kind: 'error',
                 })
-
                 return
             }
-
             await mountRemote({
                 remotePath: source!,
                 mountPoint: dest!,
