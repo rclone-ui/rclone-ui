@@ -4,7 +4,12 @@ import { MenuItem } from '@tauri-apps/api/menu'
 import { resolveResource } from '@tauri-apps/api/path'
 import type { TrayIconEvent } from '@tauri-apps/api/tray'
 import { TrayIcon } from '@tauri-apps/api/tray'
-import { getAllWindows, PhysicalPosition, PhysicalSize } from '@tauri-apps/api/window'
+import {
+    PhysicalPosition,
+    PhysicalSize,
+    getAllWindows,
+    getCurrentWindow,
+} from '@tauri-apps/api/window'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { exit } from '@tauri-apps/plugin-process'
 import { buildMenu } from './menu'
@@ -88,6 +93,7 @@ export async function initLoadingTray() {
         action: async () => {
             const answer = await ask('An operation is in progress, are you sure you want to exit?')
             if (answer) {
+                await getCurrentWindow().emit('close-app')
                 await exit(0)
             }
         },
