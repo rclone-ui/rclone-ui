@@ -89,8 +89,7 @@ export async function provisionRclone() {
     const currentPlatform = platform()
     console.log('currentPlatform', currentPlatform)
 
-    const currentOs =
-        currentPlatform === 'macos' ? 'osx' : currentPlatform === 'windows' ? 'win' : 'linux'
+    const currentOs = currentPlatform === 'macos' ? 'osx' : currentPlatform
     console.log('currentOs', currentOs)
 
     let tempDirPath = await tempDir()
