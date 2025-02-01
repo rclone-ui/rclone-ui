@@ -1,7 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
-import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import type { Command } from '@tauri-apps/plugin-shell'
 import { validateLicense } from './lib/license'
@@ -116,9 +115,10 @@ async function startRclone() {
 
     const command = (await rcloneCommandFn([
         'rcd',
-        ...(platform() === 'macos'
-            ? ['--rc-no-auth'] // webkit doesn't allow for credentials in the url
-            : ['--rc-user', 'admin', '--rc-pass', sessionPassword]),
+        // ...(platform() === 'macos'
+        //     ? ['--rc-no-auth'] // webkit doesn't allow for credentials in the url
+        //     : ['--rc-user', 'admin', '--rc-pass', sessionPassword]),
+        '--rc-no-auth',
         '--rc-serve',
         // defaults
         // '-rc-addr',

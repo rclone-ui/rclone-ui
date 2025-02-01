@@ -6,6 +6,8 @@ import { useStore } from '../store'
 const SUPPORRTED_BACKENDS = ['sftp', 's3', 'b2', 'drive']
 
 function getAuthHeader() {
+    return
+
     if (platform() === 'macos') {
         return
     }
