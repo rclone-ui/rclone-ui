@@ -158,6 +158,7 @@ function GeneralSection() {
     const disabledActions = usePersistedStore((state) => state.disabledActions)
     const setDisabledActions = usePersistedStore((state) => state.setDisabledActions)
 
+    const [isWorkingUpdate, setIsWorkingUpdate] = useState(false)
     const [update, setUpdate] = useState<Update | null>(null)
 
     useEffect(() => {
@@ -330,32 +331,48 @@ function GeneralSection() {
                 <div className="flex flex-col w-3/5 gap-3 bg-transparent-500">
                     {update ? (
                         <Button
+                            isLoading={isWorkingUpdate}
                             onPress={async () => {
-                                let downloaded = 0
-                                let contentLength = 0
+                                setIsWorkingUpdate(true)
 
-                                await update.downloadAndInstall((event) => {
-                                    // biome-ignore lint/style/useDefaultSwitchClause: <explanation>
-                                    switch (event.event) {
-                                        case 'Started': {
-                                            contentLength = event.data.contentLength || 0
-                                            console.log(
-                                                `started downloading ${event.data.contentLength} bytes`
-                                            )
-                                            break
+                                try {
+                                    let downloaded = 0
+                                    let contentLength = 0
+
+                                    await update.downloadAndInstall((event) => {
+                                        // biome-ignore lint/style/useDefaultSwitchClause: <explanation>
+                                        switch (event.event) {
+                                            case 'Started': {
+                                                contentLength = event.data.contentLength || 0
+                                                console.log(
+                                                    `started downloading ${event.data.contentLength} bytes`
+                                                )
+                                                break
+                                            }
+                                            case 'Progress': {
+                                                downloaded += event.data.chunkLength
+                                                console.log(
+                                                    `downloaded ${downloaded} from ${contentLength}`
+                                                )
+                                                break
+                                            }
+                                            case 'Finished':
+                                                console.log('download finished')
+                                                break
                                         }
-                                        case 'Progress': {
-                                            downloaded += event.data.chunkLength
-                                            console.log(
-                                                `downloaded ${downloaded} from ${contentLength}`
-                                            )
-                                            break
+                                    })
+                                } catch (error) {
+                                    console.error(error)
+                                    setIsWorkingUpdate(false)
+                                    await message(
+                                        'An error occurred in the update process. Please try again.',
+                                        {
+                                            title: 'Update Error',
+                                            kind: 'error',
                                         }
-                                        case 'Finished':
-                                            console.log('download finished')
-                                            break
-                                    }
-                                })
+                                    )
+                                    return
+                                }
 
                                 const answer = await ask('Update installed. Ready to restart?', {
                                     title: 'Update',
@@ -371,22 +388,35 @@ function GeneralSection() {
                                 await relaunch()
                             }}
                         >
-                            Check for updates
+                            Tap to update
                         </Button>
                     ) : (
                         <Button
+                            isLoading={isWorkingUpdate}
                             onPress={async () => {
-                                const receivedUpdate = await check()
-                                if (!receivedUpdate) {
-                                    return
+                                try {
+                                    console.log('checking for updates')
+                                    setIsWorkingUpdate(true)
+                                    const receivedUpdate = await check()
+                                    console.log(
+                                        'receivedUpdate',
+                                        JSON.stringify(receivedUpdate, null, 2)
+                                    )
+                                    if (!receivedUpdate) {
+                                        return
+                                    }
+                                    console.log(
+                                        `found update ${receivedUpdate.version} from ${receivedUpdate.date} with notes ${receivedUpdate.body}`
+                                    )
+                                    setUpdate(receivedUpdate)
+                                } catch (e) {
+                                    console.error(e)
+                                } finally {
+                                    setIsWorkingUpdate(false)
                                 }
-                                console.log(
-                                    `found update ${receivedUpdate.version} from ${receivedUpdate.date} with notes ${receivedUpdate.body}`
-                                )
-                                setUpdate(receivedUpdate)
                             }}
                         >
-                            Tap to update
+                            Check for updates
                         </Button>
                     )}
                 </div>
@@ -464,7 +494,7 @@ function LicenseSection() {
                                     setIsActivating(false)
                                 }
 
-                                await message('Your license has been activated successfully.', {
+                                await message('Your license has been successfully activated.', {
                                     title: 'Congrats!',
                                     kind: 'info',
                                 })
@@ -523,7 +553,7 @@ function LicenseSection() {
                                     setIsRevoking(false)
                                 }
 
-                                await message('Your license has been deactivated.', {
+                                await message('Your license has been successfully deactivated.', {
                                     title: 'License deactivated',
                                     kind: 'info',
                                 })
