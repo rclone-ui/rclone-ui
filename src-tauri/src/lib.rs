@@ -9,8 +9,8 @@
 use machine_uid;
 use std::fs::{self, File};
 use std::path::Path;
-use zip::ZipArchive;
 use tauri_plugin_sentry::{minidump, sentry};
+use zip::ZipArchive;
 
 #[tauri::command]
 fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
@@ -71,7 +71,7 @@ fn get_uid() -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-	let client = sentry::init((
+    let client = sentry::init((
         "https://7c7c55918ff850112780d2b2b29121a6@o4508503751983104.ingest.de.sentry.io/4508739164110928",
         sentry::ClientOptions {
             release: sentry::release_name!(),
@@ -80,13 +80,14 @@ pub fn run() {
     ));
 
     let _guard = minidump::init(&client);
-	
+
     let mut app = tauri::Builder::default()
+        .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
-		// .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![])))
+        // .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![])))
         // .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
         // 	println!("{}, {argv:?}, {cwd}", app.package_info().name);
         // 	// app.emit("single-instance", Payload { args: argv, cwd }).unwrap();
@@ -98,6 +99,7 @@ pub fn run() {
         //         .set_focus();
         // }))
         .plugin(tauri_plugin_store::Builder::new().build())
+		.plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())

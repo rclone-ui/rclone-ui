@@ -1,13 +1,8 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import {
-    LogicalSize,
-    PhysicalPosition,
-    PhysicalSize,
-    currentMonitor,
-    getAllWindows,
-} from '@tauri-apps/api/window'
+import { LogicalSize, PhysicalSize, currentMonitor, getAllWindows } from '@tauri-apps/api/window'
+import { Position } from '@tauri-apps/plugin-positioner'
+import { moveWindow } from '@tauri-apps/plugin-positioner'
 import { useStore } from './store'
-import { getTrayRect } from './tray'
 
 export async function resetMainWindow() {
     const window = await getAllWindows().then((w) => w.find((w) => w.label === 'main'))
@@ -124,16 +119,8 @@ export async function openTrayWindow({
     const windowSize = new LogicalSize(400, 600)
     await w.setSize(windowSize)
 
-    const trayRect = getTrayRect()
-    const windowPhysicalSize = windowSize.toPhysical(await w.scaleFactor())
-    await w.setPosition(
-        new PhysicalPosition(
-            trayRect.position.x + trayRect.size.width / 2 - windowPhysicalSize.width / 2,
-            trayRect.position.y
-        )
-    )
-
     await w.show()
+    await moveWindow(Position.TrayCenter)
 
     await w.listen('tauri://blur', async () => {
         await w.destroy()

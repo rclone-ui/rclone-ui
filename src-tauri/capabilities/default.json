@@ -251,6 +251,11 @@
         "autostart:allow-disable",
         "autostart:allow-is-enabled",
 
+        "positioner:default",
+        "positioner:allow-move-window",
+        "positioner:allow-move-window-constrained",
+        "positioner:allow-set-tray-icon-state",
+
         {
             "identifier": "http:default",
             "allow": [
