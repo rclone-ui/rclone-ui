@@ -31,9 +31,9 @@ jobs:
         with:
           targets: 'aarch64-pc-windows-msvc'
           
-      - name: install dependencies (windows only)
-        run: |
-          cargo install trusted-signing-cli
+      # - name: install dependencies (windows only)
+      #   run: |
+      #     cargo install trusted-signing-cli
 
       - name: install frontend dependencies
         run: npm install
