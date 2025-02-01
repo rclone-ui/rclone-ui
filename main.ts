@@ -43,7 +43,7 @@ async function validateInstance() {
 
     if (!isOnline) {
         await ask(
-            'You are not connected to the internet. Please check your internet connection and try again.',
+            'You are not connected to the internet. Please check your connection and try again.',
             {
                 title: 'Error',
                 kind: 'error',
