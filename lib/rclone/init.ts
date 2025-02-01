@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { BaseDirectory, appLocalDataDir } from '@tauri-apps/api/path'
 import { tempDir } from '@tauri-apps/api/path'
+import { message } from '@tauri-apps/plugin-dialog'
 import { copyFile, exists, mkdir, remove } from '@tauri-apps/plugin-fs'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
@@ -111,33 +112,64 @@ export async function provisionRclone() {
     const downloadedFile = await fetch(downloadUrl).then((res) => res.arrayBuffer())
     console.log('downloadedFile')
 
-    const tempDirExists = await exists(`${tempDirPath}/rclone`)
-    console.log('tempDirExists', tempDirExists)
-
-    if (tempDirExists) {
-        await remove('rclone', {
-            recursive: true,
+    let tempDirExists
+    try {
+        tempDirExists = await exists('rclone', {
             baseDir: BaseDirectory.Temp,
         })
-        console.log('removed rclone temp dir')
+        console.log('tempDirExists', tempDirExists)
+    } catch (error) {
+        console.error('Failed to check if rclone temp dir exists', error)
     }
 
-    await mkdir('rclone', {
-        baseDir: BaseDirectory.Temp,
-    })
-    console.log('created rclone temp dir')
+    if (tempDirExists) {
+        try {
+            await remove('rclone', {
+                recursive: true,
+                baseDir: BaseDirectory.Temp,
+            })
+            console.log('removed rclone temp dir')
+        } catch (error) {
+            console.error('Failed to remove rclone temp dir', error)
+            await message('Failed to provision rclone.')
+            return
+        }
+    }
+
+    try {
+        await mkdir('rclone', {
+            baseDir: BaseDirectory.Temp,
+        })
+        console.log('created rclone temp dir')
+    } catch (error) {
+        console.error('Failed to create rclone temp dir', error)
+        await message('Failed to provision rclone.')
+        return
+    }
 
     const zipPath = `${tempDirPath}/rclone/rclone-v${currentVersion}-${currentOs}-${arch}.zip`
     console.log('zipPath', zipPath)
 
-    await writeFile(zipPath, new Uint8Array(downloadedFile))
-    console.log('wrote zip file')
+    try {
+        await writeFile(zipPath, new Uint8Array(downloadedFile))
+        console.log('wrote zip file')
+    } catch (error) {
+        console.error('Failed to write zip file', error)
+        await message('Failed to provision rclone.')
+        return
+    }
 
-    await invoke('unzip_file', {
-        zipPath,
-        outputFolder: `${tempDirPath}/rclone/rclone-ui`,
-    })
-    console.log('Successfully unzipped file')
+    try {
+        await invoke('unzip_file', {
+            zipPath,
+            outputFolder: `${tempDirPath}/rclone/rclone-ui`,
+        })
+        console.log('Successfully unzipped file')
+    } catch (error) {
+        console.error('Failed to unzip file', error)
+        await message('Failed to provision rclone.')
+        return
+    }
 
     const unarchivedPath = `${tempDirPath}/rclone/rclone-ui/rclone-v${currentVersion}-${currentOs}-${arch}`
     console.log('unarchivedPath', unarchivedPath)
