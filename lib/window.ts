@@ -32,7 +32,7 @@ export async function openFullWindow({
         visibleOnAllWorkspaces: false,
         alwaysOnTop: false,
         resizable: true,
-        visible: true,
+        visible: false,
         focus: true,
         title: name,
         decorations: true,
@@ -73,7 +73,7 @@ export async function openWindow({
         visible: true,
         focus: true,
         title: name,
-        decorations: true,
+        decorations: false,
         url: url,
         // parent: 'main',
     })
@@ -83,6 +83,7 @@ export async function openWindow({
     await w.hide()
     await w.setSize(new LogicalSize(width, height))
     await w.center()
+    await w.setDecorations(true)
     await w.show()
 
     useStore.setState({ firstWindow: false })
