@@ -205,5 +205,16 @@ initLoadingTray()
     .then(() => waitForHydration())
     .then(() => validateInstance())
     .then(() => startRclone())
+    .then(async () => {
+        const firstOpen = usePersistedStore.getState().isFirstOpen
+        if (firstOpen) {
+            await message('Rclone has initialized, you can now find it in the tray menu!', {
+                title: 'Welcome',
+                kind: 'info',
+                okLabel: 'Got it',
+            })
+            usePersistedStore.setState({ isFirstOpen: false })
+        }
+    })
     .then(() => initTray())
     .catch(console.error)

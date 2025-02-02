@@ -56,6 +56,9 @@ interface PersistedState {
     setLicenseKey: (key: string | undefined) => void
     licenseValid: boolean
     setLicenseValid: (valid: boolean) => void
+
+    isFirstOpen: boolean
+    setIsFirstOpen: (isFirstOpen: boolean) => void
 }
 
 const getStorage = (store: LazyStore): StateStorage => ({
@@ -131,6 +134,9 @@ export const usePersistedStore = create<PersistedState>()(
             setLicenseKey: (key: string | undefined) => set((_) => ({ licenseKey: key })),
             licenseValid: false,
             setLicenseValid: (valid: boolean) => set((_) => ({ licenseValid: valid })),
+
+            isFirstOpen: true,
+            setIsFirstOpen: (isFirstOpen: boolean) => set((_) => ({ isFirstOpen })),
         }),
         {
             name: 'store',
