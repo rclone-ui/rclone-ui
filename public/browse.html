@@ -227,52 +227,51 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
       }
     </style>
     <script>
-		
-		console.log(window.__TAURI__)
-		
-      // Create a persistent spinner element outside the body
-      const navSpinner = document.createElement('div');
-      navSpinner.id = 'nav-spinner';
-      navSpinner.className = 'nav-spinner';
-      
-      // Function to show/hide navigation spinner
-      function toggleNavSpinner(show) {
-        if (!document.getElementById('nav-spinner')) {
-          document.body.appendChild(navSpinner);
-        }
-        navSpinner.style.display = show ? 'block' : 'none';
-      }
-
-      // Function to check if we're at root URL
-      function isRootUrl(url) {
-        try {
-          const parsedUrl = new URL(url);
-          // Remove trailing slash for consistent comparison
-          const path = parsedUrl.pathname.replace(/\/$/, '');
-          // Count segments (excluding empty strings from leading/trailing slashes)
-          const segments = path.split('/').filter(Boolean);
-          return segments.length <= 1;
-        } catch (e) {
-          console.error('Error parsing URL:', e);
-          return false;
-        }
-      }
-
-      // Function to hide "Go up" row if at root
-      function hideGoUpIfRoot(url) {
-        const goUpRow = document.querySelector('tr:has(span.goup)');
-        if (goUpRow) {
-          goUpRow.style.display = isRootUrl(url) ? 'none' : '';
-        }
-      }
-
-      // Function to fetch and modify webpage content
-      async function fetchAndInjectContent(url, pass, isInitialLoad = false) {
-        try {
-          // Only show navigation spinner for non-initial loads
-          if (!isInitialLoad) {
-            toggleNavSpinner(true);
+      // Create a function to initialize everything once __TAURI__ is available
+      function initializeApp() {
+        // Create a persistent spinner element outside the body
+        const navSpinner = document.createElement('div');
+        navSpinner.id = 'nav-spinner';
+        navSpinner.className = 'nav-spinner';
+        
+        // Function to show/hide navigation spinner
+        function toggleNavSpinner(show) {
+          if (!document.getElementById('nav-spinner')) {
+            document.body.appendChild(navSpinner);
           }
+          navSpinner.style.display = show ? 'block' : 'none';
+        }
+
+        // Function to check if we're at root URL
+        function isRootUrl(url) {
+          try {
+            const parsedUrl = new URL(url);
+            // Remove trailing slash for consistent comparison
+            const path = parsedUrl.pathname.replace(/\/$/, '');
+            // Count segments (excluding empty strings from leading/trailing slashes)
+            const segments = path.split('/').filter(Boolean);
+            return segments.length <= 1;
+          } catch (e) {
+            console.error('Error parsing URL:', e);
+            return false;
+          }
+        }
+
+        // Function to hide "Go up" row if at root
+        function hideGoUpIfRoot(url) {
+          const goUpRow = document.querySelector('tr:has(span.goup)');
+          if (goUpRow) {
+            goUpRow.style.display = isRootUrl(url) ? 'none' : '';
+          }
+        }
+
+        // Function to fetch and modify webpage content
+        async function fetchAndInjectContent(url, pass, isInitialLoad = false) {
+          try {
+            // Only show navigation spinner for non-initial loads
+            if (!isInitialLoad) {
+              toggleNavSpinner(true);
+            }
 		  
 		  let newUrl = url
 		  if (pass) {
@@ -283,260 +282,269 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
 		  
 		  console.log('newUrl', newUrl)
           
-          const fetch = window.__TAURI__.http.fetch
-          // Fetch the webpage content
-          const response = await fetch(newUrl);
-          const html = await response.text();
-          
-          // Create a temporary DOM parser
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
-          
-          // Modify the title if it exists
-          const title = doc.querySelector('title');
-          if (title) {
-            title.textContent = 'Modified: ' + title.textContent;
-            // Update current page title
-            document.title = title.textContent;
-          }
+            const fetch = window.__TAURI__.http.fetch
+            // Fetch the webpage content
+            const response = await fetch(newUrl);
+            const html = await response.text();
+            
+            // Create a temporary DOM parser
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Fix the "Go up" link href
+            const goUpLink = doc.querySelector('a:has(span.goup)');
+            if (goUpLink) {
+              // Get the current URL and remove the last path segment
+              const currentUrl = new URL(url);
+              const pathSegments = currentUrl.pathname.split('/').filter(Boolean);
+              pathSegments.pop(); // Remove last segment
+              currentUrl.pathname = '/' + pathSegments.join('/');
+              goUpLink.href = currentUrl.toString();
+            }
 
-          // Remove existing injected styles
-          const existingStyles = document.querySelectorAll('style[data-injected="true"]');
-          existingStyles.forEach(style => style.remove());
-          
-          // Copy over all style elements from the fetched document
-          const newStyles = doc.getElementsByTagName('style');
-          Array.from(newStyles).forEach(style => {
-            const clonedStyle = style.cloneNode(true);
-            clonedStyle.setAttribute('data-injected', 'true');
-            document.head.appendChild(clonedStyle);
-          });
-          
-          // Store the spinner temporarily
-          const spinnerParent = navSpinner.parentElement;
-          if (spinnerParent) {
-            spinnerParent.removeChild(navSpinner);
+            // Modify the title if it exists
+            const title = doc.querySelector('title');
+            if (title) {
+              title.textContent = 'Modified: ' + title.textContent;
+              // Update current page title
+              document.title = title.textContent;
+            }
+
+            // Remove existing injected styles
+            const existingStyles = document.querySelectorAll('style[data-injected="true"]');
+            existingStyles.forEach(style => style.remove());
+            
+            // Copy over all style elements from the fetched document
+            const newStyles = doc.getElementsByTagName('style');
+            Array.from(newStyles).forEach(style => {
+              const clonedStyle = style.cloneNode(true);
+              clonedStyle.setAttribute('data-injected', 'true');
+              document.head.appendChild(clonedStyle);
+            });
+            
+            // Store the spinner temporarily
+            const spinnerParent = navSpinner.parentElement;
+            if (spinnerParent) {
+              spinnerParent.removeChild(navSpinner);
+            }
+            
+            // Replace only the body content
+            document.body.innerHTML = doc.body.innerHTML;
+            
+            // Hide "Go up" row if at root
+            hideGoUpIfRoot(url);
+            
+            // Re-add the spinner
+            document.body.appendChild(navSpinner);
+            
+            // Update the URL in the address bar without reloading
+            window.history.pushState({}, '', `?url=${encodeURIComponent(url)}` + (pass ? `&pass=${encodeURIComponent(pass)}` : ''));
+            
+            // Re-add our event handlers
+            setupEventHandlers();
+            
+          } catch (error) {
+            console.error('Error fetching webpage:', error);
+            document.body.innerHTML = `<div>Error loading webpage: ${error.message}</div>`;
+            // Make sure spinner is still available in error case
+            document.body.appendChild(navSpinner);
+          } finally {
+            toggleNavSpinner(false);
           }
-          
-          // Replace only the body content
-          document.body.innerHTML = doc.body.innerHTML;
-          
-          // Hide "Go up" row if at root
-          hideGoUpIfRoot(url);
-          
-          // Re-add the spinner
-          document.body.appendChild(navSpinner);
-          
-          // Update the URL in the address bar without reloading
-          window.history.pushState({}, '', `?url=${encodeURIComponent(url)}` + (pass ? `&pass=${encodeURIComponent(pass)}` : ''));
-          
-          // Re-add our event handlers
-          setupEventHandlers();
-          
-        } catch (error) {
-          console.error('Error fetching webpage:', error);
-          document.body.innerHTML = `<div>Error loading webpage: ${error.message}</div>`;
-          // Make sure spinner is still available in error case
-          document.body.appendChild(navSpinner);
-        } finally {
-          toggleNavSpinner(false);
         }
-      }
 
-      // Function to handle clicks on links
-      function handleLinkClick(event) {
-        const link = event.target.closest('a');
-        if (!link) return;
+        // Function to handle clicks on links
+        function handleLinkClick(event) {
+          const link = event.target.closest('a');
+          if (!link) return;
 
-        // Get the row and check if it's a file
-        const row = link.closest('tr.file');
-        if (!row) return;
+          // Get the row and check if it's a file
+          const row = link.closest('tr.file');
+          if (!row) return;
 
-        const isFolder = row.querySelector('svg use').getAttribute('xlink:href') === '#folder';
-        
-        if (!isFolder) {
-          // Handle file download
-          event.preventDefault();
+          const isFolder = row.querySelector('svg use').getAttribute('xlink:href') === '#folder';
           
-          const save = window.__TAURI__.dialog.save;
-          const writeFile = window.__TAURI__.fs.writeFile;
-          const http = window.__TAURI__.http;
-          
-          // Get the full URL for the download
+          if (!isFolder) {
+            // Handle file download
+            event.preventDefault();
+            
+            const save = window.__TAURI__.dialog.save;
+            const writeFile = window.__TAURI__.fs.writeFile;
+            const http = window.__TAURI__.http;
+            
+            // Get the full URL for the download
+            const href = link.getAttribute('href');
+            const currentUrl = new URLSearchParams(window.location.search).get('url');
+            const baseUrl = new URL(currentUrl).href;
+            const downloadUrl = new URL(href, baseUrl).href;
+            
+            // Get the filename from the URL
+            const filename = href.split('/').pop();
+            
+            save({ 
+                title: 'Save File',
+                defaultPath: filename
+            }).then(async (result) => {
+                if (result) {
+                    try {
+                        // Show the loading spinner while downloading
+                        toggleNavSpinner(true);
+                        
+                        console.log('downloading', downloadUrl);
+                        // Fetch the file contents
+                        const response = await http.fetch(downloadUrl, {
+                            method: 'GET',
+                            responseType: 2 // ResponseType.Binary
+                        });
+                        
+                        const data = await response.arrayBuffer();
+                        
+                        // Write the file contents
+                        await writeFile(result, data);
+                    } catch (err) {
+                        console.error('Failed to download file:', err);
+                    } finally {
+                        // Hide the loading spinner when done
+                        toggleNavSpinner(false);
+                    }
+                }
+            });
+            
+            return;
+          }
+
+          // Handle folder navigation
           const href = link.getAttribute('href');
-          const currentUrl = new URLSearchParams(window.location.search).get('url');
-          const baseUrl = new URL(currentUrl).href;
-          const downloadUrl = new URL(href, baseUrl).href;
-          
-          // Get the filename from the URL
-          const filename = href.split('/').pop();
-          
-          save({ 
-              title: 'Save File',
-              defaultPath: filename
-          }).then(async (result) => {
-              if (result) {
-                  try {
-                      // Show the loading spinner while downloading
-                      toggleNavSpinner(true);
-                      
-                      console.log('downloading', downloadUrl);
-                      // Fetch the file contents
-                      const response = await http.fetch(downloadUrl, {
-                          method: 'GET',
-                          responseType: 2 // ResponseType.Binary
-                      });
-                      
-                      const data = await response.arrayBuffer();
-                      
-                      // Write the file contents
-                      await writeFile(result, data);
-                  } catch (err) {
-                      console.error('Failed to download file:', err);
-                  } finally {
-                      // Hide the loading spinner when done
-                      toggleNavSpinner(false);
-                  }
-              }
-          });
-          
-          return;
-        }
-
-        // Handle folder navigation
-        const href = link.getAttribute('href');
-        if (!href || href === '') {
-          event.preventDefault();
-          return;
-        }
-
-        // Handle different types of URLs
-        let fullUrl;
-        if (href.startsWith('http')) {
-          fullUrl = href;
-        } else if (href.startsWith('//')) {
-          fullUrl = 'https:' + href;
-        } else if (href.startsWith('/')) {
-          // Get the base URL from the current URL parameter
-          const currentUrl = new URLSearchParams(window.location.search).get('url');
-          const baseUrl = new URL(currentUrl).origin;
-          fullUrl = baseUrl + href;
-        } else {
-          // Relative URL
-          const currentUrl = new URLSearchParams(window.location.search).get('url');
-          const baseUrl = new URL(currentUrl).href;
-          fullUrl = new URL(href, baseUrl).href;
-        }
-
-        // Check if the target URL is the same as the current one
-        const currentPageUrl = new URLSearchParams(window.location.search).get('url');
-        console.log('fullUrl', fullUrl)
-        console.log('currentPageUrl', currentPageUrl)
-        if (fullUrl === currentPageUrl) {
-          event.preventDefault();
-          return;
-        }
-
-        // Prevent default navigation
-        event.preventDefault();
-        
-        // Fetch and inject the new content
-        fetchAndInjectContent(fullUrl);
-      }
-
-      // Function to check if an element is in viewport
-      function isInViewport(element) {
-        const rect = element.getBoundingClientRect();
-        return (
-          rect.top >= 0 &&
-          rect.left >= 0 &&
-          rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-          rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-        );
-      }
-
-      // Function to prefetch links
-      async function prefetchVisibleLinks() {
-        const fileRows = document.querySelectorAll('tr.file');
-        const prefetchedUrls = new Set();
-        
-        for (const row of fileRows) {
-          // Skip if not in viewport
-          if (!isInViewport(row)) {
-            continue;
+          if (!href || href === '') {
+            event.preventDefault();
+            return;
           }
 
-          // Check if this is a folder by looking for the folder icon
-          const isFolderIcon = row.querySelector('svg use')?.getAttribute('xlink:href') === '#folder';
-          if (!isFolderIcon) {
-            continue;
-          }
-
-          const link = row.querySelector('a');
-          if (!link || prefetchedUrls.has(link.href)) {
-            continue;
-          }
-
-          const href = link.getAttribute('href');
-          if (!href || href === '') continue;
-
-          // Construct full URL similar to handleLinkClick
+          // Handle different types of URLs
           let fullUrl;
           if (href.startsWith('http')) {
             fullUrl = href;
           } else if (href.startsWith('//')) {
             fullUrl = 'https:' + href;
           } else if (href.startsWith('/')) {
+            // Get the base URL from the current URL parameter
             const currentUrl = new URLSearchParams(window.location.search).get('url');
             const baseUrl = new URL(currentUrl).origin;
             fullUrl = baseUrl + href;
           } else {
+            // Relative URL
             const currentUrl = new URLSearchParams(window.location.search).get('url');
             const baseUrl = new URL(currentUrl).href;
             fullUrl = new URL(href, baseUrl).href;
           }
 
-          try {
-            const pass = new URLSearchParams(window.location.search).get('pass');
-            let prefetchUrl = fullUrl;
-            if (pass) {
-              prefetchUrl = fullUrl.replace('localhost:5572', 'admin:' + pass + '@localhost:5572');
+          // Check if the target URL is the same as the current one
+          const currentPageUrl = new URLSearchParams(window.location.search).get('url');
+          console.log('fullUrl', fullUrl)
+          console.log('currentPageUrl', currentPageUrl)
+          if (fullUrl === currentPageUrl) {
+            event.preventDefault();
+            return;
+          }
+
+          // Prevent default navigation
+          event.preventDefault();
+          
+          // Fetch and inject the new content
+          fetchAndInjectContent(fullUrl);
+        }
+
+        // Function to check if an element is in viewport
+        function isInViewport(element) {
+          const rect = element.getBoundingClientRect();
+          return (
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+          );
+        }
+
+        // Function to prefetch links
+        async function prefetchVisibleLinks() {
+          const fileRows = document.querySelectorAll('tr.file');
+          const prefetchedUrls = new Set();
+          
+          for (const row of fileRows) {
+            // Skip if not in viewport
+            if (!isInViewport(row)) {
+              continue;
             }
 
-            // Prefetch the content
-            const fetch = window.__TAURI__.http.fetch;
-            await fetch(prefetchUrl);
-            prefetchedUrls.add(fullUrl);
-          } catch (error) {
-            console.error('Error prefetching:', error);
+            // Check if this is a folder by looking for the folder icon
+            const isFolderIcon = row.querySelector('svg use')?.getAttribute('xlink:href') === '#folder';
+            if (!isFolderIcon) {
+              continue;
+            }
+
+            const link = row.querySelector('a');
+            if (!link || prefetchedUrls.has(link.href)) {
+              continue;
+            }
+
+            const href = link.getAttribute('href');
+            if (!href || href === '') continue;
+
+            // Construct full URL similar to handleLinkClick
+            let fullUrl;
+            if (href.startsWith('http')) {
+              fullUrl = href;
+            } else if (href.startsWith('//')) {
+              fullUrl = 'https:' + href;
+            } else if (href.startsWith('/')) {
+              const currentUrl = new URLSearchParams(window.location.search).get('url');
+              const baseUrl = new URL(currentUrl).origin;
+              fullUrl = baseUrl + href;
+            } else {
+              const currentUrl = new URLSearchParams(window.location.search).get('url');
+              const baseUrl = new URL(currentUrl).href;
+              fullUrl = new URL(href, baseUrl).href;
+            }
+
+            try {
+              const pass = new URLSearchParams(window.location.search).get('pass');
+              let prefetchUrl = fullUrl;
+              if (pass) {
+                prefetchUrl = fullUrl.replace('localhost:5572', 'admin:' + pass + '@localhost:5572');
+              }
+
+              // Prefetch the content
+              const fetch = window.__TAURI__.http.fetch;
+              await fetch(prefetchUrl);
+              prefetchedUrls.add(fullUrl);
+            } catch (error) {
+              console.error('Error prefetching:', error);
+            }
           }
         }
-      }
 
-      // Function to set up event handlers
-      function setupEventHandlers() {
-        // Handle all click events at the document level
-        document.addEventListener('click', handleLinkClick);
+        // Function to set up event handlers
+        function setupEventHandlers() {
+          // Handle all click events at the document level
+          document.addEventListener('click', handleLinkClick);
 
-        // Prevent form submissions and handle them manually
-        document.addEventListener('submit', (event) => {
-          event.preventDefault();
-          // You can add form handling logic here if needed
-        });
+          // Prevent form submissions and handle them manually
+          document.addEventListener('submit', (event) => {
+            event.preventDefault();
+            // You can add form handling logic here if needed
+          });
 
-        // Add scroll event listener for prefetching
-        let scrollTimeout;
-        window.addEventListener('scroll', () => {
-          clearTimeout(scrollTimeout);
-          scrollTimeout = setTimeout(prefetchVisibleLinks, 150);
-        }, { passive: true });
+          // Add scroll event listener for prefetching
+          let scrollTimeout;
+          window.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(prefetchVisibleLinks, 150);
+          }, { passive: true });
 
-        // Initial prefetch for visible links
-        prefetchVisibleLinks();
-      }
+          // Initial prefetch for visible links
+          prefetchVisibleLinks();
+        }
 
-      // Wait for DOM to be ready before initializing
-      document.addEventListener('DOMContentLoaded', () => {
         // Initial setup
         const urlParams = new URLSearchParams(window.location.search);
         const url = urlParams.get('url');
@@ -558,7 +566,19 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             fetchAndInjectContent(newUrl);
           }
         });
-      });
+      }
+
+      // Function to check for __TAURI__ availability
+      function checkTauriAvailable() {
+        if ('__TAURI__' in window && 'http' in window.__TAURI__ && 'dialog' in window.__TAURI__ && 'fs' in window.__TAURI__) {
+          initializeApp();
+        } else {
+          setTimeout(checkTauriAvailable, 50);
+        }
+      }
+
+      // Start checking for __TAURI__ when DOM is ready
+      document.addEventListener('DOMContentLoaded', checkTauriAvailable);
     </script>
   </head>
   <body>
