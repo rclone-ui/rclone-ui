@@ -6,6 +6,7 @@ import {
     currentMonitor,
     getAllWindows,
 } from '@tauri-apps/api/window'
+import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from './store'
 import { getTrayRect } from './tray'
 
@@ -70,7 +71,8 @@ export async function openWindow({
         resizable: false,
         visibleOnAllWorkspaces: false,
         alwaysOnTop: true,
-        visible: true,
+        visible: false,
+        // visible: platform() !== 'windows',
         focus: true,
         title: name,
         decorations: false,
@@ -80,7 +82,7 @@ export async function openWindow({
 
     await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 1000 : 100))
 
-    await w.hide()
+    // await w.hide()
     await w.setSize(new LogicalSize(width, height))
     await w.center()
     await w.setDecorations(true)
@@ -98,6 +100,10 @@ export async function openTrayWindow({
     name: string
     url: string
 }) {
+    if (platform() === 'windows') {
+        return await openWindow({ name, url })
+    }
+
     const isFirstWindow = useStore.getState().firstWindow
 
     const w = new WebviewWindow(name, {
