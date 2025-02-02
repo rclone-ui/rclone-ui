@@ -290,17 +290,6 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             // Create a temporary DOM parser
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
-            
-            // Fix the "Go up" link href
-            const goUpLink = doc.querySelector('a:has(span.goup)');
-            if (goUpLink) {
-              // Get the current URL and remove the last path segment
-              const currentUrl = new URL(url);
-              const pathSegments = currentUrl.pathname.split('/').filter(Boolean);
-              pathSegments.pop(); // Remove last segment
-              currentUrl.pathname = '/' + pathSegments.join('/');
-              goUpLink.href = currentUrl.toString();
-            }
 
             // Modify the title if it exists
             const title = doc.querySelector('title');
@@ -358,6 +347,27 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           const link = event.target.closest('a');
           if (!link) return;
 
+		  const href = link.getAttribute('href');
+          if (!href || href === '') {
+            event.preventDefault();
+            return;
+          }
+		  
+		  // Handle navigation for "Go up"
+          const isGoUp = link.querySelector('span.goup') !== null;
+          if (isGoUp) {
+            event.preventDefault();
+            let currentUrl = new URLSearchParams(window.location.search).get('url');
+            if (currentUrl.endsWith('/')) {
+              currentUrl = currentUrl.slice(0, -1);
+            }
+            currentUrl = currentUrl.split('/');
+            currentUrl.pop();
+            const fullUrl = currentUrl.join('/') + '/';
+            fetchAndInjectContent(fullUrl);
+            return;
+          }
+
           // Get the row and check if it's a file
           const row = link.closest('tr.file');
           if (!row) return;
@@ -412,13 +422,7 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             
             return;
           }
-
-          // Handle folder navigation
-          const href = link.getAttribute('href');
-          if (!href || href === '') {
-            event.preventDefault();
-            return;
-          }
+          
 
           // Handle different types of URLs
           let fullUrl;
@@ -553,7 +557,7 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           // Pass true to indicate this is the initial load
           fetchAndInjectContent(url, pass, true);
         } else {
-          document.body.innerHTML = '<div>Error: No URL provided. Use ?url= parameter.</div>';
+          document.body.innerHTML = '<div>Error: No URL provided.</div>';
         }
 
         // Set up initial event handlers
@@ -563,7 +567,7 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
         window.addEventListener('popstate', () => {
           const newUrl = new URLSearchParams(window.location.search).get('url');
           if (newUrl) {
-            fetchAndInjectContent(newUrl);
+            fetchAndInjectContent(newUrl, pass);
           }
         });
       }
