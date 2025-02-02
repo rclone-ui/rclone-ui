@@ -174,10 +174,19 @@ export async function provisionRclone() {
     const unarchivedPath = `${tempDirPath}/rclone/rclone-ui/rclone-v${currentVersion}-${currentOs}-${arch}`
     console.log('unarchivedPath', unarchivedPath)
 
-    const rcloneBinaryPath = unarchivedPath + '/' + 'rclone'
+    const binaryName = currentPlatform === 'windows' ? 'rclone.exe' : 'rclone'
+
+    const rcloneBinaryPath = unarchivedPath + '/' + binaryName
     console.log('rcloneBinaryPath', rcloneBinaryPath)
 
-    if (!(await exists(rcloneBinaryPath))) {
+    try {
+        const binaryExists = await exists(rcloneBinaryPath)
+        console.log('rcloneBinaryPathExists', binaryExists)
+        if (!binaryExists) {
+            throw new Error('Could not find rclone binary in zip')
+        }
+    } catch (error) {
+        console.error('Failed to check if rclone binary exists', error)
         throw new Error('Could not find rclone binary in zip')
     }
 
@@ -194,7 +203,7 @@ export async function provisionRclone() {
         console.log('appLocalDataDirPath created')
     }
 
-    await copyFile(rcloneBinaryPath, `${appLocalDataDirPath}/rclone`)
+    await copyFile(rcloneBinaryPath, `${appLocalDataDirPath}/${binaryName}`)
     console.log('copied rclone binary')
 
     const hasInstalled = await isInternalRcloneInstalled()
