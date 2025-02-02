@@ -4,7 +4,7 @@ import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { exit } from '@tauri-apps/plugin-process'
 import type { Command } from '@tauri-apps/plugin-shell'
 import { validateLicense } from './lib/license'
-import { listRemotes } from './lib/rclone/api'
+import { listRemotes, unmountAllRemotes } from './lib/rclone/api'
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
@@ -153,6 +153,18 @@ async function startRclone() {
 
     getCurrentWindow().listen('close-app', async (e) => {
         console.log('(main) window close-app requested')
+
+        if (rclone.system) {
+            const answer = await ask('Unmount all remotes before exiting?', {
+                title: 'Exit',
+                kind: 'info',
+                okLabel: 'Unmount',
+                cancelLabel: 'Exit',
+            })
+            if (answer) {
+                await unmountAllRemotes()
+            }
+        }
 
         await childProcess.kill()
     })
