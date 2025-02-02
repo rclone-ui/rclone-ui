@@ -12,7 +12,7 @@ import {
     ServerIcon,
     Trash2Icon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { revokeLicense, validateLicense } from '../../lib/license'
 import { deleteRemote } from '../../lib/rclone/api'
 import { usePersistedStore, useStore } from '../../lib/store'
@@ -158,8 +158,84 @@ function GeneralSection() {
     const disabledActions = usePersistedStore((state) => state.disabledActions)
     const setDisabledActions = usePersistedStore((state) => state.setDisabledActions)
 
+    const [updateButtonText, setUpdateButtonText] = useState('Check for updates')
     const [isWorkingUpdate, setIsWorkingUpdate] = useState(false)
     const [update, setUpdate] = useState<Update | null>(null)
+
+    const updateCallback = useCallback(async () => {
+        if (!update) {
+            try {
+                console.log('checking for updates')
+                setIsWorkingUpdate(true)
+                setUpdateButtonText('Checking...')
+                const receivedUpdate = await check()
+                console.log('receivedUpdate', JSON.stringify(receivedUpdate, null, 2))
+                if (!receivedUpdate) {
+                    setUpdateButtonText('Up to date')
+                    return
+                }
+                console.log(
+                    `found update ${receivedUpdate.version} from ${receivedUpdate.date} with notes ${receivedUpdate.body}`
+                )
+                setUpdate(receivedUpdate)
+                setUpdateButtonText('Tap to update')
+            } catch (e) {
+                console.error(e)
+            } finally {
+                setIsWorkingUpdate(false)
+            }
+            return
+        }
+
+        setIsWorkingUpdate(true)
+        setUpdateButtonText('Downloading...')
+
+        try {
+            let downloaded = 0
+            let contentLength = 0
+
+            await update.downloadAndInstall((event) => {
+                // biome-ignore lint/style/useDefaultSwitchClause: <explanation>
+                switch (event.event) {
+                    case 'Started': {
+                        contentLength = event.data.contentLength || 0
+                        console.log(`started downloading ${event.data.contentLength} bytes`)
+                        break
+                    }
+                    case 'Progress': {
+                        downloaded += event.data.chunkLength
+                        console.log(`downloaded ${downloaded} from ${contentLength}`)
+                        break
+                    }
+                    case 'Finished':
+                        console.log('download finished')
+                        break
+                }
+            })
+        } catch (error) {
+            console.error(error)
+            setIsWorkingUpdate(false)
+            setUpdateButtonText('Tap to retry')
+            await message('An error occurred in the update process. Please try again.', {
+                title: 'Update Error',
+                kind: 'error',
+            })
+            return
+        }
+
+        const answer = await ask('Update installed. Ready to restart?', {
+            title: 'Update',
+            kind: 'info',
+            okLabel: 'Restart',
+            cancelLabel: '',
+        })
+
+        if (!answer) {
+            return
+        }
+
+        await relaunch()
+    }, [update])
 
     useEffect(() => {
         // needed since the first value from the persisted store is undefined
@@ -329,96 +405,9 @@ function GeneralSection() {
                 </div>
 
                 <div className="flex flex-col w-3/5 gap-3 bg-transparent-500">
-                    {update ? (
-                        <Button
-                            isLoading={isWorkingUpdate}
-                            onPress={async () => {
-                                setIsWorkingUpdate(true)
-
-                                try {
-                                    let downloaded = 0
-                                    let contentLength = 0
-
-                                    await update.downloadAndInstall((event) => {
-                                        // biome-ignore lint/style/useDefaultSwitchClause: <explanation>
-                                        switch (event.event) {
-                                            case 'Started': {
-                                                contentLength = event.data.contentLength || 0
-                                                console.log(
-                                                    `started downloading ${event.data.contentLength} bytes`
-                                                )
-                                                break
-                                            }
-                                            case 'Progress': {
-                                                downloaded += event.data.chunkLength
-                                                console.log(
-                                                    `downloaded ${downloaded} from ${contentLength}`
-                                                )
-                                                break
-                                            }
-                                            case 'Finished':
-                                                console.log('download finished')
-                                                break
-                                        }
-                                    })
-                                } catch (error) {
-                                    console.error(error)
-                                    setIsWorkingUpdate(false)
-                                    await message(
-                                        'An error occurred in the update process. Please try again.',
-                                        {
-                                            title: 'Update Error',
-                                            kind: 'error',
-                                        }
-                                    )
-                                    return
-                                }
-
-                                const answer = await ask('Update installed. Ready to restart?', {
-                                    title: 'Update',
-                                    kind: 'info',
-                                    okLabel: 'Restart',
-                                    cancelLabel: '',
-                                })
-
-                                if (!answer) {
-                                    return
-                                }
-
-                                await relaunch()
-                            }}
-                        >
-                            Tap to update
-                        </Button>
-                    ) : (
-                        <Button
-                            isLoading={isWorkingUpdate}
-                            onPress={async () => {
-                                try {
-                                    console.log('checking for updates')
-                                    setIsWorkingUpdate(true)
-                                    const receivedUpdate = await check()
-                                    console.log(
-                                        'receivedUpdate',
-                                        JSON.stringify(receivedUpdate, null, 2)
-                                    )
-                                    if (!receivedUpdate) {
-                                        return
-                                    }
-                                    console.log(
-                                        `found update ${receivedUpdate.version} from ${receivedUpdate.date} with notes ${receivedUpdate.body}`
-                                    )
-                                    setUpdate(receivedUpdate)
-                                } catch (e) {
-                                    console.error(e)
-                                } finally {
-                                    setIsWorkingUpdate(false)
-                                }
-                            }}
-                        >
-                            Check for updates
-                        </Button>
-                    )}
+                    <Button isLoading={isWorkingUpdate} onPress={updateCallback}>
+                        {updateButtonText}
+                    </Button>
                 </div>
             </div>
         </div>
