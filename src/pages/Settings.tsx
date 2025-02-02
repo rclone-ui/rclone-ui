@@ -664,7 +664,7 @@ function RemotesSection() {
                 endContent={
                     <Button
                         onPress={async () => {
-                            if (!licenseValid) {
+                            if (!licenseValid && remotes.length >= 3) {
                                 await message(
                                     'Community version does not support adding more than 3 remotes.',
                                     {
