@@ -13,8 +13,9 @@ jobs:
         include:
           - platform: 'windows-latest'
             args: ''
+            arch: 'arm64'
           - platform: "windows-latest"
-            # args: "--target aarch64-pc-windows-msvc"
+            args: "--target aarch64-pc-windows-msvc"
             arch: 'arm64'
 
     runs-on: ${{ matrix.platform }}
@@ -30,7 +31,7 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: 'aarch64-pc-windows-msvc'
+            targets: ${{ matrix.arch == 'arm64' && 'aarch64-pc-windows-msvc' || '' }}
           
       - name: Rust cache
         uses: swatinem/rust-cache@v2
