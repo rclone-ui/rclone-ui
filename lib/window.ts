@@ -8,7 +8,7 @@ import {
 } from '@tauri-apps/api/window'
 import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from './store'
-import { getTrayRect } from './tray'
+import { getLoadingTray, getMainTray, getTrayRect } from './tray'
 
 export async function resetMainWindow() {
     const window = await getAllWindows().then((w) => w.find((w) => w.label === 'main'))
@@ -43,6 +43,12 @@ export async function openFullWindow({
     const size = await currentMonitor().then((m) => m?.size)
 
     if (!size) return
+
+    if (platform() === 'windows') {
+        // windows merges the space for the taskbar
+        // subtract from the height to have it show
+        size.height -= 100
+    }
 
     await w.hide()
     await w.setSize(size)
@@ -80,7 +86,11 @@ export async function openWindow({
         // parent: 'main',
     })
 
-    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 1000 : 100))
+    await getMainTray().then((t) => t?.setVisible(false))
+    await getLoadingTray().then((t) => t?.setVisible(true))
+    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 1000 : 150))
+    await getLoadingTray().then((t) => t?.setVisible(false))
+    await getMainTray().then((t) => t?.setVisible(true))
 
     // await w.hide()
     await w.setSize(new LogicalSize(width, height))
@@ -123,7 +133,11 @@ export async function openTrayWindow({
     //     .then((w) => w.find((w) => w.label === 'main'))
     //     ?.then((w) => w?.setSize(new LogicalSize(400, 600)))
 
-    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 1000 : 100))
+    await getMainTray().then((t) => t?.setVisible(false))
+    await getLoadingTray().then((t) => t?.setVisible(true))
+    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 1000 : 150))
+    await getLoadingTray().then((t) => t?.setVisible(false))
+    await getMainTray().then((t) => t?.setVisible(true))
 
     await w.hide()
 
