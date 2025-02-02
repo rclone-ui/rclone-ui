@@ -74,7 +74,7 @@ export async function dialogGetMountPlugin() {
     }
 }
 
-export async function unmountRemote(mountPoint: string, force = false) {
+export async function unmount(mountPoint: string, force = false) {
     const command = Command.create('umount', [force ? '-f' : '', mountPoint])
 
     const output = await command.execute()
@@ -91,7 +91,7 @@ export async function unmountRemote(mountPoint: string, force = false) {
                 cancelLabel: 'Cancel',
             })
             if (answer) {
-                return await unmountRemote(mountPoint, true)
+                return await unmount(mountPoint, true)
             }
             throw new Error(output.stderr)
         }

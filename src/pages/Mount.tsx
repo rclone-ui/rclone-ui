@@ -1,7 +1,7 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
-import { exists, remove } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import {
@@ -94,6 +94,8 @@ export default function Mount() {
     }, [mountOptionsJson, vfsOptionsJson])
 
     const handleStartMount = useCallback(async () => {
+        if (!dest || !source) return
+
         setIsLoading(true)
 
         try {
@@ -111,11 +113,19 @@ export default function Mount() {
                 _mountOptions.VolumeName = source!.split('/').pop()!
             }
 
-            const directoryExists = await exists(dest!)
+            let directoryExists: boolean | undefined
+
+            try {
+                directoryExists = await exists(dest)
+            } catch (err) {
+                console.error('Error checking if directory exists:', err)
+            }
+            console.log('directoryExists', directoryExists)
 
             const isPlatformWindows = platform() === 'windows'
-            if (directoryExists || isPlatformWindows) {
-                const isEmpty = await isDirectoryEmpty(dest!)
+
+            if (directoryExists) {
+                const isEmpty = await isDirectoryEmpty(dest)
                 if (!isEmpty) {
                     // await resetMainWindow()
 
@@ -128,18 +138,27 @@ export default function Mount() {
                 }
 
                 if (isPlatformWindows) {
-                    await remove(dest!)
+                    await remove(dest)
                 }
-            } else {
-                await message('The selected directory does not exist.', {
-                    title: 'Mount Error',
-                    kind: 'error',
-                })
-                return
+            } else if (!isPlatformWindows) {
+                try {
+                    await mkdir(dest)
+                } catch (error) {
+                    console.error('Error creating directory:', error)
+                    await message(
+                        'Failed to create mount directory. Try creating it manually first.',
+                        {
+                            title: 'Mount Error',
+                            kind: 'error',
+                        }
+                    )
+                    return
+                }
             }
+
             await mountRemote({
-                remotePath: source!,
-                mountPoint: dest!,
+                remotePath: source,
+                mountPoint: dest,
                 mountOptions: _mountOptions,
                 vfsOptions,
             })

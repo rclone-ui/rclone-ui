@@ -1,15 +1,15 @@
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message, open } from '@tauri-apps/plugin-dialog'
-import { exists, remove } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import { sendNotification } from '@tauri-apps/plugin-notification'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
-import { deleteRemote, mountRemote } from './rclone/api'
-import { dialogGetMountPlugin, needsMountPlugin, unmountRemote } from './rclone/mount'
+import { deleteRemote, mountRemote, unmountRemote } from './rclone/api'
+import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
 import { getLoadingTray, getMainTray, rebuildTrayMenu } from './tray'
 import { lockWindows, openFullWindow, openTrayWindow, openWindow, unlockWindows } from './window'
@@ -54,7 +54,7 @@ export async function buildMenu() {
                                 console.error(`No mount point found for remote ${remote}`)
                                 return
                             }
-                            await unmountRemote(mountPoint)
+                            await unmountRemote({ mountPoint })
                             delete storeState.mountedRemotes[remote]
                             await rebuildTrayMenu()
                             await message(`Successfully unmounted ${remote} from ${mountPoint}`, {
@@ -63,6 +63,7 @@ export async function buildMenu() {
                         } catch (err) {
                             console.error('Unmount operation failed:', err)
                             await message(`Failed to unmount ${remote}: ${err}`, {
+                                kind: 'error',
                                 title: 'Unmount Error',
                             })
                         }
@@ -134,10 +135,18 @@ export async function buildMenu() {
 
                             console.log('selectedPath', selectedPath)
 
-                            const directoryExists = await exists(selectedPath)
+                            let directoryExists: boolean | undefined
+
+                            try {
+                                directoryExists = await exists(selectedPath)
+                            } catch (err) {
+                                console.error('Error checking if directory exists:', err)
+                            }
+                            console.log('directoryExists', directoryExists)
 
                             const isPlatformWindows = platform() === 'windows'
-                            if (directoryExists || isPlatformWindows) {
+
+                            if (directoryExists) {
                                 const isEmpty = await isDirectoryEmpty(selectedPath)
                                 if (!isEmpty) {
                                     // await resetMainWindow()
@@ -156,12 +165,20 @@ export async function buildMenu() {
                                 if (isPlatformWindows) {
                                     await remove(selectedPath)
                                 }
-                            } else {
-                                await message('The selected directory does not exist.', {
-                                    title: 'Mount Error',
-                                    kind: 'error',
-                                })
-                                return
+                            } else if (!isPlatformWindows) {
+                                try {
+                                    await mkdir(selectedPath)
+                                } catch (error) {
+                                    console.error('Error creating directory:', error)
+                                    await message(
+                                        'Failed to create mount directory. Try creating it manually first.',
+                                        {
+                                            title: 'Mount Error',
+                                            kind: 'error',
+                                        }
+                                    )
+                                    return
+                                }
                             }
 
                             // Mount the remote

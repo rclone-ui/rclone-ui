@@ -8,6 +8,7 @@ const SUPPORRTED_BACKENDS = ['sftp', 's3', 'b2', 'drive']
 function getAuthHeader() {
     return
 
+    // biome-ignore lint/correctness/noUnreachable: <explanation>
     if (platform() === 'macos') {
         return
     }
@@ -311,6 +312,53 @@ export async function mountRemote({
             console.log('error', e)
             throw e
         })
+
+    if ('error' in r) {
+        throw new Error(r.error)
+    }
+
+    return
+}
+
+export async function unmountRemote({
+    mountPoint,
+}: {
+    mountPoint: string
+}) {
+    const options = new URLSearchParams()
+    options.set('mountPoint', mountPoint)
+
+    const r = await fetch(`http://localhost:5572/mount/unmount?${options.toString()}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+        .then((res) => res.json())
+        .catch((e) => {
+            console.log('error', e)
+            throw e
+        })
+
+    // console.log('unmountRemote', JSON.stringify(r, null, 2))
+
+    if ('error' in r) {
+        throw new Error(r.error)
+    }
+
+    return
+}
+
+export async function unmountAllRemotes() {
+    const r = await fetch('http://localhost:5572/mount/unmountall', {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+        .then((res) => res.json())
+        .catch((e) => {
+            console.log('error', e)
+            throw e
+        })
+
+    console.log('unmountAllRemotes', r)
 
     if ('error' in r) {
         throw new Error(r.error)
