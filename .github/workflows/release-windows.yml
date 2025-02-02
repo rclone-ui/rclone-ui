@@ -12,11 +12,13 @@ jobs:
       matrix:
         include:
           - platform: 'windows-latest'
-            args: ''
+            args: '--target x86_64-pc-windows-msvc'
             arch: 'arm64'
+            type: 'x86_64'
           - platform: "windows-latest"
             args: "--target aarch64-pc-windows-msvc"
             arch: 'arm64'
+            type: 'aarch64'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -31,7 +33,7 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-            targets: ${{ matrix.arch == 'arm64' && 'aarch64-pc-windows-msvc' || '' }}
+            targets: ${{ matrix.type == 'aarch64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
           
       - name: Rust cache
         uses: swatinem/rust-cache@v2
