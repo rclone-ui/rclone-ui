@@ -4,7 +4,7 @@ import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { exit } from '@tauri-apps/plugin-process'
 import type { Command } from '@tauri-apps/plugin-shell'
 import { validateLicense } from './lib/license'
-import { listRemotes, unmountAllRemotes } from './lib/rclone/api'
+import { listRemotes, mountRemote, unmountAllRemotes } from './lib/rclone/api'
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
@@ -180,6 +180,35 @@ async function startRclone() {
     // console.log('childProcess', JSON.stringify(childProcess)) // prints `pid`
 }
 
+async function startupMounts() {
+    const remoteConfigList = usePersistedStore.getState().remoteConfigList
+
+    if (!remoteConfigList) {
+        return
+    }
+
+    for (const remote in remoteConfigList) {
+        const remoteConfig = remoteConfigList[remote]
+        if (remoteConfig.mountOnStart && remoteConfig.defaultMountPoint) {
+            try {
+                await mountRemote({
+                    remotePath: `${remote}:${remoteConfig?.defaultRemotePath || ''}`,
+                    mountPoint: remoteConfig.defaultMountPoint,
+                    mountOptions: remoteConfig?.mountDefaults,
+                    vfsOptions: remoteConfig?.vfsDefaults,
+                })
+            } catch (error) {
+                console.error('Error mounting remote:', error)
+                await message(`Failed to mount ${remote} on startup.`, {
+                    title: 'Automount Error',
+                    kind: 'error',
+                    okLabel: 'Got it',
+                })
+            }
+        }
+    }
+}
+
 getCurrentWindow().listen('tauri://close-requested', async (e) => {
     console.log('(main) window close requested')
 })
@@ -216,5 +245,6 @@ initLoadingTray()
             usePersistedStore.setState({ isFirstOpen: false })
         }
     })
+    .then(() => startupMounts())
     .then(() => initTray())
     .catch(console.error)
