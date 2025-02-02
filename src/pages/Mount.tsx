@@ -2,7 +2,7 @@ import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
-import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { openPath } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import {
     AlertOctagonIcon,
@@ -283,7 +283,16 @@ export default function Mount() {
                             size="lg"
                             color="primary"
                             onPress={async () => {
-                                await revealItemInDir(dest!)
+                                if (!dest) return
+                                try {
+                                    await openPath(dest)
+                                } catch (err) {
+                                    console.error('Error opening path:', err)
+                                    await message(`Failed to open ${dest} (${err})`, {
+                                        title: 'Open Error',
+                                        kind: 'error',
+                                    })
+                                }
                                 await getCurrentWindow().destroy()
                             }}
                             data-focus-visible="false"
