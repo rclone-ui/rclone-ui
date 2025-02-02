@@ -240,7 +240,25 @@
                 }
             ]
         },
-        "opener:default",
+
+        "opener:allow-open-url",
+        {
+            "identifier": "opener:allow-open-path",
+            "allow": [
+                {
+                    "path": "*/**"
+                }
+            ]
+        },
+        {
+            "identifier": "opener:allow-reveal-item-in-dir",
+            "allow": [
+                {
+                    "path": "*/**"
+                }
+            ]
+        },
+        "opener:allow-default-urls",
 
         "updater:allow-download",
         "updater:allow-download-and-install",

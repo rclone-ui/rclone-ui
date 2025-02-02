@@ -4,7 +4,7 @@ import { ask, message, open } from '@tauri-apps/plugin-dialog'
 import { exists, remove } from '@tauri-apps/plugin-fs'
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import { sendNotification } from '@tauri-apps/plugin-notification'
-import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { openPath } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
@@ -70,24 +70,29 @@ export async function buildMenu() {
                 })
                 submenuItems.push(unmountMenuItem)
 
-                // Add "Open in Finder" option for mounted remotes
+                // Add "Show Location" option for mounted remotes
                 const mountPoint = storeState.mountedRemotes[remote]
-                console.log('Adding Open in Finder', mountPoint)
-                const openInFinderItem = await MenuItem.new({
+                console.log('Adding Show Location', mountPoint)
+                const showLocationItem = await MenuItem.new({
                     id: `open-${remote}`,
 
-                    text: 'Open in Finder',
+                    text: 'Show Location',
                     action: async () => {
-                        console.log('Open in Finder')
-                        console.log(mountPoint)
+                        console.log('Show Location', mountPoint)
                         if (mountPoint) {
-                            console.log('Opening in Finder')
-                            await revealItemInDir(mountPoint)
-                            console.log('Opened in Finder')
+                            try {
+                                await openPath(mountPoint)
+                            } catch (err) {
+                                console.error('Error opening path:', err)
+                                await message(`Failed to open ${mountPoint} (${err})`, {
+                                    title: 'Open Error',
+                                    kind: 'error',
+                                })
+                            }
                         }
                     },
                 })
-                submenuItems.push(openInFinderItem)
+                submenuItems.push(showLocationItem)
             }
 
             if (!alreadyMounted && !remoteConfig?.disabledActions?.includes('tray-mount')) {
