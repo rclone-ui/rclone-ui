@@ -14,7 +14,8 @@ jobs:
           - platform: 'windows-latest'
             args: ''
           - platform: "windows-latest"
-            args: "--target aarch64-pc-windows-msvc"
+            # args: "--target aarch64-pc-windows-msvc"
+            arch: 'arm64'
 
     runs-on: ${{ matrix.platform }}
     steps:
