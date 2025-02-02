@@ -78,7 +78,7 @@ jobs:
       - name: install frontend dependencies
         run: npm install
 
-      - name: Import Apple Developer Certificate
+      - name: Import Apple Developer Certificate (macos only)
         if: matrix.platform == 'macos-latest'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -89,11 +89,12 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
           security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           security find-identity -v -p codesigning build.keychain
           
-      - name: Verify Certificate
+      - name: Verify Certificate (macos only)
         if: matrix.platform == 'macos-latest'
         run: |
           CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")

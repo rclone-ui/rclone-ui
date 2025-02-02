@@ -46,7 +46,7 @@ jobs:
       - name: install frontend dependencies
         run: npm install
 
-      - name: Import Apple Developer Certificate
+      - name: Import Apple Developer Certificate (macos only)
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -61,7 +61,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           security find-identity -v -p codesigning build.keychain
           
-      - name: Verify Certificate
+      - name: Verify Certificate (macos only)
         run: |
           CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
           CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
