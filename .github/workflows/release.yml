@@ -13,14 +13,22 @@ jobs:
         include:
           - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
+            arch: 'silicon'
+            type: 'aarch64'
           - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin'
+            arch: 'silicon'
+            type: 'x86_64'
           - platform: 'ubuntu-22.04' 
             args: ''
           - platform: 'windows-latest'
-            args: ''
+            args: '--target x86_64-pc-windows-msvc'
+            arch: 'arm64'
+            type: 'x86_64'
           - platform: "windows-latest"
             args: "--target aarch64-pc-windows-msvc"
+            arch: 'arm64'
+            type: 'aarch64'
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -35,13 +43,28 @@ jobs:
           node-version: lts/*
           cache: 'npm'
 
-      - name: install Rust stable
+      - name: install Rust stable (linux only)
         uses: dtolnay/rust-toolchain@stable
+        if: matrix.platform == 'ubuntu-22.04'
+        
+      - name: install Rust stable (macos only)
+        uses: dtolnay/rust-toolchain@stable
+        if: matrix.platform == 'macos-latest'
         with:
-          # used on macos and windows arm
-          targets: ${{ matrix.platform != 'ubuntu-22.04' && 'aarch64-apple-darwin,x86_64-apple-darwin,aarch64-pc-windows-msvc' || '' }}
+          targets: ${{ matrix.type == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
+          
+      - name: install Rust stable (windows only)
+        uses: dtolnay/rust-toolchain@stable
+        if: matrix.platform == 'windows-latest'
+        with:
+            targets: ${{ matrix.type == 'aarch64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
+            
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
 
-      - name: install dependencies (ubuntu only)
+      - name: install dependencies (linux only)
         if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
         run: |
           sudo apt-get update
