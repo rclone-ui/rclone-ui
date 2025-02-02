@@ -1,4 +1,3 @@
-import { defaultWindowIcon } from '@tauri-apps/api/app'
 import { Menu } from '@tauri-apps/api/menu'
 import { MenuItem } from '@tauri-apps/api/menu'
 import { resolveResource } from '@tauri-apps/api/path'
@@ -72,7 +71,7 @@ export async function initTray(): Promise<void> {
 
         await TrayIcon.new({
             id: 'main-tray',
-            icon: (await defaultWindowIcon())!,
+            icon: (await resolveResource('icons/favicon/icon.png'))!,
             tooltip: 'Rclone',
             menu,
             menuOnLeftClick: true,
@@ -85,7 +84,7 @@ export async function initTray(): Promise<void> {
 }
 
 export async function initLoadingTray() {
-    const iconPath = await resolveResource('icons/favicon/frame_00_delay-0.1s.png')
+    const globeIconPath = await resolveResource('icons/favicon/frame_00_delay-0.1s.png')
 
     const quitItem = await MenuItem.new({
         id: 'quit-loading',
@@ -106,7 +105,7 @@ export async function initLoadingTray() {
 
     const loadingTray = await TrayIcon.new({
         id: 'loading-tray',
-        icon: iconPath,
+        icon: globeIconPath,
         menu: loadingMenu,
     })
 
@@ -116,10 +115,10 @@ export async function initLoadingTray() {
         if (currentIcon > 17) {
             currentIcon = 1
         }
-        const iconPath = await resolveResource(
+        const globeIconPath = await resolveResource(
             `icons/favicon/frame_${currentIcon < 10 ? '0' : ''}${currentIcon}_delay-0.1s.png`
         )
-        await loadingTray?.setIcon(iconPath)
+        await loadingTray?.setIcon(globeIconPath)
         currentIcon = currentIcon + 1
     }, 200)
 }

@@ -41,6 +41,7 @@
             "icons/icon.ico"
         ],
         "resources": [
+            "icons/favicon/icon.png",
             "icons/favicon/frame_00_delay-0.1s.png",
             "icons/favicon/frame_01_delay-0.1s.png",
             "icons/favicon/frame_02_delay-0.1s.png",
