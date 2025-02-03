@@ -168,7 +168,14 @@ function GeneralSection() {
                 console.log('checking for updates')
                 setIsWorkingUpdate(true)
                 setUpdateButtonText('Checking...')
-                const receivedUpdate = await check()
+                let receivedUpdate: Update | null = null
+                try {
+                    receivedUpdate = await check()
+                } catch (e) {
+                    console.error(e)
+                    setUpdateButtonText('Failed to check')
+                    return
+                }
                 console.log('receivedUpdate', JSON.stringify(receivedUpdate, null, 2))
                 if (!receivedUpdate) {
                     setUpdateButtonText('Up to date')
