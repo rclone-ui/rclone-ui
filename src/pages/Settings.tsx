@@ -578,7 +578,7 @@ function LicenseSection() {
                         color="primary"
                         variant="shadow"
                         onPress={async () => {
-                            await openUrl('https://buy.stripe.com/test_dR67uygoIcYJ6hG4gg')
+                            await openUrl('https://buy.stripe.com/3csbKIb1t433a8obII')
                         }}
                     >
                         Lifetime License — $7
