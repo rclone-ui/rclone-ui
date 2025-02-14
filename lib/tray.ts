@@ -10,6 +10,7 @@ import {
     getCurrentWindow,
 } from '@tauri-apps/api/window'
 import { ask } from '@tauri-apps/plugin-dialog'
+import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { buildMenu } from './menu'
 import { resetMainWindow } from './window'
@@ -84,6 +85,8 @@ export async function initTray(): Promise<void> {
 }
 
 export async function initLoadingTray() {
+    if (platform() === 'linux') return
+
     const globeIconPath = await resolveResource('icons/favicon/frame_00_delay-0.1s.png')
 
     const quitItem = await MenuItem.new({

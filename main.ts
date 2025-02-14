@@ -1,6 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
+import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import type { Command } from '@tauri-apps/plugin-shell'
 import { validateLicense } from './lib/license'
@@ -41,7 +42,7 @@ async function waitForHydration() {
 async function validateInstance() {
     const isOnline = navigator.onLine
 
-    if (!isOnline) {
+    if (!isOnline && platform() !== 'linux') {
         await ask(
             'You are not connected to the internet. Please check your connection and try again.',
             {
