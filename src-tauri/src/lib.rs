@@ -12,23 +12,6 @@ use std::path::Path;
 use zip::ZipArchive;
 use tauri_plugin_sentry::{minidump, sentry};
 
-use tauri::{AppHandle, Runtime};
-use tauri_plugin_fs::FsExt;
-
-#[tauri::command]
-fn allow_file<R: Runtime>(
-    app: AppHandle<R>,
-    path: &str) -> () {
-    app.fs_scope().allow_file(path);
-}
-
-#[tauri::command]
-fn allow_dir<R: Runtime>(
-    app: AppHandle<R>,
-    path: &str) -> () {
-    app.fs_scope().allow_directory(path, true);
-}
-
 #[tauri::command]
 fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
     // Open the zip file
@@ -121,7 +104,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, allow_file, allow_dir])
+        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid])
         .setup(|_app| Ok(()))
         // .setup(|app| {
         //     if cfg!(debug_assertions) {

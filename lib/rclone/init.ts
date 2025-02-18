@@ -193,10 +193,6 @@ export async function provisionRclone() {
     const appLocalDataDirPath = await appLocalDataDir()
     console.log('appLocalDataDirPath', appLocalDataDirPath)
 
-    await invoke('allow_dir', {
-        path: appLocalDataDirPath,
-    })
-
     const appLocalDataDirPathExists = await exists(appLocalDataDirPath)
     console.log('appLocalDataDirPathExists', appLocalDataDirPathExists)
 
