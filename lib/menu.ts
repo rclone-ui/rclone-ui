@@ -12,7 +12,7 @@ import { deleteRemote, mountRemote, unmountRemote } from './rclone/api'
 import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
 import { getLoadingTray, getMainTray, rebuildTrayMenu } from './tray'
-import { lockWindows, openFullWindow, openTrayWindow, openWindow, unlockWindows } from './window'
+import { lockWindows, openFullWindow, openWindow, unlockWindows } from './window'
 
 // Function to rebuild and update the menu
 export async function buildMenu() {
@@ -343,7 +343,7 @@ export async function buildMenu() {
         id: 'jobs',
         text: 'Jobs',
         action: async () => {
-            await openTrayWindow({
+            await openWindow({
                 name: 'Jobs',
                 url: '/jobs',
             })

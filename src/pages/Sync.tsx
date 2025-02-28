@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
 import { getFilterFlags, getGlobalFlags, getSyncFlags, startSync } from '../../lib/rclone/api'
 import { usePersistedStore } from '../../lib/store'
-import { openTrayWindow } from '../../lib/window'
+import { openWindow } from '../../lib/window'
 import OptionsSection from '../components/OptionsSection'
 import PathFinder from '../components/PathFinder'
 
@@ -106,6 +106,9 @@ export default function Sync() {
                 syncOptions,
                 filterOptions,
             })
+
+            // dummy delay to avoid waiting when opening the Jobs page
+            await new Promise((resolve) => setTimeout(resolve, 1500))
 
             setIsStarted(true)
         } catch (err) {
@@ -214,7 +217,7 @@ export default function Sync() {
                             size="lg"
                             color="primary"
                             onPress={async () => {
-                                await openTrayWindow({ name: 'Jobs', url: '/jobs' })
+                                await openWindow({ name: 'Jobs', url: '/jobs' })
                                 // await getCurrentWindow().hide()
 
                                 await getCurrentWindow().destroy()

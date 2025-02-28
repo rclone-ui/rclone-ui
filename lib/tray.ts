@@ -3,27 +3,12 @@ import { MenuItem } from '@tauri-apps/api/menu'
 import { resolveResource } from '@tauri-apps/api/path'
 import type { TrayIconEvent } from '@tauri-apps/api/tray'
 import { TrayIcon } from '@tauri-apps/api/tray'
-import {
-    PhysicalPosition,
-    PhysicalSize,
-    getAllWindows,
-    getCurrentWindow,
-} from '@tauri-apps/api/window'
+import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { buildMenu } from './menu'
 import { resetMainWindow } from './window'
-
-let trayPosition = new PhysicalPosition(0, 0)
-let traySize = new PhysicalSize(0, 0)
-
-export function getTrayRect() {
-    return {
-        position: trayPosition,
-        size: traySize,
-    }
-}
 
 export async function getMainTray() {
     return await TrayIcon.getById('main-tray')
@@ -50,9 +35,6 @@ export async function rebuildTrayMenu() {
 }
 
 async function onTrayAction(event: TrayIconEvent) {
-    trayPosition = event.rect.position
-    traySize = event.rect.size
-
     if (event.type === 'Click') {
         console.log('Tray clicked:', event)
 
