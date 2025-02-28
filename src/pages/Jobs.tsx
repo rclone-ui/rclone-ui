@@ -35,11 +35,15 @@ export default function Jobs() {
             return ''
         }
 
+        if (path.includes(':')) {
+            // returns "REMOTE:/.../LAST_SEGMENT"
+            return `${path.split(':')[0]}:/.../${path.split(':')[1]?.split('/').slice(-1).join('')}`
+        }
+
         const slashSymbol = platform() === 'windows' ? '\\' : '/'
 
-        return path.split(':')?.[1]
-            ? `${path.split(':')[0]}:${slashSymbol}...${slashSymbol}${path.split(':')[1]?.split(slashSymbol).slice(-1).join('')}`
-            : path.split(':')?.[0]?.split(slashSymbol).slice(-1).join('')
+        // returns "LAST_SEGMENT"
+        return path.split(slashSymbol).slice(-1).join('')
     }, [])
 
     useEffect(() => {
