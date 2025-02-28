@@ -2,6 +2,7 @@ import { Card, CardBody, CardFooter, CardHeader } from '@nextui-org/card'
 import { Button, Chip, Divider, Progress, Spinner } from '@nextui-org/react'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
+import { platform } from '@tauri-apps/plugin-os'
 import { Trash2Icon } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useState } from 'react'
@@ -33,9 +34,12 @@ export default function Jobs() {
         if (!path) {
             return ''
         }
+
+        const slashSymbol = platform() === 'windows' ? '\\' : '/'
+
         return path.split(':')?.[1]
-            ? `${path.split(':')[0]}:/.../${path.split(':')[1]?.split('/').slice(-1).join('')}`
-            : path.split(':')?.[0]?.split('/').slice(-1).join('')
+            ? `${path.split(':')[0]}:${slashSymbol}...${slashSymbol}${path.split(':')[1]?.split(slashSymbol).slice(-1).join('')}`
+            : path.split(':')?.[0]?.split(slashSymbol).slice(-1).join('')
     }, [])
 
     useEffect(() => {

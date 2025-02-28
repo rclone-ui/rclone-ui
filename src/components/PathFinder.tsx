@@ -2,6 +2,7 @@ import { Autocomplete } from '@nextui-org/autocomplete'
 import { AutocompleteItem, Button } from '@nextui-org/react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readDir } from '@tauri-apps/plugin-fs'
+import { platform } from '@tauri-apps/plugin-os'
 import { ArrowDownUp, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { isRemotePath } from '../../lib/fs'
@@ -119,6 +120,8 @@ export default function PathFinder({
 
             // console.log('fetching suggestions for', path, field)
 
+            const slashSymbol = platform() === 'windows' ? '\\' : '/'
+
             try {
                 // If path is empty, show list of remotes
                 if (!path) {
@@ -143,14 +146,14 @@ export default function PathFinder({
                         console.error('Failed to fetch local suggestions:', err)
                         try {
                             // we also retry in case the last part of the path is wrong
-                            cleanedPath = path.split('/').slice(0, -1).join('/')
+                            cleanedPath = path.split(slashSymbol).slice(0, -1).join(slashSymbol)
                             localEntries = await readDir(cleanedPath)
                         } catch (err) {
                             console.error('Failed to fetch local suggestions (again):', err)
                         }
                     }
 
-                    const extraSlash = cleanedPath.endsWith('/') ? '' : '/'
+                    const extraSlash = cleanedPath.endsWith(slashSymbol) ? '' : slashSymbol
 
                     const localSuggestions = localEntries
                         .filter((entry) => !entry.isSymlink)

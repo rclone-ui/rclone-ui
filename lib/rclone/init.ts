@@ -94,7 +94,7 @@ export async function provisionRclone() {
     console.log('currentOs', currentOs)
 
     let tempDirPath = await tempDir()
-    if (tempDirPath.endsWith('/')) {
+    if (tempDirPath.endsWith('/') || tempDirPath.endsWith('\\')) {
         tempDirPath = tempDirPath.slice(0, -1)
     }
     console.log('tempDirPath', tempDirPath)
@@ -176,6 +176,7 @@ export async function provisionRclone() {
 
     const binaryName = currentPlatform === 'windows' ? 'rclone.exe' : 'rclone'
 
+    // "/" here looks to be working on windows
     const rcloneBinaryPath = unarchivedPath + '/' + binaryName
     console.log('rcloneBinaryPath', rcloneBinaryPath)
 

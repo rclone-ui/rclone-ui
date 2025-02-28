@@ -110,7 +110,11 @@ export default function Mount() {
             const _mountOptions = { ...mountOptions }
 
             if (!('VolumeName' in _mountOptions) && ['windows', 'macos'].includes(platform())) {
-                _mountOptions.VolumeName = source!.split('/').pop()!
+                if (platform() === 'windows') {
+                    _mountOptions.VolumeName = source!.split('\\').pop()!
+                } else {
+                    _mountOptions.VolumeName = source!.split('/').pop()!
+                }
             }
 
             let directoryExists: boolean | undefined
