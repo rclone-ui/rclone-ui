@@ -75,7 +75,13 @@ export default function Jobs() {
     return (
         <div className="flex flex-col h-screen overflow-scroll">
             {jobs.active.map((job) => (
-                <Card key={job.id} radius="none">
+                <Card
+                    key={job.id}
+                    radius="none"
+                    style={{
+                        flexShrink: 0,
+                    }}
+                >
                     <CardHeader>
                         <div className="flex flex-row items-center justify-between w-full">
                             <Chip isCloseable={false} size="sm" variant="bordered">
@@ -131,7 +137,14 @@ export default function Jobs() {
             {jobs.inactive.length > 0 && jobs.active.length > 0 && <Divider className="h-1" />}
 
             {jobs.inactive.map((job) => (
-                <Card key={job.id} radius="none" isDisabled={true}>
+                <Card
+                    key={job.id}
+                    radius="none"
+                    isDisabled={true}
+                    style={{
+                        flexShrink: 0,
+                    }}
+                >
                     <CardHeader>
                         <Chip
                             isCloseable={false}
