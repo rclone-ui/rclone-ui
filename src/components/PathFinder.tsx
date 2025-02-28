@@ -1,6 +1,7 @@
 import { Autocomplete } from '@nextui-org/autocomplete'
 import { AutocompleteItem, Button } from '@nextui-org/react'
 import { open } from '@tauri-apps/plugin-dialog'
+import { readDir } from '@tauri-apps/plugin-fs'
 import { ArrowDownUp, FolderOpen } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { isRemotePath } from '../../lib/fs'
@@ -64,9 +65,7 @@ export default function PathFinder({
         source: [],
         dest: [],
     })
-    const [activeSuggestionField, setActiveSuggestionField] = useState<'source' | 'dest' | null>(
-        null
-    )
+
     const [isLoading, setIsLoading] = useState<{ source: boolean; dest: boolean }>({
         source: false,
         dest: false,
@@ -118,7 +117,7 @@ export default function PathFinder({
             setIsLoading((prev) => ({ ...prev, [field]: true }))
             setError((prev) => ({ ...prev, [field]: null }))
 
-            console.log('fetching suggestions for', path, field)
+            // console.log('fetching suggestions for', path, field)
 
             try {
                 // If path is empty, show list of remotes
@@ -132,9 +131,37 @@ export default function PathFinder({
                     return
                 }
 
-                // Only fetch suggestions for remote paths
+                // Fetch suggestions for local paths
                 if (!isRemotePath(path)) {
-                    setSuggestions((prev) => ({ ...prev, [field]: [] }))
+                    let localEntries: Awaited<ReturnType<typeof readDir>> = []
+                    let cleanedPath = path
+
+                    try {
+                        localEntries = await readDir(cleanedPath)
+                    } catch (err) {
+                        // most likely due to the path being a file
+                        console.error('Failed to fetch local suggestions:', err)
+                        try {
+                            // we also retry in case the last part of the path is wrong
+                            cleanedPath = path.split('/').slice(0, -1).join('/')
+                            localEntries = await readDir(cleanedPath)
+                        } catch (err) {
+                            console.error('Failed to fetch local suggestions (again):', err)
+                        }
+                    }
+
+                    const extraSlash = cleanedPath.endsWith('/') ? '' : '/'
+
+                    const localSuggestions = localEntries
+                        .filter((entry) => !entry.isSymlink)
+                        .map((entry) => ({
+                            IsDir: entry.isDirectory,
+                            Name: entry.name,
+                            Path: `${cleanedPath}${extraSlash}${entry.name}`,
+                        }))
+
+                    setSuggestions((prev) => ({ ...prev, [field]: localSuggestions }))
+
                     return
                 }
 
@@ -189,15 +216,12 @@ export default function PathFinder({
     )
 
     useEffect(() => {
-        if (activeSuggestionField) {
-            const path = activeSuggestionField === 'source' ? sourcePath : destPath
-            const timeoutId = setTimeout(() => {
-                fetchSuggestions(path, activeSuggestionField)
-            }, 300)
+        fetchSuggestions(sourcePath, 'source')
+    }, [sourcePath, fetchSuggestions])
 
-            return () => clearTimeout(timeoutId)
-        }
-    }, [sourcePath, destPath, activeSuggestionField, fetchSuggestions])
+    useEffect(() => {
+        fetchSuggestions(destPath, 'dest')
+    }, [destPath, fetchSuggestions])
 
     //! suggestions close because component re-renders
     const renderField = useCallback(
@@ -229,13 +253,9 @@ export default function PathFinder({
                             inputValue={value}
                             onInputChange={(e) => setValue(e)}
                             onFocus={() => {
-                                setActiveSuggestionField(field)
                                 if (!value) {
                                     fetchSuggestions('', field)
                                 }
-                            }}
-                            onBlur={() => {
-                                setActiveSuggestionField(null)
                             }}
                             shouldCloseOnBlur={false}
                             placeholder={
