@@ -2,7 +2,6 @@ import { Card, CardBody, CardFooter, CardHeader } from '@nextui-org/card'
 import { Button, Chip, Divider, Progress, Spinner } from '@nextui-org/react'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { platform } from '@tauri-apps/plugin-os'
 import { Trash2Icon } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useState } from 'react'
@@ -30,20 +29,18 @@ export default function Jobs() {
         setIsInitialLoad(false)
     }, [])
 
-    const buildReadablePath = useCallback((path: string) => {
+    const buildReadablePath = useCallback((path: string, type: 'short' | 'long' = 'long') => {
         if (!path) {
             return ''
         }
 
-        if (path.includes(':')) {
-            // returns "REMOTE:/.../LAST_SEGMENT"
-            return `${path.split(':')[0]}:/.../${path.split(':')[1]?.split('/').slice(-1).join('')}`
+        const lastSegment = path.split('\\').slice(-1).join('').split('/').slice(-1).join('')
+
+        if (type === 'short') {
+            return lastSegment
         }
 
-        const slashSymbol = platform() === 'windows' ? '\\' : '/'
-
-        // returns "LAST_SEGMENT"
-        return path.split(slashSymbol).slice(-1).join('')
+        return `${path.split(':')[0]}:/.../${lastSegment}`
     }, [])
 
     useEffect(() => {
@@ -119,7 +116,7 @@ export default function Jobs() {
                     </CardHeader>
                     <CardBody>
                         <div className="flex flex-col w-full gap-0">
-                            <div className="font-bold">{buildReadablePath(job.srcFs)}</div>
+                            <div className="font-bold">{buildReadablePath(job.srcFs, 'short')}</div>
                             <div className="text-sm text-gray-500">
                                 {buildReadablePath(job.dstFs)}
                             </div>
@@ -165,7 +162,7 @@ export default function Jobs() {
                     </CardHeader>
                     <CardBody>
                         <div className="flex flex-col w-full gap-0">
-                            <div className="font-bold">{buildReadablePath(job.srcFs)}</div>
+                            <div className="font-bold">{buildReadablePath(job.srcFs, 'short')}</div>
                             <div className="text-sm text-gray-500">
                                 {buildReadablePath(job.dstFs)}
                             </div>
