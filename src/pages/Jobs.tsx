@@ -30,6 +30,9 @@ export default function Jobs() {
     }, [])
 
     const buildReadablePath = useCallback((path: string) => {
+        if (!path) {
+            return ''
+        }
         return path.split(':')?.[1]
             ? `${path.split(':')[0]}:/.../${path.split(':')[1]?.split('/').slice(-1).join('')}`
             : path.split(':')?.[0]?.split('/').slice(-1).join('')
