@@ -1,10 +1,11 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
+import { exists } from '@tauri-apps/plugin-fs'
 import { AlertOctagonIcon, FilterIcon, FolderSyncIcon, FoldersIcon, PlayIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
+import { isRemotePath } from '../../lib/fs'
 import { getFilterFlags, getGlobalFlags, getSyncFlags, startSync } from '../../lib/rclone/api'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
@@ -99,10 +100,54 @@ export default function Sync() {
     const handleStartSync = useCallback(async () => {
         setIsLoading(true)
 
+        if (!source || !dest) {
+            await message('Please select both a source and destination path', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+
+        let sourceExists = false
+        let destExists = false
+
+        try {
+            // check local paths exists
+            if (isRemotePath(source)) {
+                sourceExists = true
+            } else {
+                sourceExists = await exists(source)
+            }
+
+            if (isRemotePath(dest)) {
+                destExists = true
+            } else {
+                destExists = await exists(dest)
+            }
+        } catch {}
+
+        if (!sourceExists) {
+            await message('Source path does not exist', {
+                title: 'Error',
+                kind: 'error',
+            })
+            setIsLoading(false)
+            return
+        }
+
+        if (!destExists) {
+            await message('Destination path does not exist', {
+                title: 'Error',
+                kind: 'error',
+            })
+            setIsLoading(false)
+            return
+        }
+
         try {
             await startSync({
-                source: source!,
-                dest: dest!,
+                source,
+                dest,
                 syncOptions,
                 filterOptions,
             })
@@ -194,7 +239,7 @@ export default function Sync() {
                 </Accordion>
             </div>
 
-            <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+            <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
                 {isStarted ? (
                     <>
                         <Button
@@ -220,7 +265,7 @@ export default function Sync() {
                                 await openWindow({ name: 'Jobs', url: '/jobs' })
                                 // await getCurrentWindow().hide()
 
-                                await getCurrentWindow().destroy()
+                                // await getCurrentWindow().destroy()
                             }}
                             data-focus-visible="false"
                         >
