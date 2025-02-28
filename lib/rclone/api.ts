@@ -402,28 +402,10 @@ export async function startCopy({
     }).then((res) => res.json() as Promise<{ jobid: string }>)
 
     console.log('Copy operation started:', r)
-    return
 
-    // if (!r.jobid) {
-    // 	throw new Error("Failed to start copy job");
-    // }
-
-    // Monitor job status
-    // while (true) {
-    // 	const status = await fetch(
-    // 		`http://localhost:5572/job/status/${r.jobid}`,
-    // 		{
-    // 			method: "POST",
-    // 		},
-    // 	).then((res) => res.json() as Promise<RcloneJobStatus>);
-
-    // 	if (status.finished) {
-    // 		return status.success;
-    // 	}
-
-    // 	// Wait a bit before checking again
-    // 	await new Promise((resolve) => setTimeout(resolve, 1000));
-    // }
+    if (!r.jobid) {
+        throw new Error('Failed to start copy job')
+    }
 }
 
 export async function startSync({
@@ -461,28 +443,10 @@ export async function startSync({
     }).then((res) => res.json() as Promise<{ jobid: string }>)
 
     console.log('Sync operation started:', r)
-    return
 
-    // if (!r.jobid) {
-    // 	throw new Error("Failed to start copy job");
-    // }
-
-    // Monitor job status
-    // while (true) {
-    // 	const status = await fetch(
-    // 		`http://localhost:5572/job/status/${r.jobid}`,
-    // 		{
-    // 			method: "POST",
-    // 		},
-    // 	).then((res) => res.json() as Promise<RcloneJobStatus>);
-
-    // 	if (status.finished) {
-    // 		return status.success;
-    // 	}
-
-    // 	// Wait a bit before checking again
-    // 	await new Promise((resolve) => setTimeout(resolve, 1000));
-    // }
+    if (!r.jobid) {
+        throw new Error('Failed to start sync job')
+    }
 }
 
 /* FLAGS */
