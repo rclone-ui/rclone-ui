@@ -466,6 +466,13 @@ function LicenseSection() {
                             fullWidth={true}
                             isLoading={isActivating}
                             onPress={async () => {
+                                if (!licenseKeyInput) {
+                                    await message('Please enter a license key', {
+                                        title: 'Error',
+                                        kind: 'error',
+                                    })
+                                    return
+                                }
                                 setIsActivating(true)
                                 try {
                                     await validateLicense(licenseKeyInput)
