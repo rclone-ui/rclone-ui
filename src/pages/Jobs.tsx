@@ -5,7 +5,7 @@ import { ask } from '@tauri-apps/plugin-dialog'
 import { Trash2Icon } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useState } from 'react'
-import { formatBytes } from '../../lib/format'
+import { buildReadablePath, formatBytes } from '../../lib/format'
 import { listJobs, stopJob } from '../../lib/rclone/api'
 
 export default function Jobs() {
@@ -27,20 +27,6 @@ export default function Jobs() {
 
         setJobs(jobs)
         setIsInitialLoad(false)
-    }, [])
-
-    const buildReadablePath = useCallback((path: string, type: 'short' | 'long' = 'long') => {
-        if (!path) {
-            return ''
-        }
-
-        const lastSegment = path.split('\\').slice(-1).join('').split('/').slice(-1).join('')
-
-        if (type === 'short') {
-            return lastSegment
-        }
-
-        return `${path.split(':')[0]}:/.../${lastSegment}`
     }, [])
 
     useEffect(() => {

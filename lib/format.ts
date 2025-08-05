@@ -30,3 +30,17 @@ export function getRemoteName(path?: string) {
     if (!path?.includes(':')) return null // Return null for local paths
     return path.split(':')[0]
 }
+
+export function buildReadablePath(path: string, type: 'short' | 'long' = 'long') {
+    if (!path) {
+        return ''
+    }
+
+    const lastSegment = path.split('\\').slice(-1).join('').split('/').slice(-1).join('')
+
+    if (type === 'short') {
+        return lastSegment
+    }
+
+    return `${path.split(':')[0]}:/.../${lastSegment}`
+}
