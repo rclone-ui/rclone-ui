@@ -3,6 +3,7 @@ import { shared } from 'use-broadcast-ts'
 import { create } from 'zustand'
 import { type StateStorage, createJSONStorage, persist } from 'zustand/middleware'
 import type { ConfigFile } from '../types/config'
+import type { ScheduledTask } from '../types/task'
 
 // const { LazyStore } = window.__TAURI__.store
 const store = new LazyStore('store.json')
@@ -60,6 +61,16 @@ interface PersistedState {
 
     isFirstOpen: boolean
     setIsFirstOpen: (isFirstOpen: boolean) => void
+
+    scheduledTasks: ScheduledTask[]
+    addScheduledTask: (
+        task: Omit<
+            ScheduledTask,
+            'id' | 'isRunning' | 'currentRunId' | 'lastRun' | 'configId' | 'isEnabled'
+        >
+    ) => void
+    removeScheduledTask: (id: string) => void
+    updateScheduledTask: (id: string, task: Partial<ScheduledTask>) => void
 
     configFiles: ConfigFile[]
     addConfigFile: (configFile: ConfigFile) => void
@@ -145,6 +156,44 @@ export const usePersistedStore = create<PersistedState>()(
 
             isFirstOpen: true,
             setIsFirstOpen: (isFirstOpen: boolean) => set((_) => ({ isFirstOpen })),
+
+            scheduledTasks: [],
+            addScheduledTask: (
+                task: Omit<
+                    ScheduledTask,
+                    'id' | 'isRunning' | 'currentRunId' | 'lastRun' | 'configId' | 'isEnabled'
+                >
+            ) => {
+                const state = usePersistedStore.getState()
+                const configId = state.activeConfigFile?.id
+
+                if (!configId) {
+                    throw new Error('No active config file')
+                }
+
+                set((state) => ({
+                    scheduledTasks: [
+                        ...state.scheduledTasks,
+                        {
+                            ...task,
+                            id: crypto.randomUUID(),
+                            isRunning: false,
+                            isEnabled: true,
+                            configId,
+                        },
+                    ],
+                }))
+            },
+            removeScheduledTask: (id: string) =>
+                set((state) => ({
+                    scheduledTasks: state.scheduledTasks.filter((t) => t.id !== id),
+                })),
+            updateScheduledTask: (id: string, task: Partial<ScheduledTask>) =>
+                set((state) => ({
+                    scheduledTasks: state.scheduledTasks.map((t) =>
+                        t.id === id ? { ...t, ...task } : t
+                    ),
+                })),
 
             configFiles: [],
             addConfigFile: (configFile: ConfigFile) =>

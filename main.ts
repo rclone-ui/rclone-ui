@@ -3,12 +3,13 @@ import { ask, message } from '@tauri-apps/plugin-dialog'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
-import type { Command } from '@tauri-apps/plugin-shell'
+import { CronExpressionParser } from 'cron-parser'
 import { validateLicense } from './lib/license'
-import { listRemotes, mountRemote, unmountAllRemotes } from './lib/rclone/api'
+import { listRemotes, mountRemote, startCopy, startSync, unmountAllRemotes } from './lib/rclone/api'
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
+import type { ScheduledTask } from './types/task'
 
 // forward console logs in webviews to the tauri logger, so they show up in terminal
 function forwardConsole(
@@ -226,6 +227,121 @@ async function onboardUser() {
         usePersistedStore.setState({ isFirstOpen: false })
     }
 }
+
+const MAX_INT_MS = 2_147_483_647
+let hasScheduledTasks = false
+async function resumeTasks() {
+    console.log('resuming tasks')
+
+    if (hasScheduledTasks) {
+        return
+    }
+
+    const scheduledTasks = usePersistedStore.getState().scheduledTasks
+    const activeConfigId = usePersistedStore.getState().activeConfigFile?.id
+
+    if (!activeConfigId) {
+        return
+    }
+
+    for (const task of scheduledTasks) {
+        if (task.isRunning) {
+            usePersistedStore.getState().updateScheduledTask(task.id, {
+                isRunning: false,
+                currentRunId: undefined,
+                error: 'Task closed prematurely',
+            })
+            continue
+        }
+
+        if (task.configId !== activeConfigId) {
+            continue
+        }
+
+        try {
+            const cronInterval = CronExpressionParser.parse(task.cron)
+            const nextRun = cronInterval.next().toDate()
+            const difference = nextRun.getTime() - Date.now()
+
+            if (difference <= MAX_INT_MS && difference > 0) {
+                setTimeout(() => {
+                    console.log('running task', task)
+                    handleTask(task)
+                }, difference)
+                console.log('scheduled task', task.type, task.id, nextRun)
+            }
+        } catch (error) {
+            console.error('Error scheduling task:', error)
+        }
+    }
+
+    hasScheduledTasks = true
+}
+
+async function handleTask(task: ScheduledTask) {
+    const currentTask = usePersistedStore.getState().scheduledTasks.find((t) => t.id === task.id)
+
+    if (!currentTask) {
+        return
+    }
+
+    if (currentTask.isRunning) {
+        return
+    }
+
+    const freshRunId = crypto.randomUUID()
+
+    usePersistedStore.getState().updateScheduledTask(task.id, {
+        isRunning: true,
+        currentRunId: freshRunId,
+        lastRun: new Date().toISOString(),
+    })
+
+    console.log('running task', task.type, task.id)
+
+    const currentRunId = usePersistedStore
+        .getState()
+        .scheduledTasks.find((t) => t.id === task.id)?.currentRunId
+
+    if (currentRunId !== freshRunId) {
+        return
+    }
+
+    try {
+        const { srcFs, dstFs, _config, _filter } = task.args
+
+        switch (task.type) {
+            case 'delete':
+                break
+            case 'copy':
+                await startCopy({
+                    srcFs,
+                    dstFs,
+                    _config,
+                    _filter,
+                })
+                break
+            case 'sync':
+                await startSync({
+                    srcFs,
+                    dstFs,
+                    _config,
+                    _filter,
+                })
+                break
+            default:
+                break
+        }
+    } catch (err) {
+        console.error('Failed to start task:', err)
+        usePersistedStore.getState().updateScheduledTask(task.id, {
+            isRunning: false,
+            currentRunId: undefined,
+            error: err instanceof Error ? err.message : 'Unknown error',
+        })
+    }
+}
+
 getCurrentWindow().listen('tauri://close-requested', async (e) => {
     console.log('(main) window close requested')
 })
@@ -253,5 +369,6 @@ initLoadingTray()
     .then(() => startRclone())
     .then(() => onboardUser())
     .then(() => startupMounts())
+    .then(() => resumeTasks())
     .then(() => initTray())
     .catch(console.error)
