@@ -226,15 +226,31 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
         border-spacing: 0;
       }
     </style>
+		<script>
+			window.filter = function() {
+				const searchString = document.getElementById('filter').value.trim().toLowerCase();
+				document.querySelectorAll('tr.file').forEach(function(el) {
+					if (!searchString) {
+						el.style.display = '';
+						return;
+					}	
+					const label = el.querySelector('.name').textContent.trim().toLowerCase();
+					if (label.indexOf(searchString) !== -1) {
+						el.style.display = '';
+					} else {
+						el.style.display = 'none';
+					}
+				});
+			}
+		</script>
     <script>
-      // Create a function to initialize everything once __TAURI__ is available
+      // Initialize everything once __TAURI__ is available
       function initializeApp() {
         // Create a persistent spinner element outside the body
         const navSpinner = document.createElement('div');
         navSpinner.id = 'nav-spinner';
         navSpinner.className = 'nav-spinner';
         
-        // Function to show/hide navigation spinner
         function toggleNavSpinner(show) {
           if (!document.getElementById('nav-spinner')) {
             document.body.appendChild(navSpinner);
@@ -242,7 +258,6 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           navSpinner.style.display = show ? 'block' : 'none';
         }
 
-        // Function to check if we're at root URL
         function isRootUrl(url) {
           try {
             const parsedUrl = new URL(url);
@@ -257,7 +272,6 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           }
         }
 
-        // Function to hide "Go up" row if at root
         function hideGoUpIfRoot(url) {
           const goUpRow = document.querySelector('tr:has(span.goup)');
           if (goUpRow) {
@@ -265,7 +279,6 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           }
         }
 
-        // Function to fetch and modify webpage content
         async function fetchAndInjectContent(url, pass, isInitialLoad = false) {
           try {
             // Only show navigation spinner for non-initial loads
@@ -286,19 +299,35 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             // Fetch the webpage content
             const response = await fetch(newUrl);
             const html = await response.text();
+			
+			console.log('fetched html for', newUrl)
             
             // Create a temporary DOM parser
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
 
             // Modify the title if it exists
-            const title = doc.querySelector('title');
-            if (title) {
-              title.textContent = 'Modified: ' + title.textContent;
-              // Update current page title
-              document.title = title.textContent;
-            }
-
+            // const title = doc.querySelector('title');
+            // if (title) {
+            //   title.textContent = 'Modified: ' + title.textContent;
+            //   // Update current page title
+            //   document.title = title.textContent;
+            // }
+			
+			
+			// Breadcrumbs are stored as a list of <a> inside an <h1>
+			// Disable the first link in the breadcrumbs, the one that says /
+			const header = doc.querySelector('header');
+			if (header) {
+				const h1 = header.querySelector('h1');
+				if (h1) {
+					const links = h1.querySelectorAll('a');
+					if (links.length > 0) {
+						links[0].style.pointerEvents = 'none';
+					}
+				}
+			}
+			
             // Remove existing injected styles
             const existingStyles = document.querySelectorAll('style[data-injected="true"]');
             existingStyles.forEach(style => style.remove());
@@ -316,10 +345,11 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             if (spinnerParent) {
               spinnerParent.removeChild(navSpinner);
             }
-            
+			
             // Replace only the body content
+			// regex for a hrefs with a content of /, like <a>/</a>
             document.body.innerHTML = doc.body.innerHTML;
-            
+			
             // Hide "Go up" row if at root
             hideGoUpIfRoot(url);
             
@@ -342,11 +372,12 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           }
         }
 
-        // Function to handle clicks on links
         function handleLinkClick(event) {
           const link = event.target.closest('a');
           if (!link) return;
-
+		  
+		  console.log('[handleLinkClick] link', link)
+		  
 		  const href = link.getAttribute('href');
           if (!href || href === '') {
             event.preventDefault();
@@ -356,9 +387,11 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
 		  // Handle navigation for "Go up"
           const isGoUp = link.querySelector('span.goup') !== null;
           if (isGoUp) {
+			console.log('[handleLinkClick] isGoUp')
             event.preventDefault();
             let currentUrl = new URLSearchParams(window.location.search).get('url');
-            if (currentUrl.endsWith('/')) {
+            currentUrl = currentUrl.replace(/\?.*$/, '') // remove params before going up
+			if (currentUrl.endsWith('/')) {
               currentUrl = currentUrl.slice(0, -1);
             }
             currentUrl = currentUrl.split('/');
@@ -368,61 +401,72 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             return;
           }
 
-          // Get the row and check if it's a file
-          const row = link.closest('tr.file');
-          if (!row) return;
+		  console.log('[handleLinkClick] not isGoUp')
 
-          const isFolder = row.querySelector('svg use').getAttribute('xlink:href') === '#folder';
-          
-          if (!isFolder) {
-            // Handle file download
-            event.preventDefault();
-            
-            const save = window.__TAURI__.dialog.save;
-            const writeFile = window.__TAURI__.fs.writeFile;
-            const http = window.__TAURI__.http;
-            
-            // Get the full URL for the download
-            const href = link.getAttribute('href');
-            const currentUrl = new URLSearchParams(window.location.search).get('url');
-            const baseUrl = new URL(currentUrl).href;
-            const downloadUrl = new URL(href, baseUrl).href;
-            
-            // Get the filename from the URL
-            const filename = href.split('/').pop();
-            
-            save({ 
-                title: 'Save File',
-                defaultPath: filename
-            }).then(async (result) => {
-                if (result) {
-                    try {
-                        // Show the loading spinner while downloading
-                        toggleNavSpinner(true);
-                        
-                        console.log('downloading', downloadUrl);
-                        // Fetch the file contents
-                        const response = await http.fetch(downloadUrl, {
-                            method: 'GET',
-                            responseType: 2 // ResponseType.Binary
-                        });
-                        
-                        const data = await response.arrayBuffer();
-                        
-                        // Write the file contents
-                        await writeFile(result, data);
-                    } catch (err) {
-                        console.error('Failed to download file:', err);
-                    } finally {
-                        // Hide the loading spinner when done
-                        toggleNavSpinner(false);
-                    }
-                }
-            });
-            
-            return;
-          }
-          
+          // Get the row and check if it's a file
+          const isFileOrFolder = Boolean(link.closest('tr.file'));
+		  
+		  if (isFileOrFolder) {
+			const row = link.closest('tr') 
+			if (!row) return;
+			
+			console.log('[handleLinkClick] row', row)
+
+			const isFolder = row.querySelector('svg use').getAttribute('xlink:href') === '#folder';
+			
+			if (!isFolder) {
+				// Handle file download
+				event.preventDefault();
+				
+				const save = window.__TAURI__.dialog.save;
+				const writeFile = window.__TAURI__.fs.writeFile;
+				const http = window.__TAURI__.http;
+				
+				// Get the full URL for the download
+				const href = link.getAttribute('href');
+				const currentUrl = new URLSearchParams(window.location.search).get('url');
+				const baseUrl = new URL(currentUrl).href;
+				const downloadUrl = new URL(href, baseUrl).href;
+				
+				// Get the filename from the URL
+				const filename = href.split('/').pop();
+				
+				save({ 
+					title: 'Save File',
+					defaultPath: filename
+				}).then(async (result) => {
+					if (result) {
+						try {
+							// Show the loading spinner while downloading
+							toggleNavSpinner(true);
+							
+							console.log('downloading', downloadUrl);
+							// Fetch the file contents
+							const response = await http.fetch(downloadUrl, {
+								method: 'GET',
+								responseType: 2 // ResponseType.Binary
+							});
+							
+							const data = await response.arrayBuffer();
+							
+							// Write the file contents
+							await writeFile(result, data);
+						} catch (err) {
+							console.error('Failed to download file:', err);
+						} finally {
+							// Hide the loading spinner when done
+							toggleNavSpinner(false);
+						}
+					}
+				});
+				
+				return;
+			}
+		  
+			// continue with normal handling for folders
+		}
+		 
+		  console.log('starting to handle link click for', href)
 
           // Handle different types of URLs
           let fullUrl;
@@ -435,6 +479,22 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             const currentUrl = new URLSearchParams(window.location.search).get('url');
             const baseUrl = new URL(currentUrl).origin;
             fullUrl = baseUrl + href;
+          } else if (href.startsWith('?')) {
+			const currentUrl = new URLSearchParams(window.location.search).get('url');
+            const baseUrl = new URL(currentUrl).href;
+			
+			const existingParams = new URLSearchParams(baseUrl.split('?')[1]);
+			const newParams = new URLSearchParams(href.split('?')[1]);
+			let modifiedHref = href
+			if (existingParams.has('order') && newParams.has('order')) {
+				if (existingParams.get('order') === 'asc') {
+					modifiedHref = modifiedHref.replace('order=asc', 'order=desc')
+				} else {
+					modifiedHref = modifiedHref.replace('order=desc', 'order=asc')
+				}
+			}
+			
+			fullUrl = baseUrl.replace(/\?.*$/, '') + modifiedHref
           } else {
             // Relative URL
             const currentUrl = new URLSearchParams(window.location.search).get('url');
@@ -458,7 +518,6 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           fetchAndInjectContent(fullUrl);
         }
 
-        // Function to check if an element is in viewport
         function isInViewport(element) {
           const rect = element.getBoundingClientRect();
           return (
@@ -469,84 +528,14 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           );
         }
 
-        // Function to prefetch links
-        async function prefetchVisibleLinks() {
-          const fileRows = document.querySelectorAll('tr.file');
-          const prefetchedUrls = new Set();
-          
-          for (const row of fileRows) {
-            // Skip if not in viewport
-            if (!isInViewport(row)) {
-              continue;
-            }
-
-            // Check if this is a folder by looking for the folder icon
-            const isFolderIcon = row.querySelector('svg use')?.getAttribute('xlink:href') === '#folder';
-            if (!isFolderIcon) {
-              continue;
-            }
-
-            const link = row.querySelector('a');
-            if (!link || prefetchedUrls.has(link.href)) {
-              continue;
-            }
-
-            const href = link.getAttribute('href');
-            if (!href || href === '') continue;
-
-            // Construct full URL similar to handleLinkClick
-            let fullUrl;
-            if (href.startsWith('http')) {
-              fullUrl = href;
-            } else if (href.startsWith('//')) {
-              fullUrl = 'https:' + href;
-            } else if (href.startsWith('/')) {
-              const currentUrl = new URLSearchParams(window.location.search).get('url');
-              const baseUrl = new URL(currentUrl).origin;
-              fullUrl = baseUrl + href;
-            } else {
-              const currentUrl = new URLSearchParams(window.location.search).get('url');
-              const baseUrl = new URL(currentUrl).href;
-              fullUrl = new URL(href, baseUrl).href;
-            }
-
-            try {
-              const pass = new URLSearchParams(window.location.search).get('pass');
-              let prefetchUrl = fullUrl;
-              if (pass) {
-                prefetchUrl = fullUrl.replace('localhost:5572', 'admin:' + pass + '@localhost:5572');
-              }
-
-              // Prefetch the content
-              const fetch = window.__TAURI__.http.fetch;
-              await fetch(prefetchUrl);
-              prefetchedUrls.add(fullUrl);
-            } catch (error) {
-              console.error('Error prefetching:', error);
-            }
-          }
-        }
-
-        // Function to set up event handlers
         function setupEventHandlers() {
           // Handle all click events at the document level
           document.addEventListener('click', handleLinkClick);
 
-          // Prevent form submissions and handle them manually
+          // Prevent form submissions and potentially handle them manually
           document.addEventListener('submit', (event) => {
             event.preventDefault();
-            // You can add form handling logic here if needed
           });
-
-          // Add scroll event listener for prefetching
-          let scrollTimeout;
-          window.addEventListener('scroll', () => {
-            clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(prefetchVisibleLinks, 150);
-          }, { passive: true });
-
-          // Initial prefetch for visible links
-          prefetchVisibleLinks();
         }
 
         // Initial setup
