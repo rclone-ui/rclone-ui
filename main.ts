@@ -86,9 +86,11 @@ async function validateInstance() {
 }
 
 async function startRclone() {
+    console.log('[startRclone]')
+
     try {
         const remotes = await listRemotes()
-        console.log('rclone rcd already running')
+        console.log('[startRclone] rclone rcd already running')
         useStore.setState({ rcloneLoaded: true })
         useStore.setState({ remotes: remotes })
         return
@@ -99,7 +101,7 @@ async function startRclone() {
     try {
         rclone = await initRclone()
     } catch (error) {
-        await ask(error.message || 'Failed to provision rclone, please try again later.', {
+        await ask(error.message || 'Failed to start rclone, please try again later.', {
             title: 'Error',
             kind: 'error',
             okLabel: 'Exit',
@@ -149,11 +151,12 @@ async function startRclone() {
         console.log('error', event)
     })
 
-    console.log('running rclone')
+    console.log('[startRclone] starting rclone')
     const childProcess = await command.spawn()
+    console.log('[startRclone] running rclone')
 
     getCurrentWindow().listen('close-app', async (e) => {
-        console.log('(main) window close-app requested')
+        console.log('[startRclone] (main) window close-app requested')
 
         if (rclone.system) {
             const answer = await ask('Unmount all remotes before exiting?', {
@@ -169,13 +172,15 @@ async function startRclone() {
 
         await childProcess.kill()
     })
+    console.log('[startRclone] set listener for close-app')
 
     await new Promise((resolve) => setTimeout(resolve, 200))
 
     useStore.setState({ rcloneLoaded: true })
 
+    console.log('[startRclone] listing remotes')
     const remotes = await listRemotes()
-    console.log('remotes', remotes)
+    console.log('[startRclone] got remotes')
     useStore.setState({ remotes: remotes })
 
     // console.log('childProcess', JSON.stringify(childProcess)) // prints `pid`
@@ -210,6 +215,17 @@ async function startupMounts() {
     }
 }
 
+async function onboardUser() {
+    const firstOpen = usePersistedStore.getState().isFirstOpen
+    if (firstOpen) {
+        await message('Rclone has initialized, you can now find it in the tray menu!', {
+            title: 'Welcome to Rclone UI',
+            kind: 'info',
+            okLabel: 'Got it',
+        })
+        usePersistedStore.setState({ isFirstOpen: false })
+    }
+}
 getCurrentWindow().listen('tauri://close-requested', async (e) => {
     console.log('(main) window close requested')
 })
@@ -235,17 +251,7 @@ initLoadingTray()
     .then(() => waitForHydration())
     .then(() => validateInstance())
     .then(() => startRclone())
-    .then(async () => {
-        const firstOpen = usePersistedStore.getState().isFirstOpen
-        if (firstOpen) {
-            await message('Rclone has initialized, you can now find it in the tray menu!', {
-                title: 'Welcome',
-                kind: 'info',
-                okLabel: 'Got it',
-            })
-            usePersistedStore.setState({ isFirstOpen: false })
-        }
-    })
+    .then(() => onboardUser())
     .then(() => startupMounts())
     .then(() => initTray())
     .catch(console.error)

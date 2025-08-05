@@ -14,7 +14,6 @@ import { usePersistedStore, useStore } from './store'
 import { getLoadingTray, getMainTray, rebuildTrayMenu } from './tray'
 import { lockWindows, openFullWindow, openWindow, unlockWindows } from './window'
 
-// Function to rebuild and update the menu
 export async function buildMenu() {
     const storeState = useStore.getState()
 

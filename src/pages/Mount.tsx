@@ -1,4 +1,4 @@
-import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
+import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
@@ -201,7 +201,7 @@ export default function Mount() {
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-xl gap-6 mx-auto">
+            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Paths Display */}
                 <PathFinder
                     sourcePath={source}
@@ -240,7 +240,7 @@ export default function Mount() {
                             setOptionsJson={setMountOptionsJson}
                             globalOptions={globalOptions['mount' as keyof typeof globalOptions]}
                             optionsFetcher={getMountFlags}
-                            rows={5}
+                            rows={7}
                             isLocked={mountOptionsLocked}
                             setIsLocked={setMountOptionsLocked}
                         />

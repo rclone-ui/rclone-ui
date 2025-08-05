@@ -1,4 +1,4 @@
-import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
+import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
 import { AlertOctagonIcon, CopyIcon, FilterIcon, FoldersIcon, PlayIcon } from 'lucide-react'

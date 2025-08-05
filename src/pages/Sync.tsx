@@ -1,4 +1,4 @@
-import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
+import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
 import { AlertOctagonIcon, FilterIcon, FolderSyncIcon, FoldersIcon, PlayIcon } from 'lucide-react'
@@ -188,7 +188,7 @@ export default function Sync() {
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-xl gap-6 mx-auto">
+            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Paths Display */}
                 <PathFinder
                     sourcePath={source}

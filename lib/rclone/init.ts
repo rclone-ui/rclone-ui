@@ -39,9 +39,10 @@ export async function initRclone() {
  * @returns {Promise<boolean>} True if rclone is installed and working
  */
 export async function isSystemRcloneInstalled() {
+    console.log('[isSystemRcloneInstalled]')
+
     try {
         const output = await Command.create('rclone-system').execute()
-        // console.log('[isSystemRcloneInstalled] output', output)
         return (
             output.stdout.includes('Available commands') ||
             output.stderr.includes('Available commands')
@@ -56,6 +57,8 @@ export async function isSystemRcloneInstalled() {
  * @returns {Promise<boolean>} True if downloaded rclone is present and working
  */
 export async function isInternalRcloneInstalled() {
+    console.log('[isInternalRcloneInstalled]')
+
     try {
         const output = await Command.create('rclone-internal').execute()
         // console.log('[isInternalRcloneInstalled] output', output)
@@ -74,18 +77,21 @@ export async function isInternalRcloneInstalled() {
  * @returns {Promise<void>}
  */
 export async function provisionRclone() {
+    console.log('[provisionRclone]')
+
     const currentVersionString = await fetch('https://downloads.rclone.org/version.txt').then(
         (res) => res.text()
     )
-    console.log('currentVersionString', currentVersionString)
+    console.log('[provisionRclone] currentVersionString', currentVersionString)
 
     const currentVersion = currentVersionString.split('v')?.[1]?.trim()
 
     if (!currentVersion) {
-        console.error('Failed to get latest version')
+        console.error('[provisionRclone] failed to get latest version')
+        await message('Failed to get latest rclone version, please try again later.')
         return
     }
-    console.log('currentVersion', currentVersion)
+    console.log('[provisionRclone] currentVersion', currentVersion)
 
     const currentPlatform = platform()
     console.log('currentPlatform', currentPlatform)
@@ -97,29 +103,31 @@ export async function provisionRclone() {
     if (tempDirPath.endsWith('/') || tempDirPath.endsWith('\\')) {
         tempDirPath = tempDirPath.slice(0, -1)
     }
-    console.log('tempDirPath', tempDirPath)
+    console.log('[provisionRclone] tempDirPath', tempDirPath)
 
     const arch = (await invoke('get_arch')) as 'arm64' | 'amd64' | '386' | 'unknown'
-    console.log('arch', arch)
+    console.log('[provisionRclone] arch', arch)
 
     if (arch === 'unknown') {
-        throw new Error('Failed to get architecture, please try again later.')
+        console.error('[provisionRclone] failed to get architecture')
+        await message('Failed to get current arch, please try again later.')
+        return
     }
 
     const downloadUrl = `https://downloads.rclone.org/v${currentVersion}/rclone-v${currentVersion}-${currentOs}-${arch}.zip`
-    console.log('downloadUrl', downloadUrl)
+    console.log('[provisionRclone] downloadUrl', downloadUrl)
 
     const downloadedFile = await fetch(downloadUrl).then((res) => res.arrayBuffer())
-    console.log('downloadedFile')
+    console.log('[provisionRclone] downloadedFile')
 
     let tempDirExists
     try {
         tempDirExists = await exists('rclone', {
             baseDir: BaseDirectory.Temp,
         })
-        console.log('tempDirExists', tempDirExists)
+        console.log('[provisionRclone] tempDirExists', tempDirExists)
     } catch (error) {
-        console.error('Failed to check if rclone temp dir exists', error)
+        console.error('[provisionRclone] failed to check if rclone temp dir exists', error)
     }
 
     if (tempDirExists) {
@@ -128,9 +136,9 @@ export async function provisionRclone() {
                 recursive: true,
                 baseDir: BaseDirectory.Temp,
             })
-            console.log('removed rclone temp dir')
+            console.log('[provisionRclone] removed rclone temp dir')
         } catch (error) {
-            console.error('Failed to remove rclone temp dir', error)
+            console.error('[provisionRclone] failed to remove rclone temp dir', error)
             await message('Failed to provision rclone.')
             return
         }
@@ -140,21 +148,21 @@ export async function provisionRclone() {
         await mkdir('rclone', {
             baseDir: BaseDirectory.Temp,
         })
-        console.log('created rclone temp dir')
+        console.log('[provisionRclone] created rclone temp dir')
     } catch (error) {
-        console.error('Failed to create rclone temp dir', error)
+        console.error('[provisionRclone] failed to create rclone temp dir', error)
         await message('Failed to provision rclone.')
         return
     }
 
     const zipPath = `${tempDirPath}/rclone/rclone-v${currentVersion}-${currentOs}-${arch}.zip`
-    console.log('zipPath', zipPath)
+    console.log('[provisionRclone] zipPath', zipPath)
 
     try {
         await writeFile(zipPath, new Uint8Array(downloadedFile))
-        console.log('wrote zip file')
+        console.log('[provisionRclone] wrote zip file')
     } catch (error) {
-        console.error('Failed to write zip file', error)
+        console.error('[provisionRclone] failed to write zip file', error)
         await message('Failed to provision rclone.')
         return
     }
@@ -164,48 +172,48 @@ export async function provisionRclone() {
             zipPath,
             outputFolder: `${tempDirPath}/rclone/rclone-ui`,
         })
-        console.log('Successfully unzipped file')
+        console.log('[provisionRclone] successfully unzipped file')
     } catch (error) {
-        console.error('Failed to unzip file', error)
+        console.error('[provisionRclone] failed to unzip file', error)
         await message('Failed to provision rclone.')
         return
     }
 
     const unarchivedPath = `${tempDirPath}/rclone/rclone-ui/rclone-v${currentVersion}-${currentOs}-${arch}`
-    console.log('unarchivedPath', unarchivedPath)
+    console.log('[provisionRclone] unarchivedPath', unarchivedPath)
 
     const binaryName = currentPlatform === 'windows' ? 'rclone.exe' : 'rclone'
 
     // "/" here looks to be working on windows
     const rcloneBinaryPath = unarchivedPath + '/' + binaryName
-    console.log('rcloneBinaryPath', rcloneBinaryPath)
+    console.log('[provisionRclone] rcloneBinaryPath', rcloneBinaryPath)
 
     try {
         const binaryExists = await exists(rcloneBinaryPath)
-        console.log('rcloneBinaryPathExists', binaryExists)
+        console.log('[provisionRclone] rcloneBinaryPathExists', binaryExists)
         if (!binaryExists) {
             throw new Error('Could not find rclone binary in zip')
         }
     } catch (error) {
-        console.error('Failed to check if rclone binary exists', error)
-        throw new Error('Could not find rclone binary in zip')
+        console.error('[provisionRclone] failed to check if rclone binary exists', error)
+        await message('Failed to provision rclone.')
     }
 
     const appLocalDataDirPath = await appLocalDataDir()
-    console.log('appLocalDataDirPath', appLocalDataDirPath)
+    console.log('[provisionRclone] appLocalDataDirPath', appLocalDataDirPath)
 
     const appLocalDataDirPathExists = await exists(appLocalDataDirPath)
-    console.log('appLocalDataDirPathExists', appLocalDataDirPathExists)
+    console.log('[provisionRclone] appLocalDataDirPathExists', appLocalDataDirPathExists)
 
     if (!appLocalDataDirPathExists) {
         await mkdir(appLocalDataDirPath, {
             recursive: true,
         })
-        console.log('appLocalDataDirPath created')
+        console.log('[provisionRclone] appLocalDataDirPath created')
     }
 
     await copyFile(rcloneBinaryPath, `${appLocalDataDirPath}/${binaryName}`)
-    console.log('copied rclone binary')
+    console.log('[provisionRclone] copied rclone binary')
 
     const hasInstalled = await isInternalRcloneInstalled()
 
@@ -213,5 +221,6 @@ export async function provisionRclone() {
         throw new Error('Failed to install rclone')
     }
 
-    console.log('rclone has been installed')
+    console.log('[provisionRclone] rclone has been installed')
+
 }

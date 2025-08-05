@@ -21,6 +21,8 @@ export async function openFullWindow({
     name: string
     url: string
 }) {
+    console.log('[openFullWindow]')
+
     const w = new WebviewWindow(name, {
         height: 0,
         width: 0,
@@ -36,7 +38,10 @@ export async function openFullWindow({
 
     const size = await currentMonitor().then((m) => m?.size)
 
-    if (!size) return
+    if (!size) {
+        console.error('[openFullWindow] no monitor found')
+        throw new Error('No monitor found')
+    }
 
     if (platform() === 'windows') {
         // windows merges the space for the taskbar
@@ -55,14 +60,16 @@ export async function openFullWindow({
 export async function openWindow({
     name,
     url,
-    width = 740,
-    height = 600,
+    width = 820,
+    height = 700,
 }: {
     name: string
     url: string
     width?: number
     height?: number
 }) {
+    console.log('[openWindow]')
+
     const isFirstWindow = useStore.getState().firstWindow
 
     const w = new WebviewWindow(name, {

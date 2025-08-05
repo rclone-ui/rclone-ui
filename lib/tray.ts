@@ -24,19 +24,23 @@ export async function triggerTrayRebuild() {
     })
 }
 
-// Function to update the tray menu
 export async function rebuildTrayMenu() {
+    console.log('[rebuildTrayMenu]')
+
     const tray = await getMainTray()
     if (!tray) {
+        console.error('[rebuildTrayMenu] tray not found')
         return
     }
     const newMenu = await buildMenu()
     await tray.setMenu(newMenu)
+
+    console.log('[rebuildTrayMenu] tray menu rebuilt')
 }
 
 async function onTrayAction(event: TrayIconEvent) {
     if (event.type === 'Click') {
-        console.log('Tray clicked:', event)
+        console.log('[onTrayAction] tray clicked:', event)
 
         await resetMainWindow()
     }
@@ -45,12 +49,12 @@ async function onTrayAction(event: TrayIconEvent) {
 // Initialize the tray
 export async function initTray(): Promise<void> {
     try {
-        console.log('initTray')
+        console.log('[initTray]')
         const menu = await buildMenu()
-        console.log('built menu')
+        console.log('[initTray] built menu')
 
         await TrayIcon.getById('loading-tray').then((t) => t?.setVisible(false))
-        console.log('set loading tray to false')
+        console.log('[initTray] set loading tray to false')
 
         await TrayIcon.new({
             id: 'main-tray',
@@ -61,13 +65,18 @@ export async function initTray(): Promise<void> {
             action: onTrayAction,
         })
     } catch (error) {
-        console.error('Failed to create tray')
+        console.error('[initTray] failed to create tray')
         console.error(error)
     }
 }
 
 export async function initLoadingTray() {
-    if (platform() === 'linux') return
+    console.log('[initLoadingTray]')
+
+    if (platform() === 'linux') {
+        console.log('[initLoadingTray] platform is linux, skipping')
+        return
+    }
 
     const globeIconPath = await resolveResource('icons/favicon/frame_00_delay-0.1s.png')
 
@@ -104,6 +113,6 @@ export async function initLoadingTray() {
             `icons/favicon/frame_${currentIcon < 10 ? '0' : ''}${currentIcon}_delay-0.1s.png`
         )
         await loadingTray?.setIcon(globeIconPath)
-        currentIcon = currentIcon + 1
+        currentIcon += 1
     }, 200)
 }

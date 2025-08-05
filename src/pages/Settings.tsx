@@ -1,4 +1,4 @@
-import { Button, Card, CardBody, Checkbox, Chip, Input, Tab, Tabs } from '@nextui-org/react'
+import { Button, Card, CardBody, Checkbox, Chip, Input, Tab, Tabs } from '@heroui/react'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { relaunch } from '@tauri-apps/plugin-process'
@@ -38,7 +38,7 @@ function Settings() {
                     autoCapitalize="none"
                     autoComplete="off"
                     autoCorrect="off"
-                    spellCheck={false}
+                    spellCheck="false"
                     type={passwordVisible ? 'text' : 'password'}
                     fullWidth={false}
                     size="lg"
@@ -75,20 +75,22 @@ function Settings() {
     }
 
     return (
-        <div className="flex flex-col w-screen h-screen gap-0 overflow-hidden animate-fade-in">
+        <div className="relative flex flex-col w-screen h-screen gap-0 overflow-hidden">
             <Tabs
                 aria-label="Options"
                 isVertical={true}
                 variant="light"
                 destroyInactiveTabPanel={false}
                 disableAnimation={true}
-                className="flex-shrink-0 w-3/12 h-screen px-2 py-4 border-r border-neutral-700"
+                className="flex-shrink-0 w-40 h-screen px-2 py-4 border-r border-neutral-700"
                 classNames={{
                     tabList: 'w-full gap-3',
+                    tab: 'h-14',
                 }}
                 size="lg"
                 defaultSelectedKey="general"
                 color="secondary"
+                radius="sm"
             >
                 <Tab
                     key="general"
@@ -276,7 +278,7 @@ function GeneralSection() {
                         autoCapitalize="none"
                         autoComplete="off"
                         autoCorrect="off"
-                        spellCheck={false}
+                        spellCheck="false"
                         type={passwordVisible ? 'text' : 'password'}
                         endContent={
                             passwordInput && (
@@ -454,7 +456,7 @@ function LicenseSection() {
                         autoCapitalize="none"
                         autoComplete="off"
                         autoCorrect="off"
-                        spellCheck={false}
+                        spellCheck="false"
                         endContent={
                             licenseValid && <CheckIcon className="w-5 h-5 text-green-500" />
                         }
@@ -806,25 +808,3 @@ function BaseHeader({ title, endContent }: { title: string; endContent?: React.R
 }
 
 export default Settings
-
-//  {/* <Button
-//                                 onPress={async () => {
-//                                     const enabled = await isEnabled()
-//                                     if (enabled) {
-//                                         await disable()
-//                                     } else {
-//                                         await enable()
-//                                     }
-//                                 }}
-//                             >
-//                                 Start on boot
-//                             </Button>
-
-//                             <Button
-//                                 onPress={async () => {
-//                                     const enabled = await isEnabled()
-//                                     alert(enabled ? 'Enabled' : 'Disabled')
-//                                 }}
-//                             >
-//                                 Get status
-//                             </Button> */}

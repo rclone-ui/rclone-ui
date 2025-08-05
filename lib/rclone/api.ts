@@ -24,14 +24,17 @@ function getAuthHeader() {
 
 /* DATA */
 export async function listRemotes() {
+    console.log('[listRemotes] CALLED')
+
     const r = await fetch('http://localhost:5572/config/listremotes', {
         method: 'POST',
         headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<{ remotes: string[] }>)
-    // .catch((e) => {
-    // 	console.log("error", e);
-    // 	throw e;
-    // });
+    })
+        .catch((e) => {
+            console.log('error', e)
+            throw e
+        })
+        .then((res) => res.json() as Promise<{ remotes: string[] }>)
 
     if (typeof r?.remotes === 'undefined') {
         throw new Error('Failed to fetch remotes')
@@ -41,16 +44,14 @@ export async function listRemotes() {
 }
 
 export async function getRemote(remote: string) {
+    console.log('[getRemote]', remote)
+
     const r = await fetch(`http://localhost:5572/config/get?name=${remote}`, {
         method: 'POST',
         headers: getAuthHeader(),
     }).then(
         (res) => res.json() as Promise<{ type: string } & Record<string, string | number | boolean>>
     )
-    // .catch((e) => {
-    // 	console.log("error", e);
-    // 	throw e;
-    // });
 
     // console.log(JSON.stringify(r, null, 2))
 
@@ -61,7 +62,7 @@ export async function updateRemote(
     remote: string,
     parameters: Record<string, string | number | boolean>
 ) {
-    console.log('updateRemote', remote, parameters)
+    console.log('[updateRemote]', remote, parameters)
 
     const options = new URLSearchParams()
     options.set('name', remote)
@@ -80,7 +81,7 @@ export async function createRemote(
     type: string,
     parameters: Record<string, string | number | boolean>
 ) {
-    console.log('createRemote', name, type, parameters)
+    console.log('[createRemote]', name, type, parameters)
 
     const options = new URLSearchParams()
     options.set('name', name)
@@ -96,6 +97,8 @@ export async function createRemote(
 }
 
 export async function deleteRemote(remote: string) {
+    console.log('[deleteRemote]', remote)
+
     await fetch(`http://localhost:5572/config/delete?name=${remote}`, {
         method: 'POST',
         headers: getAuthHeader(),
@@ -105,6 +108,8 @@ export async function deleteRemote(remote: string) {
 }
 
 export async function getMountPoints() {
+    console.log('[getMountPoints]')
+
     const r = await fetch('http://localhost:5572/mount/listmounts', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -115,8 +120,6 @@ export async function getMountPoints() {
             }>
     )
 
-    // console.log('Mount points:', r)
-
     if (!Array.isArray(r?.mountPoints)) {
         throw new Error('Failed to get mount points')
     }
@@ -125,6 +128,8 @@ export async function getMountPoints() {
 }
 
 export async function getBackends() {
+    console.log('[getBackends]')
+
     const providers = await fetch('http://localhost:5572/config/providers', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -149,6 +154,8 @@ export interface ListOptions {
 }
 
 export async function listPath(remote: string, path: string = '', options: ListOptions = {}) {
+    console.log('[listPath]', remote, path, options)
+
     const params = new URLSearchParams()
     params.set('fs', `${remote}:`)
     params.set('remote', path)
@@ -190,9 +197,11 @@ export async function listPath(remote: string, path: string = '', options: ListO
 
     return response?.list || []
 }
-/* JOBS */
 
+/* JOBS */
 export async function listJobs() {
+    console.log('[listJobs]')
+
     const allStats = await fetch('http://localhost:5572/core/stats', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -273,6 +282,8 @@ export async function listJobs() {
 }
 
 export async function stopJob(jobId: number) {
+    console.log('[stopJob]', jobId)
+
     await fetch(`http://localhost:5572/job/stopgroup?group=job/${jobId}`, {
         method: 'POST',
         headers: getAuthHeader(),
@@ -291,6 +302,8 @@ export async function mountRemote({
     mountOptions?: Record<string, string | number | boolean>
     vfsOptions?: Record<string, string | number | boolean>
 }) {
+    console.log('[mountRemote]', remotePath, mountPoint)
+
     const options = new URLSearchParams()
     options.set('fs', remotePath)
     options.set('mountPoint', mountPoint)
@@ -325,6 +338,8 @@ export async function unmountRemote({
 }: {
     mountPoint: string
 }) {
+    console.log('[unmountRemote]', mountPoint)
+
     const options = new URLSearchParams()
     options.set('mountPoint', mountPoint)
 
@@ -338,8 +353,6 @@ export async function unmountRemote({
             throw e
         })
 
-    // console.log('unmountRemote', JSON.stringify(r, null, 2))
-
     if ('error' in r) {
         throw new Error(r.error)
     }
@@ -348,6 +361,8 @@ export async function unmountRemote({
 }
 
 export async function unmountAllRemotes() {
+    console.log('[unmountAllRemotes]')
+
     const r = await fetch('http://localhost:5572/mount/unmountall', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -357,8 +372,6 @@ export async function unmountAllRemotes() {
             console.log('error', e)
             throw e
         })
-
-    console.log('unmountAllRemotes', r)
 
     if ('error' in r) {
         throw new Error(r.error)
@@ -452,6 +465,8 @@ export async function startSync({
 /* FLAGS */
 
 export async function getGlobalFlags() {
+    console.log('[getGlobalFlags]')
+
     const r = await fetch('http://localhost:5572/options/get', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -461,6 +476,8 @@ export async function getGlobalFlags() {
 }
 
 export async function getCopyFlags() {
+    console.log('[getCopyFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -476,6 +493,8 @@ export async function getCopyFlags() {
 }
 
 export async function getSyncFlags() {
+    console.log('[getSyncFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -494,6 +513,8 @@ export async function getSyncFlags() {
 }
 
 export async function getFilterFlags() {
+    console.log('[getFilterFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -508,6 +529,8 @@ export async function getFilterFlags() {
 }
 
 export async function getVfsFlags() {
+    console.log('[getVfsFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -523,6 +546,8 @@ export async function getVfsFlags() {
 }
 
 export async function getMountFlags() {
+    console.log('[getMountFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),

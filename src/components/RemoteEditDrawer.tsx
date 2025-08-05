@@ -1,13 +1,6 @@
-import { Checkbox } from '@nextui-org/checkbox'
-import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@nextui-org/drawer'
-import {
-    Autocomplete,
-    AutocompleteItem,
-    Button,
-    Input,
-    Select,
-    SelectItem,
-} from '@nextui-org/react'
+import { Checkbox } from '@heroui/react'
+import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@heroui/react'
+import { Autocomplete, AutocompleteItem, Button, Input, Select, SelectItem } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -115,7 +108,7 @@ export default function RemoteEditDrawer({
                         autoComplete="off"
                         autoCapitalize="off"
                         autoCorrect="off"
-                        spellCheck={false}
+                        spellCheck="false"
                         description={option.Help.split('\n').slice(1).join('\n')}
                     />
                 )
@@ -204,14 +197,10 @@ export default function RemoteEditDrawer({
                                     selectionMode="single"
                                     placeholder="Select Type"
                                     selectedKeys={[config.type]}
-                                    // onChange={(e) => {
-                                    //     console.log(e.target.value)
-                                    //     setConfig({ ...config, type: e.target.value })
-                                    // }}
                                     isDisabled={true}
                                 >
                                     {backends.map((backend) => (
-                                        <SelectItem key={backend.Name} value={backend.Name}>
+                                        <SelectItem key={backend.Name}>
                                             {backend.Description.includes('Compliant')
                                                 ? `${backend.Description.split('Compliant')[0]} Compliant`
                                                 : backend.Description || backend.Name}
