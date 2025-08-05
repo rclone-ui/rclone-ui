@@ -1,7 +1,14 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
-import { AlertOctagonIcon, CopyIcon, FilterIcon, FoldersIcon, PlayIcon } from 'lucide-react'
+import {
+    AlertOctagonIcon,
+    ClockIcon,
+    CopyIcon,
+    FilterIcon,
+    FoldersIcon,
+    PlayIcon,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
@@ -9,6 +16,7 @@ import { isRemotePath } from '../../lib/fs'
 import { getCopyFlags, getFilterFlags, getGlobalFlags, startCopy } from '../../lib/rclone/api'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
+import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import PathFinder from '../components/PathFinder'
 
@@ -31,6 +39,8 @@ export default function Copy() {
     const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
     const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
+
+    const [cronExpression, setCronExpression] = useState<string | null>(null)
 
     const [globalOptions, setGlobalOptions] = useState<any[]>([])
 
@@ -235,6 +245,17 @@ export default function Copy() {
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
                         />
+                    </AccordionItem>
+                    <AccordionItem
+                        key="cron"
+                        startContent={
+                            <Avatar color="warning" radius="lg" fallback={<ClockIcon />} />
+                        }
+                        indicator={<ClockIcon />}
+                        subtitle="Tap to toggle cron options for this operation"
+                        title="Cron"
+                    >
+                        <CronEditor expression={cronExpression} onChange={setCronExpression} />
                     </AccordionItem>
                 </Accordion>
             </div>
