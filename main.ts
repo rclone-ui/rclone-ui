@@ -96,10 +96,24 @@ async function startRclone() {
         return
     } catch {}
 
-    let rclone
+    let rclone: Awaited<ReturnType<typeof initRclone>> | null = null
 
     try {
-        rclone = await initRclone()
+        const sessionPassword = Math.random().toString(36).substring(2, 15)
+        useStore.setState({ rcloneAuth: sessionPassword })
+        useStore.setState({ rcloneAuthHeader: 'Basic ' + btoa(`admin:${sessionPassword}`) })
+
+        rclone = await initRclone([
+            'rcd',
+            // ...(platform() === 'macos'
+            //     ? ['--rc-no-auth'] // webkit doesn't allow for credentials in the url
+            //     : ['--rc-user', 'admin', '--rc-pass', sessionPassword]),
+            '--rc-no-auth',
+            '--rc-serve',
+            // defaults
+            // '-rc-addr',
+            // ':5572',
+        ])
     } catch (error) {
         await ask(error.message || 'Failed to start rclone, please try again later.', {
             title: 'Error',
@@ -110,23 +124,9 @@ async function startRclone() {
         return await exit(0)
     }
 
-    const sessionPassword = Math.random().toString(36).substring(2, 15)
-    useStore.setState({ rcloneAuth: sessionPassword })
-    useStore.setState({ rcloneAuthHeader: 'Basic ' + btoa(`admin:${sessionPassword}`) })
+    const rcloneCommandFn = rclone?.system || rclone?.internal
 
-    const rcloneCommandFn = rclone.system || rclone.internal
-
-    const command = (await rcloneCommandFn([
-        'rcd',
-        // ...(platform() === 'macos'
-        //     ? ['--rc-no-auth'] // webkit doesn't allow for credentials in the url
-        //     : ['--rc-user', 'admin', '--rc-pass', sessionPassword]),
-        '--rc-no-auth',
-        '--rc-serve',
-        // defaults
-        // '-rc-addr',
-        // ':5572',
-    ])) as Command<string>
+    const command = rcloneCommandFn!
 
     // command.stdout.on('data', (line) => {
     //     console.log('stdout ' + line)
@@ -158,7 +158,7 @@ async function startRclone() {
     getCurrentWindow().listen('close-app', async (e) => {
         console.log('[startRclone] (main) window close-app requested')
 
-        if (rclone.system) {
+        if (rclone?.system) {
             const answer = await ask('Unmount all remotes before exiting?', {
                 title: 'Exit',
                 kind: 'info',

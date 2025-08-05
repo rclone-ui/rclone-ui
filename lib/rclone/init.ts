@@ -1,36 +1,174 @@
 import { invoke } from '@tauri-apps/api/core'
 import { BaseDirectory, appLocalDataDir } from '@tauri-apps/api/path'
 import { tempDir } from '@tauri-apps/api/path'
-import { message } from '@tauri-apps/plugin-dialog'
-import { copyFile, exists, mkdir, remove } from '@tauri-apps/plugin-fs'
+import { ask, message } from '@tauri-apps/plugin-dialog'
+import { copyFile, exists, mkdir, readTextFile, remove } from '@tauri-apps/plugin-fs'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
+import { exit } from '@tauri-apps/plugin-process'
 import { Command } from '@tauri-apps/plugin-shell'
+import { usePersistedStore } from '../store'
+import { getConfigPath, getDefaultPaths } from './api'
 
-export async function initRclone() {
+export async function initRclone(args: string[]) {
+    console.log('[initRclone]')
+
     const system = await isSystemRcloneInstalled()
     let internal = await isInternalRcloneInstalled()
 
     // rclone not available, let's download it
     if (!system && !internal) {
-        await provisionRclone()
+        const success = await provisionRclone()
+        if (!success) {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            await exit(0)
+            return
+        }
         internal = true
     }
 
-    return {
-        system: system
-            ? async (args: string[]) => {
-                  console.log('running system rclone')
-                  return Command.create('rclone-system', args)
+    const state = usePersistedStore.getState()
+    let configFiles = state.configFiles
+    let activeConfigFile = state.activeConfigFile
+    const defaultPath = await getDefaultPath(system ? 'system' : 'internal')
+
+    if (configFiles.length === 0) {
+        if (system) {
+            let isEncrypted = false
+
+            // Detect if the config is encrypted
+            try {
+                const configContent = await readTextFile(defaultPath)
+                isEncrypted = configContent.includes('RCLONE_ENCRYPT_V0:')
+            } catch (error) {
+                console.log('[initRclone] could not read config file, asking user:', error)
+                isEncrypted = await ask(
+                    'Is your configuration encrypted? Press "No" if you\'re unsure or using the default config file.',
+                    {
+                        title: 'Config file found',
+                        kind: 'info',
+                        okLabel: 'Yes',
+                        cancelLabel: 'No',
+                    }
+                )
+            }
+
+            if (isEncrypted) {
+                await ask(
+                    'Encrypted config files cannot be imported during the initial setup. Use a blank conf file and import the encrypted configuration later in Settings.',
+                    {
+                        title: 'Not supported yet',
+                        kind: 'error',
+                        okLabel: 'OK',
+                        cancelLabel: '',
+                    }
+                )
+                await exit(0)
+                return
+            }
+        }
+    }
+
+    configFiles = configFiles.filter((config) => config.id !== 'default')
+    configFiles.unshift({
+        id: 'default',
+        label: 'Default config',
+        sync: undefined,
+        isEncrypted: false,
+        pass: undefined,
+    })
+    usePersistedStore.setState({ configFiles })
+
+    if (!activeConfigFile) {
+        activeConfigFile = configFiles[0]
+        if (!activeConfigFile) {
+            throw new Error('Failed to get active config file')
+        }
+
+        usePersistedStore.setState({ activeConfigFile })
+    }
+
+    const extraParams =
+        activeConfigFile.id === 'default'
+            ? undefined
+            : {
+                  env: {
+                      ...(activeConfigFile.isEncrypted
+                          ? { RCLONE_CONFIG_PASS: activeConfigFile.pass }
+                          : {}),
+                      RCLONE_CONFIG_DIR: (
+                          await getConfigPath({ id: activeConfigFile.id!, validate: true })
+                      ).replace(/\/rclone\.conf$/, ''),
+                  },
               }
-            : null,
-        internal: internal
-            ? async (args: string[]) => {
-                  console.log('running internal rclone')
-                  return Command.create('rclone-internal', args)
-              }
-            : null,
+
+    if (system) {
+        console.log('[initRclone] running system rclone')
+        const instance = Command.create('rclone-system', args, extraParams)
+        return { system: instance }
+    }
+    if (internal) {
+        console.log('[initRclone] running internal rclone')
+        const instance = Command.create('rclone-internal', args, extraParams)
+        return { internal: instance }
+    }
+
+    throw new Error('Failed to initialize rclone, please try again later.')
+}
+
+async function getDefaultPath(type: 'system' | 'internal') {
+    console.log('[getDefaultPath]', type)
+
+    let instance = null
+    if (type === 'system') {
+        console.log('[getDefaultPath] running system rclone')
+        instance = Command.create('rclone-system', [
+            'rcd',
+            '--rc-no-auth',
+            '--rc-serve',
+            // '-rc-addr',
+            // ':5572',
+        ])
+    }
+    if (type === 'internal') {
+        console.log('[getDefaultPath] running internal rclone')
+        instance = Command.create('rclone-internal', [
+            'rcd',
+            '--rc-no-auth',
+            '--rc-serve',
+            // '-rc-addr',
+            // ':5572',
+        ])
+    }
+
+    if (!instance) {
+        console.error('[getDefaultPath] failed to create rclone instance')
+        throw new Error('Failed to create rclone instance, please try again later.')
+    }
+
+    const output = await instance.spawn()
+
+    console.log('[getDefaultPath] spawned rclone')
+
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    try {
+        const defaultPaths = await getDefaultPaths()
+
+        if (typeof defaultPaths?.config === 'undefined') {
+            throw new Error('Failed to fetch config path')
+        }
+
+        return defaultPaths.config
+    } catch (error) {
+        console.error('getDefaultPath error', error)
+        if (error instanceof Error) {
+            throw error
+        }
+        throw new Error('Failed to get default path, please try again later.')
+    } finally {
+        await output.kill()
     }
 }
 
@@ -223,4 +361,5 @@ export async function provisionRclone() {
 
     console.log('[provisionRclone] rclone has been installed')
 
+    return true
 }

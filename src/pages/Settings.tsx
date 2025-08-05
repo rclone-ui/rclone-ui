@@ -1,22 +1,27 @@
 import { Button, Card, CardBody, Checkbox, Chip, Input, Tab, Tabs } from '@heroui/react'
 import { ask, message } from '@tauri-apps/plugin-dialog'
+import { remove } from '@tauri-apps/plugin-fs'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { type Update, check } from '@tauri-apps/plugin-updater'
 import {
     CheckIcon,
+    CodeIcon,
     CogIcon,
     EyeIcon,
     MedalIcon,
+    PencilIcon,
     PlusIcon,
     ServerIcon,
     Trash2Icon,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { revokeLicense, validateLicense } from '../../lib/license'
-import { deleteRemote } from '../../lib/rclone/api'
+import { deleteRemote, getConfigPath } from '../../lib/rclone/api'
 import { usePersistedStore, useStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
+import ConfigCreateDrawer from '../components/ConfigCreateDrawer'
+import ConfigEditDrawer from '../components/ConfigEditDrawer'
 import RemoteCreateDrawer from '../components/RemoteCreateDrawer'
 import RemoteDefaultsDrawer from '../components/RemoteDefaultsDrawer'
 import RemoteEditDrawer from '../components/RemoteEditDrawer'
@@ -130,6 +135,19 @@ function Settings() {
                     className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
                 >
                     <LicenseSection />
+                </Tab>
+                <Tab
+                    key="config"
+                    title={
+                        <div className="flex items-center space-x-2">
+                            <CodeIcon className="w-5 h-5" />
+                            <span>Config</span>
+                        </div>
+                    }
+                    data-focus-visible="false"
+                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
+                >
+                    <ConfigSection />
                 </Tab>
                 {/* <Tab
                     key="hosts"
@@ -794,6 +812,188 @@ function RemotesSection() {
                     remoteName={pickedRemote}
                 />
             )}
+        </div>
+    )
+}
+
+function ConfigSection() {
+    const configFiles = usePersistedStore((state) => state.configFiles)
+    const activeConfigFile = usePersistedStore((state) => state.activeConfigFile)
+
+    const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false)
+    const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false)
+    const [focusedConfigId, setFocusedConfigId] = useState<string | null>(null)
+
+    return (
+        <div className="flex flex-col gap-4">
+            <BaseHeader
+                title="Config"
+                endContent={
+                    <Button
+                        onPress={async () => {
+                            // setFocusedConfig({
+                            //     id: undefined,
+                            //     label: filePath.split('/').pop() || 'New Config',
+                            //     isEncrypted: configText.includes('RCLONE_ENCRYPT_V0:'),
+                            //     pass: undefined,
+                            //     sync: undefined,
+                            // })
+                            setIsCreateDrawerOpen(true)
+
+                            // await ask(
+                            //     'Config loaded successfully, you can now remove the file.',
+                            //     {
+                            //         title: 'Success',
+                            //         kind: 'info',
+                            //         okLabel: 'OK',
+                            //         cancelLabel: '',
+                            //     }
+                            // )
+                            // } catch (error) {
+                            //     console.error(error)
+                            //     await ask('Failed to load config file', {
+                            //         title: 'Error',
+                            //         kind: 'error',
+                            //         okLabel: 'OK',
+                            //         cancelLabel: '',
+                            //     })
+                            // }
+                        }}
+                        isIconOnly={true}
+                        variant="faded"
+                        color="primary"
+                        data-focus-visible="false"
+                        size="sm"
+                    >
+                        <PlusIcon className="w-4 h-4" />
+                    </Button>
+                }
+            />
+            <div className="flex flex-col gap-2 p-4">
+                {configFiles.map((configFile) => (
+                    <Button
+                        key={configFile.id}
+                        className="flex flex-row justify-start w-full gap-2"
+                        color={configFile.id === activeConfigFile?.id ? 'primary' : 'default'}
+                        onPress={() => {
+                            if (configFile.id === activeConfigFile?.id) {
+                                return
+                            }
+
+                            setTimeout(async () => {
+                                const confirmed = await ask(
+                                    'This will cancel any active jobs or transfers and restart the app',
+                                    {
+                                        title: `Switch to config ${configFile.label}?`,
+                                        kind: 'info',
+                                        okLabel: 'OK',
+                                        cancelLabel: 'Cancel',
+                                    }
+                                )
+
+                                if (!confirmed) {
+                                    return
+                                }
+
+                                usePersistedStore.getState().setActiveConfigFile(configFile.id!)
+                                await new Promise((resolve) => setTimeout(resolve, 500))
+
+                                await relaunch()
+                            }, 100)
+                        }}
+                    >
+                        <p>{configFile.label}</p>
+                        <div className="flex-1" />
+                        <div className="flex flex-row gap-2">
+                            <Button
+                                isIconOnly={true}
+                                variant="light"
+                                size="sm"
+                                onPress={() => {
+                                    setFocusedConfigId(configFile.id!)
+                                    setIsEditDrawerOpen(true)
+                                }}
+                                isDisabled={
+                                    configFile.id === 'default' ||
+                                    configFile.id === activeConfigFile?.id
+                                }
+                            >
+                                <PencilIcon className="w-4 h-4" />
+                            </Button>
+                            <Button
+                                isIconOnly={true}
+                                variant="light"
+                                size="sm"
+                                onPress={() => {
+                                    setTimeout(async () => {
+                                        const confirmed = await ask(
+                                            `Are you sure you want to delete config ${configFile.label}?`,
+                                            {
+                                                title: 'Delete Config',
+                                                kind: 'warning',
+                                                okLabel: 'Delete',
+                                                cancelLabel: 'Cancel',
+                                            }
+                                        )
+
+                                        if (!confirmed) {
+                                            return
+                                        }
+
+                                        if (configFile.id === 'default') {
+                                            await ask('Default config cannot be deleted', {
+                                                title: 'Error',
+                                                kind: 'warning',
+                                                okLabel: 'OK',
+                                                cancelLabel: '',
+                                            })
+                                            return
+                                        }
+
+                                        const path = await getConfigPath({
+                                            id: configFile.id!,
+                                            validate: true,
+                                        })
+
+                                        await remove(path.replace('rclone.conf', ''), {
+                                            recursive: true,
+                                        })
+
+                                        if (activeConfigFile?.id === configFile.id) {
+                                            usePersistedStore
+                                                .getState()
+                                                .setActiveConfigFile('default')
+                                        }
+
+                                        usePersistedStore
+                                            .getState()
+                                            .removeConfigFile(configFile.id!)
+                                    }, 100)
+                                }}
+                                isDisabled={configFile.id === 'default'}
+                            >
+                                <Trash2Icon className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    </Button>
+                ))}
+            </div>
+
+            <ConfigCreateDrawer
+                isOpen={isCreateDrawerOpen}
+                onClose={() => {
+                    setIsCreateDrawerOpen(false)
+                }}
+            />
+
+            <ConfigEditDrawer
+                isOpen={isEditDrawerOpen}
+                onClose={() => {
+                    setIsEditDrawerOpen(false)
+                    setFocusedConfigId(null)
+                }}
+                id={focusedConfigId}
+            />
         </div>
     )
 }
