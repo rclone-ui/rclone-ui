@@ -1,5 +1,11 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { LogicalSize, PhysicalSize, currentMonitor, getAllWindows } from '@tauri-apps/api/window'
+import {
+    LogicalSize,
+    PhysicalSize,
+    availableMonitors,
+    currentMonitor,
+    getAllWindows,
+} from '@tauri-apps/api/window'
 import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from './store'
 import { getLoadingTray, getMainTray } from './tray'
@@ -36,7 +42,13 @@ export async function openFullWindow({
         url: url,
     })
 
-    const size = await currentMonitor().then((m) => m?.size)
+    let monitor = await currentMonitor()
+
+    if (!monitor) {
+        monitor = (await availableMonitors())[0]
+    }
+
+    const size = monitor?.size
 
     if (!size) {
         console.error('[openFullWindow] no monitor found')
