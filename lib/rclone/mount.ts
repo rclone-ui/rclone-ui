@@ -47,7 +47,7 @@ export async function dialogGetMountPlugin() {
         )
         if (wantsDownload) {
             const fuseInstallerUrl =
-                'https://github.com/macos-fuse-t/fuse-t/releases/download/1.0.44/fuse-t-macos-installer-1.0.44.pkg'
+                'https://github.com/macos-fuse-t/fuse-t/releases/download/1.0.49/fuse-t-macos-installer-1.0.49.pkg'
             const localPath = `${await downloadDir()}/fuse-t-installer.pkg`
             const installer = await (await fetch(fuseInstallerUrl)).arrayBuffer()
             await writeFile(localPath, new Uint8Array(installer))
