@@ -8,13 +8,15 @@ import { exit } from '@tauri-apps/plugin-process'
 import { Command } from '@tauri-apps/plugin-shell'
 
 export async function needsMountPlugin() {
+    console.log('[needsMountPlugin]')
+
     const currentPlatform = platform()
     if (currentPlatform === 'macos') {
         // check fuse-t or osxfuse
         const hasFuseT = await exists('/Library/Application Support/fuse-t')
-        console.log('hasFuseT', hasFuseT)
+        console.log('[needsMountPlugin] hasFuseT', hasFuseT)
         const hasOsxFuse = await exists('/Library/Filesystems/macfuse.fs')
-        console.log('hasOsxFuse', hasOsxFuse)
+        console.log('[needsMountPlugin] hasOsxFuse', hasOsxFuse)
         return !hasFuseT && !hasOsxFuse
     }
     if (currentPlatform === 'windows') {
@@ -22,13 +24,15 @@ export async function needsMountPlugin() {
         const hasWinFsp =
             (await exists('C:\\Program Files\\WinFsp')) ||
             (await exists('C:\\Program Files (x86)\\WinFsp'))
-        console.log('hasWinFsp', hasWinFsp)
+        console.log('[needsMountPlugin] hasWinFsp', hasWinFsp)
         return !hasWinFsp
     }
     return false
 }
 
 export async function dialogGetMountPlugin() {
+    console.log('[dialogGetMountPlugin]')
+
     const currentPlatform = platform()
     if (currentPlatform === 'macos') {
         // download fuse-t or osxfuse
@@ -43,7 +47,7 @@ export async function dialogGetMountPlugin() {
         )
         if (wantsDownload) {
             const fuseInstallerUrl =
-                'https://github.com/macos-fuse-t/fuse-t/releases/download/1.0.44/fuse-t-macos-installer-1.0.44.pkg'
+                'https://github.com/macos-fuse-t/fuse-t/releases/download/1.0.49/fuse-t-macos-installer-1.0.49.pkg'
             const localPath = `${await downloadDir()}/fuse-t-installer.pkg`
             const installer = await (await fetch(fuseInstallerUrl)).arrayBuffer()
             await writeFile(localPath, new Uint8Array(installer))
@@ -75,12 +79,11 @@ export async function dialogGetMountPlugin() {
 }
 
 export async function unmount(mountPoint: string, force = false) {
+    console.log('[unmount]', mountPoint, force)
+
     const command = Command.create('umount', [force ? '-f' : '', mountPoint])
 
     const output = await command.execute()
-
-    // console.log('output')
-    // console.log(JSON.stringify(output, null, 2))
 
     if (output.code !== 0) {
         if (output.stderr.toLowerCase().includes('busy')) {
@@ -97,9 +100,11 @@ export async function unmount(mountPoint: string, force = false) {
         }
 
         if (output.stderr.toLowerCase().includes('not currently mounted')) {
+            console.error('[unmount] not currently mounted')
             return
         }
 
+        console.error('[unmount] failed to unmount', output.stderr)
         throw new Error(output.stderr)
     }
 

@@ -1,6 +1,6 @@
-import { Checkbox } from '@nextui-org/checkbox'
-import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@nextui-org/drawer'
-import { Accordion, AccordionItem, Avatar, Button, Input } from '@nextui-org/react'
+import { Checkbox } from '@heroui/react'
+import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@heroui/react'
+import { Accordion, AccordionItem, Avatar, Button, Input } from '@heroui/react'
 import { homeDir } from '@tauri-apps/api/path'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import {
@@ -82,7 +82,6 @@ export default function RemoteDefaultsDrawer({
     const handleSubmit = useCallback(async () => {
         if (!config) {
             console.log('No config')
-            // console.log(JSON.stringify(config, null, 2))
             return
         }
 
@@ -309,7 +308,7 @@ export default function RemoteDefaultsDrawer({
                                             autoComplete="off"
                                             autoCapitalize="off"
                                             autoCorrect="off"
-                                            spellCheck={false}
+                                            spellCheck="false"
                                             onValueChange={(value) => {
                                                 setConfig((prev) => ({
                                                     ...prev,
@@ -330,7 +329,7 @@ export default function RemoteDefaultsDrawer({
                                             autoComplete="off"
                                             autoCapitalize="off"
                                             autoCorrect="off"
-                                            spellCheck={false}
+                                            spellCheck="false"
                                             startContent={
                                                 <Button
                                                     onPress={async () => {
@@ -340,6 +339,7 @@ export default function RemoteDefaultsDrawer({
                                                                 directory: true,
                                                                 multiple: false,
                                                                 defaultPath: await homeDir(),
+                                                                title: 'Select a mount point',
                                                             })
                                                             await unlockWindows()
                                                             if (selected) {
@@ -511,14 +511,6 @@ export default function RemoteDefaultsDrawer({
                                         rows={20}
                                     />
                                 </AccordionItem>
-                                {/* <SyncSection
-                                    remoteName={remoteName}
-                                    syncOptionsJson={syncOptionsJson}
-                                    setSyncOptionsJson={setSyncOptionsJson}
-                                    globalOptions={
-                                        globalOptions['main' as keyof typeof globalOptions]
-                                    }
-                                /> */}
                             </Accordion>
                         </DrawerBody>
                         <DrawerFooter>

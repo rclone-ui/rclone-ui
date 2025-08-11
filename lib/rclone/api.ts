@@ -1,3 +1,5 @@
+import { appLocalDataDir } from '@tauri-apps/api/path'
+import { exists } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from '../store'
@@ -24,14 +26,17 @@ function getAuthHeader() {
 
 /* DATA */
 export async function listRemotes() {
+    console.log('[listRemotes] CALLED')
+
     const r = await fetch('http://localhost:5572/config/listremotes', {
         method: 'POST',
         headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<{ remotes: string[] }>)
-    // .catch((e) => {
-    // 	console.log("error", e);
-    // 	throw e;
-    // });
+    })
+        .catch((e) => {
+            console.log('error', e)
+            throw e
+        })
+        .then((res) => res.json() as Promise<{ remotes: string[] }>)
 
     if (typeof r?.remotes === 'undefined') {
         throw new Error('Failed to fetch remotes')
@@ -41,16 +46,14 @@ export async function listRemotes() {
 }
 
 export async function getRemote(remote: string) {
+    console.log('[getRemote]', remote)
+
     const r = await fetch(`http://localhost:5572/config/get?name=${remote}`, {
         method: 'POST',
         headers: getAuthHeader(),
     }).then(
         (res) => res.json() as Promise<{ type: string } & Record<string, string | number | boolean>>
     )
-    // .catch((e) => {
-    // 	console.log("error", e);
-    // 	throw e;
-    // });
 
     // console.log(JSON.stringify(r, null, 2))
 
@@ -61,7 +64,7 @@ export async function updateRemote(
     remote: string,
     parameters: Record<string, string | number | boolean>
 ) {
-    console.log('updateRemote', remote, parameters)
+    console.log('[updateRemote]', remote, parameters)
 
     const options = new URLSearchParams()
     options.set('name', remote)
@@ -80,7 +83,7 @@ export async function createRemote(
     type: string,
     parameters: Record<string, string | number | boolean>
 ) {
-    console.log('createRemote', name, type, parameters)
+    console.log('[createRemote]', name, type, parameters)
 
     const options = new URLSearchParams()
     options.set('name', name)
@@ -96,6 +99,8 @@ export async function createRemote(
 }
 
 export async function deleteRemote(remote: string) {
+    console.log('[deleteRemote]', remote)
+
     await fetch(`http://localhost:5572/config/delete?name=${remote}`, {
         method: 'POST',
         headers: getAuthHeader(),
@@ -105,6 +110,8 @@ export async function deleteRemote(remote: string) {
 }
 
 export async function getMountPoints() {
+    console.log('[getMountPoints]')
+
     const r = await fetch('http://localhost:5572/mount/listmounts', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -115,8 +122,6 @@ export async function getMountPoints() {
             }>
     )
 
-    // console.log('Mount points:', r)
-
     if (!Array.isArray(r?.mountPoints)) {
         throw new Error('Failed to get mount points')
     }
@@ -125,6 +130,8 @@ export async function getMountPoints() {
 }
 
 export async function getBackends() {
+    console.log('[getBackends]')
+
     const providers = await fetch('http://localhost:5572/config/providers', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -149,6 +156,8 @@ export interface ListOptions {
 }
 
 export async function listPath(remote: string, path: string = '', options: ListOptions = {}) {
+    console.log('[listPath]', remote, path, options)
+
     const params = new URLSearchParams()
     params.set('fs', `${remote}:`)
     params.set('remote', path)
@@ -190,9 +199,11 @@ export async function listPath(remote: string, path: string = '', options: ListO
 
     return response?.list || []
 }
-/* JOBS */
 
+/* JOBS */
 export async function listJobs() {
+    console.log('[listJobs]')
+
     const allStats = await fetch('http://localhost:5572/core/stats', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -273,6 +284,8 @@ export async function listJobs() {
 }
 
 export async function stopJob(jobId: number) {
+    console.log('[stopJob]', jobId)
+
     await fetch(`http://localhost:5572/job/stopgroup?group=job/${jobId}`, {
         method: 'POST',
         headers: getAuthHeader(),
@@ -291,6 +304,8 @@ export async function mountRemote({
     mountOptions?: Record<string, string | number | boolean>
     vfsOptions?: Record<string, string | number | boolean>
 }) {
+    console.log('[mountRemote]', remotePath, mountPoint)
+
     const options = new URLSearchParams()
     options.set('fs', remotePath)
     options.set('mountPoint', mountPoint)
@@ -325,6 +340,8 @@ export async function unmountRemote({
 }: {
     mountPoint: string
 }) {
+    console.log('[unmountRemote]', mountPoint)
+
     const options = new URLSearchParams()
     options.set('mountPoint', mountPoint)
 
@@ -338,8 +355,6 @@ export async function unmountRemote({
             throw e
         })
 
-    // console.log('unmountRemote', JSON.stringify(r, null, 2))
-
     if ('error' in r) {
         throw new Error(r.error)
     }
@@ -348,6 +363,8 @@ export async function unmountRemote({
 }
 
 export async function unmountAllRemotes() {
+    console.log('[unmountAllRemotes]')
+
     const r = await fetch('http://localhost:5572/mount/unmountall', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -358,8 +375,6 @@ export async function unmountAllRemotes() {
             throw e
         })
 
-    console.log('unmountAllRemotes', r)
-
     if ('error' in r) {
         throw new Error(r.error)
     }
@@ -368,81 +383,79 @@ export async function unmountAllRemotes() {
 }
 
 export async function startCopy({
-    source,
-    dest,
-    copyOptions,
-    filterOptions,
+    srcFs,
+    dstFs,
+    _config,
+    _filter,
 }: {
-    source: string
-    dest: string
-    copyOptions: Record<string, string | number | boolean> | undefined
-    filterOptions: Record<string, string | number | boolean> | undefined
+    srcFs: string
+    dstFs: string
+    _config?: Record<string, string | number | boolean | string[]>
+    _filter?: Record<string, string | number | boolean | string[]>
 }) {
+    console.log('[startCopy]', srcFs, dstFs)
+
     const params = new URLSearchParams()
-    params.set('srcFs', source)
-    params.set('dstFs', dest)
+    params.set('srcFs', srcFs)
+    params.set('dstFs', dstFs)
     // params.set('b2_disable_checksum', 'true')
     params.set('_async', 'true')
 
-    console.log('params', params.toString())
-
-    if (copyOptions && Object.keys(copyOptions).length > 0) {
-        params.set('_config', JSON.stringify(copyOptions))
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(_config))
     }
-    console.log('copyOptions', copyOptions)
 
-    if (filterOptions && Object.keys(filterOptions).length > 0) {
-        params.set('_filter', JSON.stringify(filterOptions))
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(_filter))
     }
-    console.log('filterOptions', filterOptions)
 
     const r = await fetch(`http://localhost:5572/sync/copy?${params.toString()}`, {
         method: 'POST',
         headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<{ jobid: string }>)
 
-    console.log('Copy operation started:', r)
+    console.log('[startCopy] operation started:', r)
 
     if (!r.jobid) {
         throw new Error('Failed to start copy job')
     }
+
+    return r.jobid
 }
 
 export async function startSync({
-    source,
-    dest,
-    syncOptions,
-    filterOptions,
+    srcFs,
+    dstFs,
+    _config,
+    _filter,
 }: {
-    source: string
-    dest: string
-    syncOptions: Record<string, string | number | boolean> | undefined
-    filterOptions: Record<string, string | number | boolean> | undefined
+    srcFs: string
+    dstFs: string
+    _config?: Record<string, string | number | boolean | string[]>
+    _filter?: Record<string, string | number | boolean | string[]>
 }) {
+    console.log('[startSync]', srcFs, dstFs)
+
     const params = new URLSearchParams()
-    params.set('srcFs', source)
-    params.set('dstFs', dest)
+    params.set('srcFs', srcFs)
+    params.set('dstFs', dstFs)
     // params.set('b2_disable_checksum', 'true')
     params.set('_async', 'true')
 
-    console.log('params', params.toString())
-
-    if (syncOptions && Object.keys(syncOptions).length > 0) {
-        params.set('_config', JSON.stringify(syncOptions))
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(_config))
     }
-    console.log('syncOptions', syncOptions)
 
-    if (filterOptions && Object.keys(filterOptions).length > 0) {
-        params.set('_filter', JSON.stringify(filterOptions))
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(_filter))
     }
-    console.log('filterOptions', filterOptions)
 
     const r = await fetch(`http://localhost:5572/sync/sync?${params.toString()}`, {
         method: 'POST',
         headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<{ jobid: string }>)
 
-    console.log('Sync operation started:', r)
+    console.log('[startSync] operation started:', r)
 
     if (!r.jobid) {
         throw new Error('Failed to start sync job')
@@ -452,6 +465,8 @@ export async function startSync({
 /* FLAGS */
 
 export async function getGlobalFlags() {
+    console.log('[getGlobalFlags]')
+
     const r = await fetch('http://localhost:5572/options/get', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -461,6 +476,8 @@ export async function getGlobalFlags() {
 }
 
 export async function getCopyFlags() {
+    console.log('[getCopyFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -476,6 +493,8 @@ export async function getCopyFlags() {
 }
 
 export async function getSyncFlags() {
+    console.log('[getSyncFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -494,6 +513,8 @@ export async function getSyncFlags() {
 }
 
 export async function getFilterFlags() {
+    console.log('[getFilterFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -508,6 +529,8 @@ export async function getFilterFlags() {
 }
 
 export async function getVfsFlags() {
+    console.log('[getVfsFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -523,6 +546,8 @@ export async function getVfsFlags() {
 }
 
 export async function getMountFlags() {
+    console.log('[getMountFlags]')
+
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
@@ -535,4 +560,50 @@ export async function getMountFlags() {
     const filteredFlags = mountFlags.filter((flag: any) => !IGNORED_FLAGS.includes(flag.Name))
 
     return filteredFlags
+}
+
+export async function getConfigPath({ id, validate = true }: { id: string; validate?: boolean }) {
+    console.log('[getConfigPath]', id, validate)
+
+    const appLocalDataDirPath = await appLocalDataDir()
+    console.log('[getConfigPath] appLocalDataDirPath', appLocalDataDirPath)
+
+    let configPath = `${appLocalDataDirPath}/configs/${id}/rclone.conf`
+
+    if (id == 'default') {
+        const defaultPaths = await getDefaultPaths()
+
+        if (typeof defaultPaths?.config === 'undefined') {
+            console.error('[getConfigPath] failed to fetch config path')
+            throw new Error('Failed to fetch config path')
+        }
+
+        configPath = defaultPaths.config
+    }
+
+    const configExists = await exists(configPath)
+    if (validate && !configExists) {
+        console.error('[getConfigPath] config file does not exist')
+        throw new Error('Config file does not exist')
+    }
+
+    return configPath
+}
+
+export async function getDefaultPaths() {
+    console.log('[getDefaultPaths]')
+
+    const r = await fetch('http://localhost:5572/config/paths', {
+        method: 'POST',
+    })
+
+    if (!r.ok) {
+        throw new Error('Failed to make request to config/paths')
+    }
+
+    const defaultPaths = (await r.json()) as { cache: string; config: string; temp: string }
+
+    console.log('[getDefaultPaths] json', JSON.stringify(defaultPaths, null, 2))
+
+    return defaultPaths
 }

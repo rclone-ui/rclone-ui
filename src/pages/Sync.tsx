@@ -1,7 +1,15 @@
-import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
+import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
-import { AlertOctagonIcon, FilterIcon, FolderSyncIcon, FoldersIcon, PlayIcon } from 'lucide-react'
+import cronstrue from 'cronstrue'
+import {
+    AlertOctagonIcon,
+    ClockIcon,
+    FilterIcon,
+    FolderSyncIcon,
+    FoldersIcon,
+    PlayIcon,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
@@ -9,8 +17,9 @@ import { isRemotePath } from '../../lib/fs'
 import { getFilterFlags, getGlobalFlags, getSyncFlags, startSync } from '../../lib/rclone/api'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
+import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
-import PathFinder from '../components/PathFinder'
+import { PathFinder } from '../components/PathFinder'
 
 export default function Sync() {
     const [searchParams] = useSearchParams()
@@ -31,6 +40,8 @@ export default function Sync() {
     const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
     const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
+
+    const [cronExpression, setCronExpression] = useState<string | null>(null)
 
     const [globalOptions, setGlobalOptions] = useState<any[]>([])
 
@@ -144,12 +155,35 @@ export default function Sync() {
             return
         }
 
+        if (cronExpression) {
+            try {
+                cronstrue.toString(cronExpression)
+            } catch {
+                await message('Invalid cron expression', {
+                    title: 'Error',
+                    kind: 'error',
+                })
+                setIsLoading(false)
+                return
+            }
+            usePersistedStore.getState().addScheduledTask({
+                'type': 'sync',
+                'cron': cronExpression,
+                'args': {
+                    'source': source,
+                    'dest': dest,
+                    'syncOptions': syncOptions,
+                    'filterOptions': filterOptions,
+                },
+            })
+        }
+
         try {
             await startSync({
-                source,
-                dest,
-                syncOptions,
-                filterOptions,
+                srcFs: source,
+                dstFs: dest,
+                _config: syncOptions,
+                _filter: filterOptions,
             })
 
             // dummy delay to avoid waiting when opening the Jobs page
@@ -167,7 +201,7 @@ export default function Sync() {
         } finally {
             setIsLoading(false)
         }
-    }, [source, dest, syncOptions, filterOptions])
+    }, [source, dest, syncOptions, filterOptions, cronExpression])
 
     const buttonText = useMemo(() => {
         if (isLoading) return 'STARTING...'
@@ -188,7 +222,7 @@ export default function Sync() {
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-xl gap-6 mx-auto">
+            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Paths Display */}
                 <PathFinder
                     sourcePath={source}
@@ -235,6 +269,17 @@ export default function Sync() {
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
                         />
+                    </AccordionItem>
+                    <AccordionItem
+                        key="cron"
+                        startContent={
+                            <Avatar color="warning" radius="lg" fallback={<ClockIcon />} />
+                        }
+                        indicator={<ClockIcon />}
+                        subtitle="Tap to toggle cron options for this operation"
+                        title="Cron"
+                    >
+                        <CronEditor expression={cronExpression} onChange={setCronExpression} />
                     </AccordionItem>
                 </Accordion>
             </div>

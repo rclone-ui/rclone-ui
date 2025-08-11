@@ -1,4 +1,4 @@
-import { Accordion, AccordionItem, Avatar, Button } from '@nextui-org/react'
+import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
@@ -19,7 +19,7 @@ import { dialogGetMountPlugin } from '../../lib/rclone/mount'
 import { needsMountPlugin } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../lib/store'
 import OptionsSection from '../components/OptionsSection'
-import PathFinder from '../components/PathFinder'
+import { PathFinder } from '../components/PathFinder'
 
 export default function Mount() {
     const [searchParams] = useSearchParams()
@@ -201,7 +201,7 @@ export default function Mount() {
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-xl gap-6 mx-auto">
+            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Paths Display */}
                 <PathFinder
                     sourcePath={source}
@@ -211,16 +211,16 @@ export default function Mount() {
                     switchable={false}
                     sourceOptions={{
                         label: 'Remote Path',
-                        folderPicker: false,
+                        showPicker: false,
                         placeholder: 'Root path inside the remote',
-                        remoteSuggestions: true,
+                        showSuggestions: true,
                         clearable: true,
                     }}
                     destOptions={{
                         label: 'Mount Point',
-                        folderPicker: true,
+                        showPicker: true,
                         placeholder: 'The local path to mount the remote to',
-                        remoteSuggestions: false,
+                        showSuggestions: false,
                         clearable: false,
                     }}
                 />
@@ -240,7 +240,7 @@ export default function Mount() {
                             setOptionsJson={setMountOptionsJson}
                             globalOptions={globalOptions['mount' as keyof typeof globalOptions]}
                             optionsFetcher={getMountFlags}
-                            rows={5}
+                            rows={7}
                             isLocked={mountOptionsLocked}
                             setIsLocked={setMountOptionsLocked}
                         />

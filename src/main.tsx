@@ -3,9 +3,10 @@ import ReactDOM from 'react-dom/client'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import Home from './pages/Home'
 import './global.css'
-import { NextUIProvider } from '@nextui-org/react'
+import { HeroUIProvider } from '@heroui/react'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import Copy from './pages/Copy'
+import Cron from './pages/Cron'
 import Jobs from './pages/Jobs'
 import Mount from './pages/Mount'
 import Settings from './pages/Settings'
@@ -57,6 +58,10 @@ const router = createBrowserRouter([
         element: <Jobs />,
     },
     {
+        path: '/cron',
+        element: <Cron />,
+    },
+    {
         path: '/test',
         element: <Test />,
     },
@@ -64,9 +69,9 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <React.StrictMode>
-        <NextUIProvider>
+        <HeroUIProvider>
             {/* <TauriWatcher /> */}
             <RouterProvider router={router} />
-        </NextUIProvider>
+        </HeroUIProvider>
     </React.StrictMode>
 )

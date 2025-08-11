@@ -1,11 +1,11 @@
-import { Card, CardBody, CardFooter, CardHeader } from '@nextui-org/card'
-import { Button, Chip, Divider, Progress, Spinner } from '@nextui-org/react'
+import { Card, CardBody, CardFooter, CardHeader } from '@heroui/react'
+import { Button, Chip, Divider, Progress, Spinner } from '@heroui/react'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { Trash2Icon } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useState } from 'react'
-import { formatBytes } from '../../lib/format'
+import { buildReadablePath, formatBytes } from '../../lib/format'
 import { listJobs, stopJob } from '../../lib/rclone/api'
 
 export default function Jobs() {
@@ -29,20 +29,6 @@ export default function Jobs() {
         setIsInitialLoad(false)
     }, [])
 
-    const buildReadablePath = useCallback((path: string, type: 'short' | 'long' = 'long') => {
-        if (!path) {
-            return ''
-        }
-
-        const lastSegment = path.split('\\').slice(-1).join('').split('/').slice(-1).join('')
-
-        if (type === 'short') {
-            return lastSegment
-        }
-
-        return `${path.split(':')[0]}:/.../${lastSegment}`
-    }, [])
-
     useEffect(() => {
         fetchJobs()
 
@@ -50,7 +36,7 @@ export default function Jobs() {
             await fetchJobs()
         }, 2000)
 
-        //! prevents jobs being refreshed after "X" was pressed on the window
+        // prevents jobs being refreshed after closing the window
         const unlisten = listen('tauri://close-requested', () => {
             clearInterval(interval)
         })

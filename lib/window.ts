@@ -1,5 +1,11 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { LogicalSize, PhysicalSize, currentMonitor, getAllWindows } from '@tauri-apps/api/window'
+import {
+    LogicalSize,
+    PhysicalSize,
+    availableMonitors,
+    currentMonitor,
+    getAllWindows,
+} from '@tauri-apps/api/window'
 import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from './store'
 import { getLoadingTray, getMainTray } from './tray'
@@ -21,6 +27,8 @@ export async function openFullWindow({
     name: string
     url: string
 }) {
+    console.log('[openFullWindow]')
+
     const w = new WebviewWindow(name, {
         height: 0,
         width: 0,
@@ -34,9 +42,18 @@ export async function openFullWindow({
         url: url,
     })
 
-    const size = await currentMonitor().then((m) => m?.size)
+    let monitor = await currentMonitor()
 
-    if (!size) return
+    if (!monitor) {
+        monitor = (await availableMonitors())[0]
+    }
+
+    const size = monitor?.size
+
+    if (!size) {
+        console.error('[openFullWindow] no monitor found')
+        throw new Error('No monitor found')
+    }
 
     if (platform() === 'windows') {
         // windows merges the space for the taskbar
@@ -55,14 +72,16 @@ export async function openFullWindow({
 export async function openWindow({
     name,
     url,
-    width = 740,
-    height = 600,
+    width = 820,
+    height = 700,
 }: {
     name: string
     url: string
     width?: number
     height?: number
 }) {
+    console.log('[openWindow]')
+
     const isFirstWindow = useStore.getState().firstWindow
 
     const w = new WebviewWindow(name, {

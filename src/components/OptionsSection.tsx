@@ -1,4 +1,4 @@
-import { Chip, Textarea, Tooltip } from '@nextui-org/react'
+import { Chip, Textarea, Tooltip } from '@heroui/react'
 import { LockKeyholeIcon, LockOpenIcon, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { replaceSmartQuotes } from '../../lib/format'

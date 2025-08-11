@@ -1,4 +1,4 @@
-import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@nextui-org/drawer'
+import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@heroui/react'
 import {
     Autocomplete,
     AutocompleteItem,
@@ -8,7 +8,7 @@ import {
     Input,
     Select,
     SelectItem,
-} from '@nextui-org/react'
+} from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { ChevronDown, ChevronUp, RefreshCcwIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -73,20 +73,6 @@ export default function RemoteCreateDrawer({
                             </p>
                         )}
                     </div>
-                    //         <input
-                    //             type="checkbox"
-                    //             id={fieldId}
-                    //             name={option.Name}
-                    //             className="form-checkbox"
-                    //             defaultChecked={fieldValue === 'true'}
-                    //             onChange={(e) =>
-                    //                 setConfig({ ...config, [option.Name]: e.target.checked })
-                    //             }
-                    //             autoComplete="off"
-                    //             autoCapitalize="off"
-                    //             autoCorrect="off"
-                    //             spellCheck={false}
-                    //         />
                 )
             case 'string': {
                 if (option.Examples && option.Examples.length > 0) {
@@ -127,7 +113,7 @@ export default function RemoteCreateDrawer({
                         autoComplete="off"
                         autoCapitalize="off"
                         autoCorrect="off"
-                        spellCheck={false}
+                        spellCheck="false"
                         description={option.Help.split('\n').slice(1).join('\n')}
                         isRequired={option.Required}
                         onValueChange={(value) => {
@@ -136,37 +122,6 @@ export default function RemoteCreateDrawer({
                         }}
                     />
                 )
-                // if (option.Examples && option.Examples.length > 0) {
-                //     return (
-                //             <select
-                //                 id={fieldId}
-                //                 name={option.Name}
-                //                 className="w-full p-2 border rounded dark:bg-gray-800"
-                //                 value={fieldValue}
-                //                 onChange={(e) =>
-                //                     setConfig({ ...config, [option.Name]: e.target.value })
-                //                 }
-                //             >
-                //                 <option value="">Select {option.Name}</option>
-                //                 {option.Examples.map((example) => (
-                //                     <option key={example.Value} value={example.Value}>
-                //                         {example.Help || example.Value}
-                //                     </option>
-                //                 ))}
-                //             </select>
-                //     )
-                // }
-                // return (
-                //         <input
-                //             id={fieldId}
-                //             name={option.Name}
-                //             type={option.IsPassword ? 'password' : 'text'}
-                //             value={fieldValue || ''}
-                //             onChange={(e) =>
-                //                 setConfig({ ...config, [option.Name]: e.target.value })
-                //             }
-                //         />
-                // )
             }
             default:
                 return null
@@ -275,7 +230,7 @@ export default function RemoteCreateDrawer({
                                     autoComplete="off"
                                     autoCapitalize="off"
                                     autoCorrect="off"
-                                    spellCheck={false}
+                                    spellCheck="false"
                                 />
 
                                 <Select
@@ -290,7 +245,7 @@ export default function RemoteCreateDrawer({
                                     isRequired={true}
                                 >
                                     {backends.map((backend) => (
-                                        <SelectItem key={backend.Name} value={backend.Name}>
+                                        <SelectItem key={backend.Name}>
                                             {backend.Description.includes('Compliant')
                                                 ? `${backend.Description.split('Compliant')[0]} Compliant`
                                                 : backend.Description || backend.Name}
