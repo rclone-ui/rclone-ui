@@ -383,81 +383,79 @@ export async function unmountAllRemotes() {
 }
 
 export async function startCopy({
-    source,
-    dest,
-    copyOptions,
-    filterOptions,
+    srcFs,
+    dstFs,
+    _config,
+    _filter,
 }: {
-    source: string
-    dest: string
-    copyOptions: Record<string, string | number | boolean> | undefined
-    filterOptions: Record<string, string | number | boolean> | undefined
+    srcFs: string
+    dstFs: string
+    _config?: Record<string, string | number | boolean | string[]>
+    _filter?: Record<string, string | number | boolean | string[]>
 }) {
+    console.log('[startCopy]', srcFs, dstFs)
+
     const params = new URLSearchParams()
-    params.set('srcFs', source)
-    params.set('dstFs', dest)
+    params.set('srcFs', srcFs)
+    params.set('dstFs', dstFs)
     // params.set('b2_disable_checksum', 'true')
     params.set('_async', 'true')
 
-    console.log('params', params.toString())
-
-    if (copyOptions && Object.keys(copyOptions).length > 0) {
-        params.set('_config', JSON.stringify(copyOptions))
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(_config))
     }
-    console.log('copyOptions', copyOptions)
 
-    if (filterOptions && Object.keys(filterOptions).length > 0) {
-        params.set('_filter', JSON.stringify(filterOptions))
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(_filter))
     }
-    console.log('filterOptions', filterOptions)
 
     const r = await fetch(`http://localhost:5572/sync/copy?${params.toString()}`, {
         method: 'POST',
         headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<{ jobid: string }>)
 
-    console.log('Copy operation started:', r)
+    console.log('[startCopy] operation started:', r)
 
     if (!r.jobid) {
         throw new Error('Failed to start copy job')
     }
+
+    return r.jobid
 }
 
 export async function startSync({
-    source,
-    dest,
-    syncOptions,
-    filterOptions,
+    srcFs,
+    dstFs,
+    _config,
+    _filter,
 }: {
-    source: string
-    dest: string
-    syncOptions: Record<string, string | number | boolean> | undefined
-    filterOptions: Record<string, string | number | boolean> | undefined
+    srcFs: string
+    dstFs: string
+    _config?: Record<string, string | number | boolean | string[]>
+    _filter?: Record<string, string | number | boolean | string[]>
 }) {
+    console.log('[startSync]', srcFs, dstFs)
+
     const params = new URLSearchParams()
-    params.set('srcFs', source)
-    params.set('dstFs', dest)
+    params.set('srcFs', srcFs)
+    params.set('dstFs', dstFs)
     // params.set('b2_disable_checksum', 'true')
     params.set('_async', 'true')
 
-    console.log('params', params.toString())
-
-    if (syncOptions && Object.keys(syncOptions).length > 0) {
-        params.set('_config', JSON.stringify(syncOptions))
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(_config))
     }
-    console.log('syncOptions', syncOptions)
 
-    if (filterOptions && Object.keys(filterOptions).length > 0) {
-        params.set('_filter', JSON.stringify(filterOptions))
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(_filter))
     }
-    console.log('filterOptions', filterOptions)
 
     const r = await fetch(`http://localhost:5572/sync/sync?${params.toString()}`, {
         method: 'POST',
         headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<{ jobid: string }>)
 
-    console.log('Sync operation started:', r)
+    console.log('[startSync] operation started:', r)
 
     if (!r.jobid) {
         throw new Error('Failed to start sync job')

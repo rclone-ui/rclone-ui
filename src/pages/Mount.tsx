@@ -19,7 +19,7 @@ import { dialogGetMountPlugin } from '../../lib/rclone/mount'
 import { needsMountPlugin } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../lib/store'
 import OptionsSection from '../components/OptionsSection'
-import PathFinder from '../components/PathFinder'
+import { PathFinder } from '../components/PathFinder'
 
 export default function Mount() {
     const [searchParams] = useSearchParams()
@@ -211,16 +211,16 @@ export default function Mount() {
                     switchable={false}
                     sourceOptions={{
                         label: 'Remote Path',
-                        folderPicker: false,
+                        showPicker: false,
                         placeholder: 'Root path inside the remote',
-                        remoteSuggestions: true,
+                        showSuggestions: true,
                         clearable: true,
                     }}
                     destOptions={{
                         label: 'Mount Point',
-                        folderPicker: true,
+                        showPicker: true,
                         placeholder: 'The local path to mount the remote to',
-                        remoteSuggestions: false,
+                        showSuggestions: false,
                         clearable: false,
                     }}
                 />

@@ -1,6 +1,7 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
+import cronstrue from 'cronstrue'
 import {
     AlertOctagonIcon,
     ClockIcon,
@@ -18,7 +19,7 @@ import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
-import PathFinder from '../components/PathFinder'
+import { PathFinder } from '../components/PathFinder'
 
 export default function Sync() {
     const [searchParams] = useSearchParams()
@@ -154,12 +155,35 @@ export default function Sync() {
             return
         }
 
+        if (cronExpression) {
+            try {
+                cronstrue.toString(cronExpression)
+            } catch {
+                await message('Invalid cron expression', {
+                    title: 'Error',
+                    kind: 'error',
+                })
+                setIsLoading(false)
+                return
+            }
+            usePersistedStore.getState().addScheduledTask({
+                'type': 'sync',
+                'cron': cronExpression,
+                'args': {
+                    'source': source,
+                    'dest': dest,
+                    'syncOptions': syncOptions,
+                    'filterOptions': filterOptions,
+                },
+            })
+        }
+
         try {
             await startSync({
-                source,
-                dest,
-                syncOptions,
-                filterOptions,
+                srcFs: source,
+                dstFs: dest,
+                _config: syncOptions,
+                _filter: filterOptions,
             })
 
             // dummy delay to avoid waiting when opening the Jobs page
@@ -177,7 +201,7 @@ export default function Sync() {
         } finally {
             setIsLoading(false)
         }
-    }, [source, dest, syncOptions, filterOptions])
+    }, [source, dest, syncOptions, filterOptions, cronExpression])
 
     const buttonText = useMemo(() => {
         if (isLoading) return 'STARTING...'
