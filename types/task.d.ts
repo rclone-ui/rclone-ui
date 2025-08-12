@@ -1,6 +1,6 @@
 export interface ScheduledTask {
     id: string
-    type: 'delete' | 'sync' | 'copy'
+    type: 'delete' | 'sync' | 'copy' | 'move'
     cron: string
     isRunning: boolean
     isEnabled: boolean

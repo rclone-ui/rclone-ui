@@ -9,6 +9,7 @@ import Copy from './pages/Copy'
 import Cron from './pages/Cron'
 import Jobs from './pages/Jobs'
 import Mount from './pages/Mount'
+import Move from './pages/Move'
 import Settings from './pages/Settings'
 import Sync from './pages/Sync'
 import Test from './pages/Test'
@@ -48,6 +49,10 @@ const router = createBrowserRouter([
     {
         path: '/copy',
         element: <Copy />,
+    },
+    {
+        path: '/move',
+        element: <Move />,
     },
     {
         path: '/mount',

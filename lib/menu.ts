@@ -368,6 +368,20 @@ export async function buildMenu() {
         menuItems.push(copyMenuItem)
     }
 
+    if (!persistedStoreState.disabledActions?.includes('tray-move')) {
+        const moveMenuItem = await MenuItem.new({
+            id: 'move',
+            text: 'Move',
+            action: async () => {
+                await openWindow({
+                    name: 'Move',
+                    url: '/move',
+                })
+            },
+        })
+        menuItems.push(moveMenuItem)
+    }
+
     if (!persistedStoreState.disabledActions?.includes('tray-sync')) {
         const syncMenuItem = await MenuItem.new({
             id: 'sync',

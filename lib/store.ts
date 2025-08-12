@@ -19,6 +19,7 @@ export interface RemoteConfig {
     vfsDefaults?: Record<string, any>
     filterDefaults?: Record<string, any>
     copyDefaults?: Record<string, any>
+    moveDefaults?: Record<string, any>
     syncDefaults?: Record<string, any>
 }
 
@@ -46,9 +47,21 @@ interface PersistedState {
     setRemoteConfig: (remote: string, config: RemoteConfig) => void
     mergeRemoteConfig: (remote: string, config: RemoteConfig) => void
 
-    disabledActions: ('tray-mount' | 'tray-sync' | 'tray-copy' | 'tray-serve')[]
+    disabledActions: (
+        | 'tray-mount'
+        | 'tray-sync'
+        | 'tray-copy'
+        | 'tray-serve'
+        | 'tray-move'
+    )[]
     setDisabledActions: (
-        actions: ('tray-mount' | 'tray-sync' | 'tray-copy' | 'tray-serve')[]
+        actions: (
+            | 'tray-mount'
+            | 'tray-sync'
+            | 'tray-copy'
+            | 'tray-serve'
+            | 'tray-move'
+        )[]
     ) => void
 
     settingsPass: string | undefined
@@ -143,7 +156,13 @@ export const usePersistedStore = create<PersistedState>()(
 
             disabledActions: [],
             setDisabledActions: (
-                actions: ('tray-mount' | 'tray-sync' | 'tray-copy' | 'tray-serve')[]
+                actions: (
+                    | 'tray-mount'
+                    | 'tray-sync'
+                    | 'tray-copy'
+                    | 'tray-serve'
+                    | 'tray-move'
+                )[]
             ) => set((_) => ({ disabledActions: actions })),
 
             settingsPass: undefined,

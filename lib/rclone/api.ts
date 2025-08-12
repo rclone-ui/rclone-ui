@@ -423,6 +423,60 @@ export async function startCopy({
     return r.jobid
 }
 
+export async function startMove({
+    srcFs,
+    dstFs,
+    createEmptySrcDirs,
+    deleteEmptyDstDirs,
+    _config,
+    _filter,
+}: {
+    srcFs: string
+    dstFs: string
+    createEmptySrcDirs?: boolean // create empty src directories on destination if set
+    deleteEmptyDstDirs?: boolean // delete empty src directories if set
+    _config?: Record<string, string | number | boolean | string[]>
+    _filter?: Record<string, string | number | boolean | string[]>
+}) {
+    console.log('[startMove]', srcFs, dstFs, createEmptySrcDirs, deleteEmptyDstDirs)
+
+    const params = new URLSearchParams()
+    params.set('srcFs', srcFs)
+    params.set('dstFs', dstFs)
+
+    if (createEmptySrcDirs) {
+        params.set('createEmptySrcDirs', 'true')
+    }
+
+    if (deleteEmptyDstDirs) {
+        params.set('deleteEmptyDstDirs', 'true')
+    }
+
+    // params.set('b2_disable_checksum', 'true')
+    params.set('_async', 'true')
+
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(_config))
+    }
+
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(_filter))
+    }
+
+    const r = await fetch(`http://localhost:5572/sync/move?${params.toString()}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    }).then((res) => res.json() as Promise<{ jobid: string }>)
+
+    console.log('[startMove] operation started:', r)
+
+    if (!r.jobid) {
+        throw new Error('Failed to start move job')
+    }
+
+    return r.jobid
+}
+
 export async function startSync({
     srcFs,
     dstFs,

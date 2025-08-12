@@ -5,7 +5,14 @@ import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { CronExpressionParser } from 'cron-parser'
 import { validateLicense } from './lib/license'
-import { listRemotes, mountRemote, startCopy, startSync, unmountAllRemotes } from './lib/rclone/api'
+import {
+    listRemotes,
+    mountRemote,
+    startCopy,
+    startMove,
+    startSync,
+    unmountAllRemotes,
+} from './lib/rclone/api'
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
@@ -308,7 +315,14 @@ async function handleTask(task: ScheduledTask) {
     }
 
     try {
-        const { srcFs, dstFs, _config, _filter } = task.args
+        const {
+            srcFs,
+            dstFs,
+            _config,
+            _filter,
+            createEmptySrcDirs,
+            deleteEmptyDstDirs,
+        } = task.args
 
         switch (task.type) {
             case 'delete':
@@ -317,6 +331,16 @@ async function handleTask(task: ScheduledTask) {
                 await startCopy({
                     srcFs,
                     dstFs,
+                    _config,
+                    _filter,
+                })
+                break
+            case 'move':
+                await startMove({
+                    srcFs,
+                    dstFs,
+                    createEmptySrcDirs,
+                    deleteEmptyDstDirs,
                     _config,
                     _filter,
                 })

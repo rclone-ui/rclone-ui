@@ -5,6 +5,7 @@
     "windows": [
         "main",
         "Copy",
+        "Move",
         "Sync",
         "Mount",
         "Settings",
