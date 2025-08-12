@@ -109,6 +109,21 @@ export async function deleteRemote(remote: string) {
     // console.log(JSON.stringify(r, null, 2))
 }
 
+export async function cleanupRemote(remote: string) {
+    console.log('[cleanupRemote]', remote)
+
+    const r = await fetch(`http://localhost:5572/operations/cleanup?fs=${remote}&_async=true`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+
+    if (!r.ok) {
+        throw new Error('Failed to start cleanup job')
+    }
+
+    // console.log(JSON.stringify(r, null, 2))
+}
+
 export async function getMountPoints() {
     console.log('[getMountPoints]')
 

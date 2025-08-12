@@ -9,7 +9,7 @@ import type { ScheduledTask } from '../types/task'
 const store = new LazyStore('store.json')
 
 export interface RemoteConfig {
-    disabledActions?: ('tray' | 'tray-mount' | 'tray-browse' | 'tray-remove')[]
+    disabledActions?: ('tray' | 'tray-mount' | 'tray-browse' | 'tray-remove' | 'tray-cleanup')[]
 
     defaultRemotePath?: string
     defaultMountPoint?: string

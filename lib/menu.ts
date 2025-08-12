@@ -8,7 +8,7 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
-import { deleteRemote, mountRemote, unmountRemote } from './rclone/api'
+import { cleanupRemote, deleteRemote, mountRemote, unmountRemote } from './rclone/api'
 import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
 import { getLoadingTray, getMainTray, rebuildTrayMenu } from './tray'
@@ -257,6 +257,29 @@ async function parseRemotes(remotes: string[]) {
                 },
             })
             submenuItems.push(browseMenuItem)
+        }
+
+        if (!remoteConfig?.disabledActions?.includes('tray-cleanup')) {
+            const cleanupMenuItem = await MenuItem.new({
+                id: `cleanup-${remote}`,
+                text: 'Cleanup',
+                action: async () => {
+                    try {
+                        await cleanupRemote(remote)
+                        await message(`Cleanup started for ${remote}`, {
+                            title: 'Cleanup Started',
+                            okLabel: 'OK',
+                        })
+                    } catch (error) {
+                        await message(`Failed to start cleanup job, ${error}`, {
+                            title: 'Cleanup Error',
+                            kind: 'error',
+                            okLabel: 'OK',
+                        })
+                    }
+                },
+            })
+            submenuItems.push(cleanupMenuItem)
         }
 
         if (!remoteConfig?.disabledActions?.includes('tray-remove')) {

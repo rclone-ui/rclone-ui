@@ -257,6 +257,35 @@ export default function RemoteDefaultsDrawer({
                                         </Checkbox>
                                         <Checkbox
                                             isSelected={
+                                                !config?.disabledActions?.includes('tray-cleanup')
+                                            }
+                                            onValueChange={(value) => {
+                                                if (value) {
+                                                    setConfig((prev) => ({
+                                                        ...prev,
+                                                        disabledActions:
+                                                            prev?.disabledActions?.filter(
+                                                                (action) =>
+                                                                    action !== 'tray-cleanup'
+                                                            ),
+                                                    }))
+                                                } else {
+                                                    setConfig((prev) => ({
+                                                        ...prev,
+                                                        disabledActions: [
+                                                            ...(prev?.disabledActions || []),
+                                                            'tray-cleanup',
+                                                        ],
+                                                    }))
+                                                }
+                                            }}
+                                        >
+                                            Show{' '}
+                                            <span className="font-mono text-blue-300">Cleanup</span>{' '}
+                                            option
+                                        </Checkbox>
+                                        <Checkbox
+                                            isSelected={
                                                 !config?.disabledActions?.includes('tray-remove')
                                             }
                                             onValueChange={(value) => {
