@@ -4,4 +4,5 @@ export interface ConfigFile {
     sync: string | undefined
     isEncrypted: boolean
     pass: string | undefined
+    passCommand: string | undefined
 }

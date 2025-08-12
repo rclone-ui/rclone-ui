@@ -8,6 +8,7 @@ import {
     Textarea,
 } from '@heroui/react'
 import { Button } from '@heroui/react'
+import { message } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getConfigPath } from '../../lib/rclone/api'
@@ -65,7 +66,15 @@ export default function ConfigEditDrawer({
 
                 onClose()
             } catch (error) {
-                console.error(error)
+                console.error('[handleUpdate] failed to save config', error)
+                await message(
+                    error instanceof Error ? error.message : 'An unknown error occurred',
+                    {
+                        title: 'Failed to save config',
+                        kind: 'error',
+                        okLabel: 'OK',
+                    }
+                )
             } finally {
                 setIsSaving(false)
             }

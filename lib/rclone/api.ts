@@ -718,7 +718,16 @@ export async function getConfigPath({ id, validate = true }: { id: string; valid
     const appLocalDataDirPath = await appLocalDataDir()
     console.log('[getConfigPath] appLocalDataDirPath', appLocalDataDirPath)
 
-    let configPath = `${appLocalDataDirPath}/configs/${id}/rclone.conf`
+    const slashSymbol = platform() === 'windows' ? '\\' : '/'
+
+    let configPath =
+        appLocalDataDirPath +
+        slashSymbol +
+        'configs' +
+        slashSymbol +
+        id +
+        slashSymbol +
+        'rclone.conf'
 
     if (id == 'default') {
         const defaultPaths = await getDefaultPaths()
@@ -731,10 +740,12 @@ export async function getConfigPath({ id, validate = true }: { id: string; valid
         configPath = defaultPaths.config
     }
 
-    const configExists = await exists(configPath)
-    if (validate && !configExists) {
-        console.error('[getConfigPath] config file does not exist')
-        throw new Error('Config file does not exist')
+    if (validate) {
+        const configExists = await exists(configPath)
+        if (!configExists) {
+            console.error('[getConfigPath] config file does not exist')
+            throw new Error('Config file does not exist')
+        }
     }
 
     return configPath

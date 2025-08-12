@@ -77,6 +77,7 @@ export async function initRclone(args: string[]) {
         sync: undefined,
         isEncrypted: false,
         pass: undefined,
+        passCommand: undefined,
     })
     usePersistedStore.setState({ configFiles })
 
@@ -89,6 +90,29 @@ export async function initRclone(args: string[]) {
         usePersistedStore.setState({ activeConfigFile })
     }
 
+    let configFolderPath = activeConfigFile.sync
+        ? activeConfigFile.sync
+        : (await getConfigPath({ id: activeConfigFile.id!, validate: true })).replace(
+              /\/rclone\.conf$/,
+              ''
+          )
+
+    if (activeConfigFile.sync) {
+        const slashSymbol = platform() === 'windows' ? '\\' : '/'
+        if (!(await exists(configFolderPath + slashSymbol + 'rclone.conf'))) {
+            await message('The config file could not be found. Switching to the default config.', {
+                title: 'Invalid synced config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            configFolderPath = (await getConfigPath({ id: 'default', validate: true })).replace(
+                /\/rclone\.conf$/,
+                ''
+            )
+            usePersistedStore.setState({ activeConfigFile: configFiles[0] })
+        }
+    }
+
     const extraParams =
         activeConfigFile.id === 'default'
             ? undefined
@@ -97,9 +121,7 @@ export async function initRclone(args: string[]) {
                       ...(activeConfigFile.isEncrypted
                           ? { RCLONE_CONFIG_PASS: activeConfigFile.pass }
                           : {}),
-                      RCLONE_CONFIG_DIR: (
-                          await getConfigPath({ id: activeConfigFile.id!, validate: true })
-                      ).replace(/\/rclone\.conf$/, ''),
+                      RCLONE_CONFIG_DIR: configFolderPath,
                   },
               }
 

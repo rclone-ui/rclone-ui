@@ -1,4 +1,17 @@
-import { Button, Card, CardBody, Checkbox, Chip, Input, Tab, Tabs } from '@heroui/react'
+import {
+    Button,
+    Card,
+    CardBody,
+    Checkbox,
+    Chip,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownTrigger,
+    Input,
+    Tab,
+    Tabs,
+} from '@heroui/react'
 import { getVersion as getUiVersion } from '@tauri-apps/api/app'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { remove } from '@tauri-apps/plugin-fs'
@@ -10,6 +23,7 @@ import {
     CodeIcon,
     CogIcon,
     EyeIcon,
+    ImportIcon,
     MedalIcon,
     PencilIcon,
     PlusIcon,
@@ -23,6 +37,7 @@ import { usePersistedStore, useStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import ConfigCreateDrawer from '../components/ConfigCreateDrawer'
 import ConfigEditDrawer from '../components/ConfigEditDrawer'
+import ConfigSyncDrawer from '../components/ConfigSyncDrawer'
 import RemoteCreateDrawer from '../components/RemoteCreateDrawer'
 import RemoteDefaultsDrawer from '../components/RemoteDefaultsDrawer'
 import RemoteEditDrawer from '../components/RemoteEditDrawer'
@@ -870,6 +885,7 @@ function ConfigSection() {
     const activeConfigFile = usePersistedStore((state) => state.activeConfigFile)
 
     const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false)
+    const [isSyncDrawerOpen, setIsSyncDrawerOpen] = useState(false)
     const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false)
     const [focusedConfigId, setFocusedConfigId] = useState<string | null>(null)
 
@@ -878,44 +894,40 @@ function ConfigSection() {
             <BaseHeader
                 title="Config"
                 endContent={
-                    <Button
-                        onPress={async () => {
-                            // setFocusedConfig({
-                            //     id: undefined,
-                            //     label: filePath.split('/').pop() || 'New Config',
-                            //     isEncrypted: configText.includes('RCLONE_ENCRYPT_V0:'),
-                            //     pass: undefined,
-                            //     sync: undefined,
-                            // })
-                            setIsCreateDrawerOpen(true)
-
-                            // await ask(
-                            //     'Config loaded successfully, you can now remove the file.',
-                            //     {
-                            //         title: 'Success',
-                            //         kind: 'info',
-                            //         okLabel: 'OK',
-                            //         cancelLabel: '',
-                            //     }
-                            // )
-                            // } catch (error) {
-                            //     console.error(error)
-                            //     await ask('Failed to load config file', {
-                            //         title: 'Error',
-                            //         kind: 'error',
-                            //         okLabel: 'OK',
-                            //         cancelLabel: '',
-                            //     })
-                            // }
-                        }}
-                        isIconOnly={true}
-                        variant="faded"
-                        color="primary"
-                        data-focus-visible="false"
-                        size="sm"
-                    >
-                        <PlusIcon className="w-4 h-4" />
-                    </Button>
+                    <Dropdown>
+                        <DropdownTrigger>
+                            <Button variant="faded" color="primary" data-focus-visible="false">
+                                Add Config
+                            </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu
+                            onAction={(key) => {
+                                setTimeout(() => {
+                                    if (key === 'import') {
+                                        setIsCreateDrawerOpen(true)
+                                    } else {
+                                        setIsSyncDrawerOpen(true)
+                                    }
+                                }, 100)
+                            }}
+                            variant="faded"
+                        >
+                            <DropdownItem
+                                key="import"
+                                description="Edit using the CLI or UI"
+                                startContent={<PlusIcon />}
+                            >
+                                Import Config
+                            </DropdownItem>
+                            <DropdownItem
+                                key="sync"
+                                description="Update using Git or similar"
+                                startContent={<ImportIcon />}
+                            >
+                                Sync Config
+                            </DropdownItem>
+                        </DropdownMenu>
+                    </Dropdown>
                 }
             />
             <div className="flex flex-col gap-2 p-4">
@@ -964,7 +976,8 @@ function ConfigSection() {
                                 }}
                                 isDisabled={
                                     configFile.id === 'default' ||
-                                    configFile.id === activeConfigFile?.id
+                                    configFile.id === activeConfigFile?.id ||
+                                    Boolean(configFile.sync)
                                 }
                             >
                                 <PencilIcon className="w-4 h-4" />
@@ -999,14 +1012,16 @@ function ConfigSection() {
                                             return
                                         }
 
-                                        const path = await getConfigPath({
-                                            id: configFile.id!,
-                                            validate: true,
-                                        })
+                                        if (!configFile.sync) {
+                                            const path = await getConfigPath({
+                                                id: configFile.id!,
+                                                validate: true,
+                                            })
 
-                                        await remove(path.replace('rclone.conf', ''), {
-                                            recursive: true,
-                                        })
+                                            await remove(path.replace('rclone.conf', ''), {
+                                                recursive: true,
+                                            })
+                                        }
 
                                         if (activeConfigFile?.id === configFile.id) {
                                             usePersistedStore
@@ -1042,6 +1057,13 @@ function ConfigSection() {
                     setFocusedConfigId(null)
                 }}
                 id={focusedConfigId}
+            />
+
+            <ConfigSyncDrawer
+                isOpen={isSyncDrawerOpen}
+                onClose={() => {
+                    setIsSyncDrawerOpen(false)
+                }}
             />
         </div>
     )

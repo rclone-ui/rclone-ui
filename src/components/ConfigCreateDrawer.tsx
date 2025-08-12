@@ -8,8 +8,9 @@ import {
     Textarea,
 } from '@heroui/react'
 import { Button } from '@heroui/react'
-import { ask, open } from '@tauri-apps/plugin-dialog'
+import { message, open } from '@tauri-apps/plugin-dialog'
 import { mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { platform } from '@tauri-apps/plugin-os'
 import { UploadIcon } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { getConfigPath } from '../../lib/rclone/api'
@@ -58,7 +59,11 @@ export default function ConfigCreateDrawer({
 
                 const configPath = await getConfigPath({ id: generatedId, validate: false })
 
-                await mkdir(configPath.replace('/rclone.conf', ''), { recursive: true })
+                const slashSymbol = platform() === 'windows' ? '\\' : '/'
+
+                await mkdir(configPath.replace(slashSymbol + 'rclone.conf', ''), {
+                    recursive: true,
+                })
                 await writeTextFile(configPath, content)
                 console.log('[handleCreate] saved config to', configPath)
 
@@ -68,17 +73,20 @@ export default function ConfigCreateDrawer({
                     pass,
                     isEncrypted: content.includes('RCLONE_ENCRYPT_V0:'),
                     sync: undefined,
+                    passCommand: undefined,
                 })
 
                 onClose()
             } catch (error) {
                 console.error('[handleCreate] failed to save config', error)
-                await ask('Failed to save config', {
-                    title: 'Error',
-                    kind: 'error',
-                    okLabel: 'OK',
-                    cancelLabel: '',
-                })
+                await message(
+                    error instanceof Error ? error.message : 'An unknown error occurred',
+                    {
+                        title: 'Failed to save config',
+                        kind: 'error',
+                        okLabel: 'OK',
+                    }
+                )
             } finally {
                 setIsSaving(false)
             }
@@ -194,12 +202,15 @@ export default function ConfigCreateDrawer({
                                                             }, '')
                                                     }
 
+                                                    const slashSymbol =
+                                                        platform() === 'windows' ? '\\' : '/'
+
                                                     setConfigContent(content)
                                                     setConfig({
                                                         ...config,
                                                         label:
                                                             config.label ||
-                                                            selectedFile.split('/').pop() ||
+                                                            selectedFile.split(slashSymbol).pop() ||
                                                             'New Config',
                                                         isEncrypted:
                                                             content.includes('RCLONE_ENCRYPT_V0:'),
