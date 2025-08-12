@@ -25,8 +25,39 @@ function getAuthHeader() {
 }
 
 /* DATA */
+export async function getVersion() {
+    console.log('[getVersion]')
+
+    const r = await fetch('http://localhost:5572/core/version', {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+        .catch((e) => {
+            console.log('error', e)
+            throw e
+        })
+        .then(
+            (res) =>
+                res.json() as Promise<{
+                    version: `v${string}`
+                    decomposed: [number, number, number]
+                    isGit: boolean
+                    isBeta: boolean
+                    os: string
+                    arch: string
+                    goVersion: string
+                    linking: string
+                    goTags: string
+                }>
+        )
+
+    console.log('[getVersion] r', r)
+
+    return r
+}
+
 export async function listRemotes() {
-    console.log('[listRemotes] CALLED')
+    console.log('[listRemotes]')
 
     const r = await fetch('http://localhost:5572/config/listremotes', {
         method: 'POST',

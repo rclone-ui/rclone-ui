@@ -1,4 +1,5 @@
 import { Button, Card, CardBody, Checkbox, Chip, Input, Tab, Tabs } from '@heroui/react'
+import { getVersion as getUiVersion } from '@tauri-apps/api/app'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { remove } from '@tauri-apps/plugin-fs'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { revokeLicense, validateLicense } from '../../lib/license'
-import { deleteRemote, getConfigPath } from '../../lib/rclone/api'
+import { deleteRemote, getVersion as getCliVersion, getConfigPath } from '../../lib/rclone/api'
 import { usePersistedStore, useStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import ConfigCreateDrawer from '../components/ConfigCreateDrawer'
@@ -32,6 +33,16 @@ function Settings() {
     const [passwordCheckInput, setPasswordCheckInput] = useState('')
     const [passwordCheckPassed, setPasswordCheckPassed] = useState(false)
     const [passwordVisible, setPasswordVisible] = useState(false)
+
+    const [uiVersion, setUiVersion] = useState('')
+    const [cliVersion, setCliVersion] = useState('')
+
+    useEffect(() => {
+        Promise.all([getUiVersion(), getCliVersion()]).then(([uiVersion, cliVersion]) => {
+            setUiVersion(uiVersion)
+            setCliVersion(cliVersion.version.replace('v', ''))
+        })
+    }, [])
 
     if (settingsPass && !passwordCheckPassed) {
         return (
@@ -165,6 +176,14 @@ function Settings() {
                     </div>
                 </Tab> */}
             </Tabs>
+            <div className="absolute bottom-0 left-0 flex flex-col w-40 h-12 gap-4 p-4 border-t border-r bg-neutral-900 border-neutral-700">
+                <p
+                    className="text-[10px] text-center text-neutral-500 hover:text-neutral-400 cursor-pointer"
+                    onClick={() => openUrl('https://github.com/rclone-ui/rclone-ui')}
+                >
+                    UI v{uiVersion}, CLI v{cliVersion}
+                </p>
+            </div>
         </div>
     )
 }
