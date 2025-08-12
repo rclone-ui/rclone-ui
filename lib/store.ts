@@ -53,6 +53,7 @@ interface PersistedState {
         | 'tray-copy'
         | 'tray-serve'
         | 'tray-move'
+        | 'tray-delete'
     )[]
     setDisabledActions: (
         actions: (
@@ -61,6 +62,7 @@ interface PersistedState {
             | 'tray-copy'
             | 'tray-serve'
             | 'tray-move'
+            | 'tray-delete'
         )[]
     ) => void
 
@@ -162,6 +164,7 @@ export const usePersistedStore = create<PersistedState>()(
                     | 'tray-copy'
                     | 'tray-serve'
                     | 'tray-move'
+                    | 'tray-delete'
                 )[]
             ) => set((_) => ({ disabledActions: actions })),
 

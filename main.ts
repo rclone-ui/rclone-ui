@@ -9,6 +9,7 @@ import {
     listRemotes,
     mountRemote,
     startCopy,
+    startDelete,
     startMove,
     startSync,
     unmountAllRemotes,
@@ -322,10 +323,17 @@ async function handleTask(task: ScheduledTask) {
             _filter,
             createEmptySrcDirs,
             deleteEmptyDstDirs,
+            fs,
+            rmDirs,
         } = task.args
 
         switch (task.type) {
             case 'delete':
+                await startDelete({
+                    fs,
+                    rmDirs,
+                    _filter,
+                })
                 break
             case 'copy':
                 await startCopy({

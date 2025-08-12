@@ -401,6 +401,36 @@ function GeneralSection() {
                     >
                         Show <span className="font-mono text-blue-300">Copy</span> option
                     </Checkbox>
+                    <Checkbox
+                        isSelected={!disabledActions?.includes('tray-move')}
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-move') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-move'])
+                            }
+                        }}
+                    >
+                        Show <span className="font-mono text-blue-300">Move</span> option
+                    </Checkbox>
+                    <Checkbox
+                        isSelected={!disabledActions?.includes('tray-delete')}
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-delete') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-delete'])
+                            }
+                        }}
+                    >
+                        Show <span className="font-mono text-blue-300">Delete</span> option
+                    </Checkbox>
                 </div>
 
                 {/* <Button

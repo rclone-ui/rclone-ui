@@ -7,6 +7,7 @@ import { HeroUIProvider } from '@heroui/react'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import Copy from './pages/Copy'
 import Cron from './pages/Cron'
+import Delete from './pages/Delete'
 import Jobs from './pages/Jobs'
 import Mount from './pages/Mount'
 import Move from './pages/Move'
@@ -53,6 +54,10 @@ const router = createBrowserRouter([
     {
         path: '/move',
         element: <Move />,
+    },
+    {
+        path: '/delete',
+        element: <Delete />,
     },
     {
         path: '/mount',

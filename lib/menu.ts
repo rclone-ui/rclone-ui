@@ -396,6 +396,20 @@ export async function buildMenu() {
         menuItems.push(syncMenuItem)
     }
 
+    if (!persistedStoreState.disabledActions?.includes('tray-delete')) {
+        const deleteMenuItem = await MenuItem.new({
+            id: 'delete',
+            text: 'Delete',
+            action: async () => {
+                await openWindow({
+                    name: 'Delete',
+                    url: '/delete',
+                })
+            },
+        })
+        menuItems.push(deleteMenuItem)
+    }
+
     await PredefinedMenuItem.new({
         item: 'Separator',
     }).then((item) => {

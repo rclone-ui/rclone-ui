@@ -516,6 +516,42 @@ export async function startSync({
     }
 }
 
+export async function startDelete({
+    fs,
+    rmDirs,
+    _filter,
+}: {
+    fs: string
+    rmDirs?: boolean // delete empty src directories if set
+    _filter?: Record<string, string | number | boolean | string[]>
+}) {
+    console.log('[startDelete]', fs, rmDirs)
+
+    const params = new URLSearchParams()
+    params.set('fs', fs)
+
+    if (rmDirs) {
+        params.set('rmDirs', 'true')
+    }
+
+    params.set('_async', 'true')
+
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(_filter))
+    }
+
+    const r = await fetch(`http://localhost:5572/operations/delete?${params.toString()}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+
+    console.log('[startDelete] operation started:', r)
+
+    if (!r.ok) {
+        throw new Error('Failed to start delete job')
+    }
+}
+
 /* FLAGS */
 
 export async function getGlobalFlags() {
