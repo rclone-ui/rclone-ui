@@ -68,7 +68,7 @@ export function PathFinder({
                 placeholder={sourceOptions.placeholder}
                 showSuggestions={sourceOptions.showSuggestions}
                 clearable={sourceOptions.clearable}
-                pickerEnabled={sourceOptions.showPicker}
+                showPicker={sourceOptions.showPicker}
             />
 
             {switchable && (
@@ -93,7 +93,7 @@ export function PathFinder({
                 placeholder={destOptions.placeholder}
                 showSuggestions={destOptions.showSuggestions}
                 clearable={destOptions.clearable}
-                pickerEnabled={destOptions.showPicker}
+                showPicker={destOptions.showPicker}
             />
         </div>
     )
@@ -208,14 +208,14 @@ export function MultiPathFinder({
     )
 }
 
-function PathField({
+export function PathField({
     path,
     setPath,
     label,
     placeholder = 'Enter a remote:/path or local path, or tap to select files',
     showSuggestions = true,
     clearable = true,
-    pickerEnabled = true,
+    showPicker = true,
 }: {
     path: string
     setPath: (path: string) => void
@@ -223,11 +223,11 @@ function PathField({
     placeholder?: string
     showSuggestions?: boolean
     clearable?: boolean
-    pickerEnabled?: boolean
+    showPicker?: boolean
 }) {
     const remotes = useStore((state) => state.remotes)
 
-    const [debouncedPath] = useDebounce(path, 200)
+    const [debouncedPath] = useDebounce(path, 800)
 
     const fieldRef = useRef<HTMLInputElement>(null)
 
@@ -424,7 +424,7 @@ function PathField({
                     ))}
                 </Autocomplete>
             </div>
-            {pickerEnabled && (
+            {showPicker && (
                 <Button
                     onPress={handleBrowse}
                     type="button"
@@ -440,12 +440,13 @@ function PathField({
     )
 }
 
-function MultiPathField({
+export function MultiPathField({
     paths,
     setPaths,
     label,
     placeholder = 'Enter a remote:/path or local path, or tap to select files',
     showSuggestions = true,
+    showPicker = true,
     clearable = true,
 }: {
     paths: string[]
@@ -453,11 +454,12 @@ function MultiPathField({
     label: string
     placeholder?: string
     showSuggestions?: boolean
+    showPicker?: boolean
     clearable?: boolean
 }) {
     const remotes = useStore((state) => state.remotes)
 
-    const [debouncedPath] = useDebounce(paths?.[0], 200)
+    const [debouncedPath] = useDebounce(paths?.[0], 800)
 
     const fieldRef = useRef<HTMLInputElement>(null)
 
@@ -683,62 +685,64 @@ function MultiPathField({
                     </Autocomplete>
                 )}
             </div>
-            <div className="relative w-20 group h-18">
-                <Button
-                    onPress={() => {
-                        if (isMultiple) {
-                            setPaths([])
-                        }
-                    }}
-                    type="button"
-                    isIconOnly={true}
-                    size="lg"
-                    className={cn(
-                        'absolute top-0 bottom-0 w-20 group-hover:hidden h-18',
-                        isMultiple && 'group-hover:absolute'
-                    )}
-                    data-focus-visible="false"
-                >
-                    {isMultiple ? (
-                        <XIcon className="w-6 h-6" />
-                    ) : (
-                        <FolderOpen className="w-6 h-6" />
-                    )}
-                </Button>
-                <div
-                    className={cn(
-                        'absolute top-0 bottom-0 flex-col justify-between hidden w-20 group-hover:flex h-18',
-                        isMultiple && 'group-hover:hidden'
-                    )}
-                >
+            {showPicker && (
+                <div className="relative w-20 group h-18">
                     <Button
                         onPress={() => {
-                            handleBrowse('file')
+                            if (isMultiple) {
+                                setPaths([])
+                            }
                         }}
                         type="button"
-                        size="sm"
-                        className="h-7"
+                        isIconOnly={true}
+                        size="lg"
+                        className={cn(
+                            'absolute top-0 bottom-0 w-20 group-hover:hidden h-18',
+                            isMultiple && 'group-hover:absolute'
+                        )}
                         data-focus-visible="false"
-                        radius="lg"
-                        variant="flat"
                     >
-                        Files
+                        {isMultiple ? (
+                            <XIcon className="w-6 h-6" />
+                        ) : (
+                            <FolderOpen className="w-6 h-6" />
+                        )}
                     </Button>
-                    <Button
-                        onPress={() => {
-                            handleBrowse('folder')
-                        }}
-                        type="button"
-                        size="sm"
-                        className="h-7"
-                        data-focus-visible="false"
-                        radius="lg"
-                        variant="flat"
+                    <div
+                        className={cn(
+                            'absolute top-0 bottom-0 flex-col justify-between hidden w-20 group-hover:flex h-18',
+                            isMultiple && 'group-hover:hidden'
+                        )}
                     >
-                        Folder
-                    </Button>
+                        <Button
+                            onPress={() => {
+                                handleBrowse('file')
+                            }}
+                            type="button"
+                            size="sm"
+                            className="h-7"
+                            data-focus-visible="false"
+                            radius="lg"
+                            variant="flat"
+                        >
+                            Files
+                        </Button>
+                        <Button
+                            onPress={() => {
+                                handleBrowse('folder')
+                            }}
+                            type="button"
+                            size="sm"
+                            className="h-7"
+                            data-focus-visible="false"
+                            radius="lg"
+                            variant="flat"
+                        >
+                            Folder
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     )
 }
