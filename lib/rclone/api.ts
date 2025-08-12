@@ -236,6 +236,13 @@ export async function listJobs() {
             headers: getAuthHeader(),
         }).then((res) => res.json() as Promise<any>)
 
+        const srcFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.srcFs
+        const dstFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.dstFs
+
+        if (!srcFs) {
+            continue
+        }
+
         jobs.active.push({
             id: jobId,
             bytes: job.bytes,
@@ -246,8 +253,8 @@ export async function listJobs() {
             progress: Math.round((job.bytes / job.totalBytes) * 100),
             fatal: job.fatalError,
 
-            srcFs: transferred.find((t: any) => t.group === `job/${jobId}`)?.srcFs,
-            dstFs: transferred.find((t: any) => t.group === `job/${jobId}`)?.dstFs,
+            srcFs,
+            dstFs,
         })
     }
 
@@ -265,6 +272,13 @@ export async function listJobs() {
             headers: getAuthHeader(),
         }).then((res) => res.json() as Promise<any>)
 
+        const srcFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.srcFs
+        const dstFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.dstFs
+
+        if (!srcFs) {
+            continue
+        }
+
         jobs.inactive.push({
             id: jobId,
             bytes: job.bytes,
@@ -275,8 +289,8 @@ export async function listJobs() {
             progress: Math.round((job.bytes / job.totalBytes) * 100),
             fatal: job.fatalError,
 
-            srcFs: transferred.find((t: any) => t.group === `job/${jobId}`)?.srcFs,
-            dstFs: transferred.find((t: any) => t.group === `job/${jobId}`)?.dstFs,
+            srcFs,
+            dstFs,
         })
     }
 
