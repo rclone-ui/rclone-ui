@@ -9,7 +9,12 @@ import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { Command } from '@tauri-apps/plugin-shell'
 import { usePersistedStore } from '../store'
-import { getConfigPath, getDefaultPaths } from './api'
+import {
+    getConfigPath,
+    getDefaultPath,
+    isInternalRcloneInstalled,
+    isSystemRcloneInstalled,
+} from './common'
 
 export async function initRclone(args: string[]) {
     console.log('[initRclone]')
@@ -137,98 +142,6 @@ export async function initRclone(args: string[]) {
     }
 
     throw new Error('Failed to initialize rclone, please try again later.')
-}
-
-async function getDefaultPath(type: 'system' | 'internal') {
-    console.log('[getDefaultPath]', type)
-
-    let instance = null
-    if (type === 'system') {
-        console.log('[getDefaultPath] running system rclone')
-        instance = Command.create('rclone-system', [
-            'rcd',
-            '--rc-no-auth',
-            '--rc-serve',
-            // '-rc-addr',
-            // ':5572',
-        ])
-    }
-    if (type === 'internal') {
-        console.log('[getDefaultPath] running internal rclone')
-        instance = Command.create('rclone-internal', [
-            'rcd',
-            '--rc-no-auth',
-            '--rc-serve',
-            // '-rc-addr',
-            // ':5572',
-        ])
-    }
-
-    if (!instance) {
-        console.error('[getDefaultPath] failed to create rclone instance')
-        throw new Error('Failed to create rclone instance, please try again later.')
-    }
-
-    const output = await instance.spawn()
-
-    console.log('[getDefaultPath] spawned rclone')
-
-    await new Promise((resolve) => setTimeout(resolve, 200))
-
-    try {
-        const defaultPaths = await getDefaultPaths()
-
-        if (typeof defaultPaths?.config === 'undefined') {
-            throw new Error('Failed to fetch config path')
-        }
-
-        return defaultPaths.config
-    } catch (error) {
-        console.error('getDefaultPath error', error)
-        if (error instanceof Error) {
-            throw error
-        }
-        throw new Error('Failed to get default path, please try again later.')
-    } finally {
-        await output.kill()
-    }
-}
-
-/**
- * Checks if rclone is installed and accessible from the system PATH
- * @returns {Promise<boolean>} True if rclone is installed and working
- */
-export async function isSystemRcloneInstalled() {
-    console.log('[isSystemRcloneInstalled]')
-
-    try {
-        const output = await Command.create('rclone-system').execute()
-        return (
-            output.stdout.includes('Available commands') ||
-            output.stderr.includes('Available commands')
-        )
-    } catch (_) {
-        return false
-    }
-}
-
-/**
- * Checks if rclone is downloaded by the application in the app's local data directory
- * @returns {Promise<boolean>} True if downloaded rclone is present and working
- */
-export async function isInternalRcloneInstalled() {
-    console.log('[isInternalRcloneInstalled]')
-
-    try {
-        const output = await Command.create('rclone-internal').execute()
-        // console.log('[isInternalRcloneInstalled] output', output)
-        return (
-            output.stdout.includes('Available commands') ||
-            output.stderr.includes('Available commands')
-        )
-    } catch (_) {
-        return false
-    }
 }
 
 /**

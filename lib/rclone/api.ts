@@ -1,5 +1,3 @@
-import { appLocalDataDir } from '@tauri-apps/api/path'
-import { exists } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from '../store'
@@ -710,61 +708,4 @@ export async function getMountFlags() {
     const filteredFlags = mountFlags.filter((flag: any) => !IGNORED_FLAGS.includes(flag.Name))
 
     return filteredFlags
-}
-
-export async function getConfigPath({ id, validate = true }: { id: string; validate?: boolean }) {
-    console.log('[getConfigPath]', id, validate)
-
-    const appLocalDataDirPath = await appLocalDataDir()
-    console.log('[getConfigPath] appLocalDataDirPath', appLocalDataDirPath)
-
-    const slashSymbol = platform() === 'windows' ? '\\' : '/'
-
-    let configPath =
-        appLocalDataDirPath +
-        slashSymbol +
-        'configs' +
-        slashSymbol +
-        id +
-        slashSymbol +
-        'rclone.conf'
-
-    if (id == 'default') {
-        const defaultPaths = await getDefaultPaths()
-
-        if (typeof defaultPaths?.config === 'undefined') {
-            console.error('[getConfigPath] failed to fetch config path')
-            throw new Error('Failed to fetch config path')
-        }
-
-        configPath = defaultPaths.config
-    }
-
-    if (validate) {
-        const configExists = await exists(configPath)
-        if (!configExists) {
-            console.error('[getConfigPath] config file does not exist')
-            throw new Error('Config file does not exist')
-        }
-    }
-
-    return configPath
-}
-
-export async function getDefaultPaths() {
-    console.log('[getDefaultPaths]')
-
-    const r = await fetch('http://localhost:5572/config/paths', {
-        method: 'POST',
-    })
-
-    if (!r.ok) {
-        throw new Error('Failed to make request to config/paths')
-    }
-
-    const defaultPaths = (await r.json()) as { cache: string; config: string; temp: string }
-
-    console.log('[getDefaultPaths] json', JSON.stringify(defaultPaths, null, 2))
-
-    return defaultPaths
 }

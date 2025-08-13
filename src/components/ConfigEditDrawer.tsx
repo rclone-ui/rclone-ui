@@ -11,7 +11,7 @@ import { Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getConfigPath } from '../../lib/rclone/api'
+import { getConfigPath } from '../../lib/rclone/common'
 import { usePersistedStore } from '../../lib/store'
 
 export default function ConfigEditDrawer({

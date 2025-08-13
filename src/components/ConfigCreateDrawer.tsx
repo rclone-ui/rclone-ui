@@ -13,7 +13,7 @@ import { mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { platform } from '@tauri-apps/plugin-os'
 import { UploadIcon } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
-import { getConfigPath } from '../../lib/rclone/api'
+import { getConfigPath } from '../../lib/rclone/common'
 import { usePersistedStore } from '../../lib/store'
 import type { ConfigFile } from '../../types/config'
 
