@@ -9,21 +9,35 @@ import {
     DropdownMenu,
     DropdownTrigger,
     Input,
+    Spinner,
     Tab,
     Tabs,
+    Textarea,
 } from '@heroui/react'
-import { getVersion as getUiVersion } from '@tauri-apps/api/app'
+import { getTauriVersion, getVersion as getUiVersion } from '@tauri-apps/api/app'
+import {
+    appDataDir,
+    appLocalDataDir,
+    appLogDir,
+    downloadDir,
+    homeDir,
+    tempDir,
+} from '@tauri-apps/api/path'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { remove } from '@tauri-apps/plugin-fs'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { version as osVersion, type } from '@tauri-apps/plugin-os'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { type Update, check } from '@tauri-apps/plugin-updater'
 import {
     CheckIcon,
     CodeIcon,
     CogIcon,
+    CopyIcon,
     EyeIcon,
     ImportIcon,
+    InfoIcon,
     MedalIcon,
     PencilIcon,
     PlusIcon,
@@ -32,8 +46,8 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { revokeLicense, validateLicense } from '../../lib/license'
-import { deleteRemote, getVersion as getCliVersion } from '../../lib/rclone/api'
-import { getConfigPath } from '../../lib/rclone/common'
+import { deleteRemote, getVersion as getCliVersion, getVersion } from '../../lib/rclone/api'
+import { getConfigPath, getDefaultPaths } from '../../lib/rclone/common'
 import { usePersistedStore, useStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import ConfigCreateDrawer from '../components/ConfigCreateDrawer'
@@ -150,6 +164,20 @@ function Settings() {
                 >
                     <RemotesSection />
                 </Tab>
+
+                <Tab
+                    key="config"
+                    title={
+                        <div className="flex items-center space-x-2">
+                            <CodeIcon className="w-5 h-5" />
+                            <span>Config</span>
+                        </div>
+                    }
+                    data-focus-visible="false"
+                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
+                >
+                    <ConfigSection />
+                </Tab>
                 <Tab
                     key="license"
                     title={
@@ -164,17 +192,17 @@ function Settings() {
                     <LicenseSection />
                 </Tab>
                 <Tab
-                    key="config"
+                    key="about"
                     title={
                         <div className="flex items-center space-x-2">
-                            <CodeIcon className="w-5 h-5" />
-                            <span>Config</span>
+                            <InfoIcon className="w-5 h-5" />
+                            <span>About</span>
                         </div>
                     }
                     data-focus-visible="false"
                     className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
                 >
-                    <ConfigSection />
+                    <AboutSection />
                 </Tab>
                 {/* <Tab
                     key="hosts"
@@ -1066,6 +1094,92 @@ function ConfigSection() {
                     setIsSyncDrawerOpen(false)
                 }}
             />
+        </div>
+    )
+}
+
+function AboutSection() {
+    const currentConfig = usePersistedStore((state) => state.activeConfigFile)
+    const [info, setInfo] = useState<{ versions: any; paths: any; config: any; dirs: any } | null>(
+        null
+    )
+
+    const [isCopied, setIsCopied] = useState(false)
+
+    const fetchInfo = useCallback(async () => {
+        const defaultPaths = await getDefaultPaths()
+        const version = await getVersion()
+        const dirs = {
+            home: await homeDir(),
+            appLocalData: await appLocalDataDir(),
+            temp: await tempDir(),
+            appLog: await appLogDir(),
+            download: await downloadDir(),
+            appData: await appDataDir(),
+        }
+        return {
+            versions: {
+                ...version,
+                ui: await getUiVersion(),
+                tauri: await getTauriVersion(),
+                osVersion: osVersion(),
+                osFamily: type(),
+            },
+            paths: defaultPaths,
+            dirs,
+            config: {
+                id: currentConfig?.id!,
+                label: currentConfig?.label!,
+                sync: currentConfig?.sync,
+                isEncrypted: currentConfig?.isEncrypted!,
+            },
+        }
+    }, [currentConfig])
+
+    useEffect(() => {
+        fetchInfo().then(setInfo)
+    }, [fetchInfo])
+
+    return (
+        <div className="flex flex-col gap-5">
+            <BaseHeader title="About" />
+
+            <div className="flex flex-row justify-center w-full gap-8 px-4 pb-10">
+                {!info && <Spinner size="lg" color="secondary" className="py-20" />}
+                {info && (
+                    <Textarea
+                        value={JSON.stringify(info, null, 2)}
+                        size="lg"
+                        label="Debug"
+                        minRows={39}
+                        maxRows={39}
+                        disableAutosize={false}
+                        isReadOnly={false}
+                        variant="faded"
+                        endContent={
+                            <Button
+                                variant="light"
+                                size="sm"
+                                isIconOnly={true}
+                                onPress={async () => {
+                                    await writeText(JSON.stringify(info, null, 2))
+                                    setIsCopied(true)
+                                    setTimeout(() => {
+                                        setIsCopied(false)
+                                    }, 1200)
+                                }}
+                                isDisabled={isCopied}
+                            >
+                                {isCopied ? (
+                                    <CheckIcon className="w-4 h-4" />
+                                ) : (
+                                    <CopyIcon className="w-4 h-4" />
+                                )}
+                            </Button>
+                        }
+                    />
+                )}
+            </div>
         </div>
     )
 }

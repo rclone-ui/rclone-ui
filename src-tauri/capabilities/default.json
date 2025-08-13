@@ -161,6 +161,7 @@
         "core:webview:allow-reparent",
         "core:webview:allow-internal-toggle-devtools",
         "core:webview:allow-get-all-webviews",
+        "clipboard-manager:allow-write-text",
         "shell:default",
         "shell:allow-kill",
         "shell:allow-spawn",
