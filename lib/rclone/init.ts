@@ -34,7 +34,7 @@ export async function initRclone(args: string[]) {
     }
 
     const state = usePersistedStore.getState()
-    let configFiles = state.configFiles
+    let configFiles = state.configFiles || []
     let activeConfigFile = state.activeConfigFile
     const defaultPath = await getDefaultPath(system ? 'system' : 'internal')
 

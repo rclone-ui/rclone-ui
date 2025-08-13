@@ -23,6 +23,7 @@ import {
     homeDir,
     tempDir,
 } from '@tauri-apps/api/path'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { remove } from '@tauri-apps/plugin-fs'
@@ -326,6 +327,9 @@ function GeneralSection() {
         if (!answer) {
             return
         }
+
+        await getCurrentWindow().emit('close-app')
+        await new Promise((resolve) => setTimeout(resolve, 200))
 
         await relaunch()
     }, [update])
