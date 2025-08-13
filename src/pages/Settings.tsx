@@ -253,7 +253,10 @@ function GeneralSection() {
                 setUpdateButtonText('Checking...')
                 let receivedUpdate: Update | null = null
                 try {
-                    receivedUpdate = await check()
+                    receivedUpdate = await check({
+                        allowDowngrades: true,
+                        timeout: 30000,
+                    })
                 } catch (e) {
                     console.error(e)
                     setUpdateButtonText('Failed to check')
