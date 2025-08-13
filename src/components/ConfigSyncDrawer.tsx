@@ -27,6 +27,7 @@ export default function ConfigSyncDrawer({
         label: 'New Config',
     })
 
+    // @ts-ignore
     const [isPasswordCommand, setIsPasswordCommand] = useState(false)
 
     const [isSaving, setIsSaving] = useState(false)

@@ -18,6 +18,7 @@ export default function Delete() {
     const [sourceFs, setSourceFs] = useState<string | undefined>(
         searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
     )
+    // @ts-ignore
     const [rmDirs, setRmDirs] = useState(false)
 
     const [cronExpression, setCronExpression] = useState<string | null>(null)
