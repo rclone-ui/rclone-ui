@@ -286,7 +286,31 @@
                     "url": "https://github.com/**"
                 },
                 {
+                    "url": "https://raw.githubusercontent.com/**"
+                },
+                {
                     "url": "https://rcloneui.com/**"
+                },
+                {
+                    "url": "https://stripe.com/**"
+                },
+                {
+                    "url": "https://buy.stripe.com/**"
+                },
+                {
+                    "url": "https://checkout.stripe.com/**"
+                },
+                {
+                    "url": "https://js.stripe.com/**"
+                },
+                {
+                    "url": "https://donate.stripe.com/**"
+                },
+                {
+                    "url": "https://payments.stripe.com/**"
+                },
+                {
+                    "url": "https://checkout.link.com/**"
                 }
             ]
         },

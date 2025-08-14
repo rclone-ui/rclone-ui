@@ -13,6 +13,7 @@ import {
     Tab,
     Tabs,
     Textarea,
+    cn,
 } from '@heroui/react'
 import { getTauriVersion, getVersion as getUiVersion } from '@tauri-apps/api/app'
 import {
@@ -45,8 +46,14 @@ import {
     ServerIcon,
     Trash2Icon,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { revokeLicense, validateLicense } from '../../lib/license'
+import {
+    type DetailedHTMLProps,
+    type HTMLAttributes,
+    useCallback,
+    useEffect,
+    useState,
+} from 'react'
+import { revokeMachineLicense, validateLicense } from '../../lib/license'
 import { deleteRemote, getVersion as getCliVersion, getVersion } from '../../lib/rclone/api'
 import { getConfigPath, getDefaultPaths } from '../../lib/rclone/common'
 import { usePersistedStore, useStore } from '../../lib/store'
@@ -57,6 +64,15 @@ import ConfigSyncDrawer from '../components/ConfigSyncDrawer'
 import RemoteCreateDrawer from '../components/RemoteCreateDrawer'
 import RemoteDefaultsDrawer from '../components/RemoteDefaultsDrawer'
 import RemoteEditDrawer from '../components/RemoteEditDrawer'
+
+declare global {
+    // biome-ignore lint/style/noNamespace: <explanation>
+    namespace JSX {
+        interface IntrinsicElements {
+            'stripe-pricing-table': DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>
+        }
+    }
+}
 
 function Settings() {
     const settingsPass = usePersistedStore((state) => state.settingsPass)
@@ -550,13 +566,30 @@ function LicenseSection() {
     const [isActivating, setIsActivating] = useState(false)
     const [licenseKeyInput, setLicenseKeyInput] = useState('')
 
+    const [showPricingTable, setShowPricingTable] = useState(false)
+
     useEffect(() => {
         setLicenseKeyInput(licenseKey || '')
         setIsLicenseEditable(!licenseKey)
     }, [licenseKey])
 
+    useEffect(() => {
+        const script = document.createElement('script')
+        script.src = 'https://js.stripe.com/v3/pricing-table.js'
+        script.async = true
+        document.body.appendChild(script)
+        const cancelTimeout = setTimeout(() => {
+            setShowPricingTable(true)
+        }, 1000)
+        return () => {
+            clearTimeout(cancelTimeout)
+            setShowPricingTable(false)
+            document.body.removeChild(script)
+        }
+    }, [])
+
     return (
-        <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-8">
             <BaseHeader title="License" />
 
             <div className="flex flex-row justify-center w-full gap-8 px-8">
@@ -654,7 +687,7 @@ function LicenseSection() {
 
                                 setIsRevoking(true)
                                 try {
-                                    await revokeLicense(licenseKeyInput)
+                                    await revokeMachineLicense(licenseKeyInput)
                                 } catch (e) {
                                     if (e instanceof Error) {
                                         await ask(e.message, {
@@ -689,65 +722,17 @@ function LicenseSection() {
                 </div>
             </div>
 
-            <div className="flex flex-row justify-center w-full gap-8 px-8">
-                <div className="flex flex-col items-end w-2/6 gap-2 bg-transparent-500">
-                    <h3 className="font-medium">Buy</h3>
-
-                    <p className="text-xs text-neutral-500 text-end">
-                        Includes access to future features and updates.
-                    </p>
-                </div>
-
-                <div className="flex flex-col w-4/6 gap-3 bg-transparent-500">
-                    <Button
-                        size="lg"
-                        fullWidth={true}
-                        color="primary"
-                        variant="shadow"
-                        onPress={async () => {
-                            await openUrl('https://buy.stripe.com/3csbKIb1t433a8obII')
-                        }}
-                    >
-                        Lifetime License — $7
-                    </Button>
-                </div>
+            <div
+                className={cn(
+                    'w-full overflow-hidden border-0 border-red-500 left-28 h-[470px] opacity-0 transition-opacity duration-300 ease-in-out',
+                    showPricingTable && 'opacity-100'
+                )}
+            >
+                <stripe-pricing-table
+                    pricing-table-id="prctbl_1RvnumE0hPdsH0naQ6l8Rd86"
+                    publishable-key="pk_live_51QmUqyE0hPdsH0naBICHzb0j5O5eTKyYnY72nOaS6aT99y3EBeCOyeihI2xX05D6cczifqPsX6vHhor8ozSblXPl00LqNwMxBE"
+                />
             </div>
-
-            {/* <div className="flex flex-row justify-center w-full gap-8 px-8">
-                <div className="flex flex-col items-end w-2/6 gap-2 bg-transparent-500">
-                    <h3 className="font-medium">Features</h3>
-                    <p className="text-xs text-neutral-500 text-end">What you get with a license</p>
-                </div>
-
-                <div className="flex flex-col w-4/6 gap-2 bg-transparent-500">
-                    <Card className="border-none bg-background/60 dark:bg-default-100/60">
-                        <CardBody>
-                            <ul className="flex flex-col gap-3">
-                                <li className="flex items-center gap-2">
-                                    <CheckIcon className="w-5 h-5 text-green-500" />
-                                    <span>Work with more than 3 remotes</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <CheckIcon className="w-5 h-5 text-green-500" />
-                                    <span>Runs on up to 5 devices</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <CheckIcon className="w-5 h-5 text-green-500" />
-                                    <span>File Commander</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <CheckIcon className="w-5 h-5 text-green-500" />
-                                    <span>Mobile Client</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <CheckIcon className="w-5 h-5 text-green-500" />
-                                    <span>Supporting Open Source</span>
-                                </li>
-                            </ul>
-                        </CardBody>
-                    </Card>
-                </div>
-            </div> */}
         </div>
     )
 }
@@ -917,6 +902,8 @@ function RemotesSection() {
 }
 
 function ConfigSection() {
+    const licenseValid = usePersistedStore((state) => state.licenseValid)
+
     const configFiles = usePersistedStore((state) => state.configFiles)
     const activeConfigFile = usePersistedStore((state) => state.activeConfigFile)
 
@@ -938,10 +925,20 @@ function ConfigSection() {
                         </DropdownTrigger>
                         <DropdownMenu
                             onAction={(key) => {
-                                setTimeout(() => {
+                                setTimeout(async () => {
                                     if (key === 'import') {
                                         setIsCreateDrawerOpen(true)
                                     } else {
+                                        if (!licenseValid) {
+                                            await message(
+                                                'Community version does not support syncing configs.',
+                                                {
+                                                    title: 'Missing license',
+                                                    kind: 'error',
+                                                }
+                                            )
+                                            return
+                                        }
                                         setIsSyncDrawerOpen(true)
                                     }
                                 }, 100)

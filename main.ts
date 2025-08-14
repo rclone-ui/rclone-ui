@@ -73,24 +73,22 @@ async function validateInstance() {
     try {
         await validateLicense(licenseKey)
     } catch (e) {
+        usePersistedStore.setState({ licenseValid: false })
+
         if (e instanceof Error) {
-            await ask(e.message, {
-                title: 'Error',
+            await message(e.message, {
+                title: 'Error Validating License',
                 kind: 'error',
-                okLabel: 'Exit',
-                cancelLabel: '',
+                okLabel: 'OK',
             })
-            await exit(0)
             return
         }
 
-        await ask('An error occurred while validating your license. Please try again.', {
+        await message('An error occurred while validating your license. Please try again.', {
             title: 'Error',
             kind: 'error',
-            okLabel: 'Exit',
-            cancelLabel: '',
+            okLabel: 'OK',
         })
-        await exit(0)
     }
 }
 
