@@ -3,6 +3,7 @@ import {
     Card,
     CardBody,
     Checkbox,
+    Chip,
     Dropdown,
     DropdownItem,
     DropdownMenu,
@@ -27,8 +28,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { disable, enable } from '@tauri-apps/plugin-autostart'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { ask, message } from '@tauri-apps/plugin-dialog'
-import { remove } from '@tauri-apps/plugin-fs'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { readTextFileLines, remove } from '@tauri-apps/plugin-fs'
+import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { version as osVersion, type } from '@tauri-apps/plugin-os'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { type Update, check } from '@tauri-apps/plugin-updater'
@@ -36,7 +37,6 @@ import {
     CheckIcon,
     CodeIcon,
     CogIcon,
-    CopyIcon,
     EyeIcon,
     ImportIcon,
     InfoIcon,
@@ -51,6 +51,7 @@ import {
     type HTMLAttributes,
     useCallback,
     useEffect,
+    useRef,
     useState,
 } from 'react'
 import { revokeMachineLicense, validateLicense } from '../../lib/license'
@@ -449,14 +450,15 @@ function GeneralSection() {
                             }
 
                             try {
+                                setStartOnBoot(value)
+
                                 if (value) {
                                     await enable()
                                 } else {
                                     await disable()
                                 }
-
-                                setStartOnBoot(value)
                             } catch (error) {
+                                setStartOnBoot(!value)
                                 await message(
                                     `An error occurred while toggling start on boot. ${error}`,
                                     {
@@ -467,7 +469,12 @@ function GeneralSection() {
                             }
                         }}
                     >
-                        Start on boot
+                        <div className="flex flex-row gap-2">
+                            <p>Start on boot</p>
+                            <Chip size="sm" color="primary">
+                                New
+                            </Chip>
+                        </div>
                     </Checkbox>
 
                     <Checkbox
@@ -1114,7 +1121,8 @@ function AboutSection() {
         null
     )
 
-    const [isCopied, setIsCopied] = useState(false)
+    const isLoadingLogs = useRef(false)
+    const [last30Lines, setLast30Lines] = useState<string[]>([])
 
     const fetchInfo = useCallback(async () => {
         const defaultPaths = await getDefaultPaths()
@@ -1146,17 +1154,129 @@ function AboutSection() {
         }
     }, [currentConfig])
 
+    const fetchLogs = useCallback(async (logFilePath: string) => {
+        if (isLoadingLogs.current) {
+            return []
+        }
+        isLoadingLogs.current = true
+        const logLines = await readTextFileLines(logFilePath)
+        const lines = []
+        for await (const line of logLines) {
+            lines.push(line)
+        }
+        isLoadingLogs.current = false
+        return lines.slice(-30)
+    }, [])
+
     useEffect(() => {
         fetchInfo().then(setInfo)
     }, [fetchInfo])
+
+    useEffect(() => {
+        if (!info) {
+            return
+        }
+        if (last30Lines.length > 0) {
+            return
+        }
+        fetchLogs(info.dirs.appLog + '/Rclone UI.log').then(setLast30Lines)
+    }, [fetchLogs, info, last30Lines.length])
 
     return (
         <div className="flex flex-col gap-5">
             <BaseHeader title="About" />
 
-            <div className="flex flex-row justify-center w-full gap-8 px-4 pb-10">
-                {!info && <Spinner size="lg" color="secondary" className="py-20" />}
-                {info && (
+            {!info && <Spinner size="lg" color="secondary" className="py-20" />}
+
+            {info && (
+                <div className="flex flex-row justify-center w-full gap-2.5 px-4">
+                    <Button
+                        fullWidth={true}
+                        color="primary"
+                        onPress={async () => {
+                            if (!info || !info.dirs.appLog) {
+                                await message('No logs folder found', {
+                                    title: 'Error',
+                                    kind: 'warning',
+                                    okLabel: 'OK',
+                                })
+                                return
+                            }
+                            await revealItemInDir(info.dirs.appLog + '/Rclone UI.log')
+                        }}
+                    >
+                        Open Logs Folder
+                    </Button>
+                    <Button
+                        fullWidth={true}
+                        color="secondary"
+                        onPress={async () => {
+                            if (!info || !info.dirs.appLog) {
+                                await message('No logs folder found', {
+                                    title: 'Error',
+                                    kind: 'warning',
+                                    okLabel: 'OK',
+                                })
+                                return
+                            }
+                            await writeText(last30Lines.join('\n'))
+                            await message('Open the file in a text editor to copy the full log', {
+                                title: 'Copied last 30 lines',
+                                kind: 'info',
+                            })
+                        }}
+                    >
+                        Copy Logs
+                    </Button>
+                    <Button
+                        fullWidth={true}
+                        color="default"
+                        onPress={async () => {
+                            await writeText(JSON.stringify(info, null, 2))
+                        }}
+                    >
+                        Copy Debug Info
+                    </Button>
+                    <Button
+                        fullWidth={true}
+                        color="danger"
+                        onPress={async () => {
+                            if (!info || !info.dirs.appLog) {
+                                await message('No logs folder found', {
+                                    title: 'Error',
+                                    kind: 'warning',
+                                    okLabel: 'OK',
+                                })
+                                return
+                            }
+
+                            const body = `ENTER YOUR DESCRIPTION OF THE ISSUE HERE
+
+							
+Debug Info:
+\`\`\`json
+${JSON.stringify(info, null, 2)}
+\`\`\`
+
+Logs (last 30 lines):
+\`\`\`
+${last30Lines.join('\n')}
+\`\`\`
+`
+                            openUrl(
+                                `https://github.com/rclone-ui/rclone-ui/issues/new?body=${encodeURIComponent(
+                                    body
+                                )}`
+                            )
+                        }}
+                    >
+                        Open Github Issue
+                    </Button>
+                </div>
+            )}
+
+            {info && (
+                <div className="flex flex-row justify-center w-full gap-8 px-4 pb-10">
                     <Textarea
                         value={JSON.stringify(info, null, 2)}
                         size="lg"
@@ -1166,30 +1286,9 @@ function AboutSection() {
                         disableAutosize={false}
                         isReadOnly={false}
                         variant="faded"
-                        endContent={
-                            <Button
-                                variant="light"
-                                size="sm"
-                                isIconOnly={true}
-                                onPress={async () => {
-                                    await writeText(JSON.stringify(info, null, 2))
-                                    setIsCopied(true)
-                                    setTimeout(() => {
-                                        setIsCopied(false)
-                                    }, 1200)
-                                }}
-                                isDisabled={isCopied}
-                            >
-                                {isCopied ? (
-                                    <CheckIcon className="w-4 h-4" />
-                                ) : (
-                                    <CopyIcon className="w-4 h-4" />
-                                )}
-                            </Button>
-                        }
                     />
-                )}
-            </div>
+                </div>
+            )}
         </div>
     )
 }
