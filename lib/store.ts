@@ -77,6 +77,9 @@ interface PersistedState {
     isFirstOpen: boolean
     setIsFirstOpen: (isFirstOpen: boolean) => void
 
+    startOnBoot: boolean
+    setStartOnBoot: (startOnBoot: boolean) => void
+
     scheduledTasks: ScheduledTask[]
     addScheduledTask: (
         task: Omit<
@@ -178,6 +181,9 @@ export const usePersistedStore = create<PersistedState>()(
 
             isFirstOpen: true,
             setIsFirstOpen: (isFirstOpen: boolean) => set((_) => ({ isFirstOpen })),
+
+            startOnBoot: false,
+            setStartOnBoot: (startOnBoot: boolean) => set((_) => ({ startOnBoot })),
 
             scheduledTasks: [],
             addScheduledTask: (

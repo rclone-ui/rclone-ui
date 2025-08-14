@@ -3,7 +3,6 @@ import {
     Card,
     CardBody,
     Checkbox,
-    Chip,
     Dropdown,
     DropdownItem,
     DropdownMenu,
@@ -25,6 +24,7 @@ import {
     tempDir,
 } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { disable, enable } from '@tauri-apps/plugin-autostart'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { remove } from '@tauri-apps/plugin-fs'
@@ -258,6 +258,10 @@ function GeneralSection() {
     const disabledActions = usePersistedStore((state) => state.disabledActions)
     const setDisabledActions = usePersistedStore((state) => state.setDisabledActions)
 
+    const startOnBoot = usePersistedStore((state) => state.startOnBoot)
+    const setStartOnBoot = usePersistedStore((state) => state.setStartOnBoot)
+    const licenseValid = usePersistedStore((state) => state.licenseValid)
+
     const [updateButtonText, setUpdateButtonText] = useState('Check for updates')
     const [isWorkingUpdate, setIsWorkingUpdate] = useState(false)
     const [update, setUpdate] = useState<Update | null>(null)
@@ -433,13 +437,37 @@ function GeneralSection() {
                 </div>
 
                 <div className="flex flex-col w-3/5 gap-3 bg-transparent-500">
-                    <Checkbox isDisabled={true}>
-                        <div className="flex flex-row gap-2">
-                            <p>Start on boot</p>
-                            <Chip size="sm" color="primary">
-                                Coming soon
-                            </Chip>
-                        </div>
+                    <Checkbox
+                        isSelected={startOnBoot}
+                        onValueChange={async (value) => {
+                            if (!licenseValid) {
+                                await message('Community version does not support start on boot.', {
+                                    title: 'Missing license',
+                                    kind: 'error',
+                                })
+                                return
+                            }
+
+                            try {
+                                if (value) {
+                                    await enable()
+                                } else {
+                                    await disable()
+                                }
+
+                                setStartOnBoot(value)
+                            } catch (error) {
+                                await message(
+                                    `An error occurred while toggling start on boot. ${error}`,
+                                    {
+                                        title: 'Error',
+                                        kind: 'error',
+                                    }
+                                )
+                            }
+                        }}
+                    >
+                        Start on boot
                     </Checkbox>
 
                     <Checkbox
@@ -518,28 +546,6 @@ function GeneralSection() {
                         Show <span className="font-mono text-blue-300">Delete</span> option
                     </Checkbox>
                 </div>
-
-                {/* <Button
-			onPress={async () => {
-				const enabled = await isEnabled()
-				if (enabled) {
-					await disable()
-				} else {
-					await enable()
-				}
-			}}
-		>
-			Start on boot
-		</Button>
-
-		<Button
-			onPress={async () => {
-				const enabled = await isEnabled()
-				alert(enabled ? 'Enabled' : 'Disabled')
-			}}
-		>
-			Get status
-		</Button> */}
             </div>
 
             <div className="flex flex-row justify-center w-full gap-8 px-8">

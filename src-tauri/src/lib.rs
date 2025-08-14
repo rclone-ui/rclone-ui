@@ -87,7 +87,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
-		// .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![])))
+		.plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![])))
         // .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
         // 	println!("{}, {argv:?}, {cwd}", app.package_info().name);
         // 	// app.emit("single-instance", Payload { args: argv, cwd }).unwrap();
