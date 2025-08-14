@@ -1,8 +1,10 @@
+import { getVersion as getUiVersion } from '@tauri-apps/api/app'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { platform } from '@tauri-apps/plugin-os'
-import { exit } from '@tauri-apps/plugin-process'
+import { exit, relaunch } from '@tauri-apps/plugin-process'
+import { check } from '@tauri-apps/plugin-updater'
 import { CronExpressionParser } from 'cron-parser'
 import { validateLicense } from './lib/license'
 import {
@@ -372,6 +374,116 @@ async function handleTask(task: ScheduledTask) {
     }
 }
 
+function compareVersions(version1: string, version2: string): number {
+    const parseVersion = (version: string) => {
+        const parts = version.split('.').map((num) => Number.parseInt(num, 10))
+        return {
+            major: parts[0] || 0,
+            minor: parts[1] || 0,
+            patch: parts[2] || 0,
+        }
+    }
+
+    const v1 = parseVersion(version1)
+    const v2 = parseVersion(version2)
+
+    if (v1.major !== v2.major) {
+        return v1.major > v2.major ? 1 : -1
+    }
+    if (v1.minor !== v2.minor) {
+        return v1.minor > v2.minor ? 1 : -1
+    }
+    if (v1.patch !== v2.patch) {
+        return v1.patch > v2.patch ? 1 : -1
+    }
+    return 0
+}
+
+async function checkVersion() {
+    try {
+        const metaJson = await fetch(
+            'https://raw.githubusercontent.com/rclone-ui/rclone-ui/refs/heads/main/meta.json'
+        )
+        const metaJsonData = await metaJson.json()
+
+        const { minimumVersion, okVersion } = metaJsonData
+
+        const currentVersion = await getUiVersion()
+
+        if (
+            compareVersions(currentVersion, minimumVersion) >= 0 &&
+            compareVersions(currentVersion, okVersion) >= 0
+        ) {
+            return
+        }
+
+        const receivedUpdate = await check({
+            allowDowngrades: true,
+            timeout: 30000,
+        })
+
+        if (!receivedUpdate) {
+            return
+        }
+
+        if (compareVersions(currentVersion, minimumVersion) < 0) {
+            const confirmed = await ask(
+                'You are running an outdated version of Rclone UI. Please update to the latest version.',
+                {
+                    title: 'Update Required',
+                    kind: 'info',
+                    okLabel: 'Update',
+                    cancelLabel: 'Exit',
+                }
+            )
+
+            if (!confirmed) {
+                return await exit(0)
+            }
+
+            await receivedUpdate.downloadAndInstall()
+
+            await message('Rclone UI has been updated. Please restart the application.', {
+                title: 'Update Complete',
+                kind: 'info',
+                okLabel: 'Restart',
+            })
+
+            await getCurrentWindow().emit('close-app')
+            await new Promise((resolve) => setTimeout(resolve, 200))
+
+            await relaunch()
+        } else if (compareVersions(currentVersion, okVersion) < 0) {
+            const confirmed = await ask(
+                'You are running an outdated version of Rclone UI. Please update to the latest version.',
+                {
+                    title: 'Update Available',
+                    kind: 'info',
+                    okLabel: 'Update',
+                    cancelLabel: 'Cancel',
+                }
+            )
+
+            if (!confirmed) {
+                return
+            }
+
+            await receivedUpdate.downloadAndInstall()
+
+            await message('Rclone UI has been updated. Please restart the application.', {
+                title: 'Update Complete',
+                kind: 'info',
+                okLabel: 'Restart',
+            })
+
+            await getCurrentWindow().emit('close-app')
+            await new Promise((resolve) => setTimeout(resolve, 200))
+
+            await relaunch()
+        }
+    } catch {}
+}
+
 getCurrentWindow().listen('tauri://close-requested', async (e) => {
     console.log('(main) window close requested')
 })
@@ -395,6 +507,7 @@ getCurrentWindow().listen('rebuild-tray', async (e) => {
 
 initLoadingTray()
     .then(() => waitForHydration())
+    .then(() => checkVersion())
     .then(() => validateInstance())
     .then(() => startRclone())
     .then(() => onboardUser())
