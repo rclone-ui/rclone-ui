@@ -11,11 +11,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'windows-latest'
+          - platform: 'windows-2022'
             args: '--target x86_64-pc-windows-msvc --verbose'
             arch: 'arm64'
             type: 'x86_64'
-          - platform: "windows-latest"
+          - platform: "windows-2022"
             args: "--target aarch64-pc-windows-msvc --verbose"
             arch: 'arm64'
             type: 'aarch64'
