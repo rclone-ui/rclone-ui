@@ -12,11 +12,11 @@ jobs:
       matrix:
         include:
           - platform: 'windows-latest'
-            args: '--target x86_64-pc-windows-msvc'
+            args: '--target x86_64-pc-windows-msvc --verbose'
             arch: 'arm64'
             type: 'x86_64'
           - platform: "windows-latest"
-            args: "--target aarch64-pc-windows-msvc"
+            args: "--target aarch64-pc-windows-msvc --verbose"
             arch: 'arm64'
             type: 'aarch64'
 
