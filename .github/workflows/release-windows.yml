@@ -47,6 +47,15 @@ jobs:
       - name: install frontend dependencies
         run: npm install
 
+      - uses: KamaranL/add-signtool-action@v1
+        id: signtool
+
+      - run: Write-Output "$env:SIGNTOOL_DIR"
+        # prints out the absolute path to the located signtool executable
+        shell: pwsh
+        env:
+          SIGNTOOL_DIR: ${{ steps.signtool.outputs.signtool-x64 }}
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,6 +64,7 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SIGNTOOL_PATH: "${{ steps.signtool.outputs.signtool-x64 }}/signtool.exe"
           
           # for updates
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
