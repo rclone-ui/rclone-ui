@@ -42,7 +42,7 @@ jobs:
           
       - name: install dependencies (windows only)
         run: |
-          cargo install --force trusted-signing-cli --version 0.5.0
+          cargo install trusted-signing-cli
 
       - name: install frontend dependencies
         run: npm install
