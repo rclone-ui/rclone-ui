@@ -15,7 +15,7 @@ jobs:
             args: '--target x86_64-pc-windows-msvc --verbose'
             arch: 'arm64'
             type: 'x86_64'
-          - platform: "windows-2025"
+          - platform: "windows-11-arm"
             args: "--target aarch64-pc-windows-msvc --verbose"
             arch: 'arm64'
             type: 'aarch64'
@@ -42,7 +42,7 @@ jobs:
           
       - name: install dependencies (windows only)
         run: |
-          cargo install trusted-signing-cli@0.5.0
+          cargo install trusted-signing-cli
 
       - name: install frontend dependencies
         run: npm install
@@ -58,7 +58,7 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          SIGNTOOL_PATH: 'C:\Program Files (x86)\Windows Kits\10\bin\signtool.exe'
+          # SIGNTOOL_PATH: 'C:\Program Files (x86)\Windows Kits\10\bin\signtool.exe'
           
           # for updates
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
