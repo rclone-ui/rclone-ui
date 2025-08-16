@@ -87,7 +87,7 @@ function Settings() {
 
     useEffect(() => {
         Promise.all([getUiVersion(), getCliVersion()]).then(([uiVersion, cliVersion]) => {
-            setUiVersion(uiVersion)
+            setUiVersion(uiVersion.endsWith('.0') ? uiVersion.slice(0, -2) : uiVersion)
             setCliVersion(cliVersion.version.replace('v', ''))
         })
     }, [])
