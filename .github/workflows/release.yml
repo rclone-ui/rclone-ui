@@ -21,11 +21,11 @@ jobs:
             type: 'x86_64'
           - platform: 'ubuntu-22.04' 
             args: ''
-          - platform: 'windows-latest'
+          - platform: 'windows-11-arm'
             args: '--target x86_64-pc-windows-msvc'
             arch: 'arm64'
             type: 'x86_64'
-          - platform: "windows-latest"
+          - platform: "windows-11-arm"
             args: "--target aarch64-pc-windows-msvc"
             arch: 'arm64'
             type: 'aarch64'
@@ -55,7 +55,7 @@ jobs:
           
       - name: install Rust stable (windows only)
         uses: dtolnay/rust-toolchain@stable
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-11-arm'
         with:
             targets: ${{ matrix.type == 'aarch64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
             
@@ -71,9 +71,9 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
           
       - name: install dependencies (windows only)
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-11-arm'
         run: |
-          cargo install --force trusted-signing-cli --version 0.5.0
+          cargo install trusted-signing-cli
 
       - name: install frontend dependencies
         run: npm install
