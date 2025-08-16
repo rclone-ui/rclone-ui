@@ -3,7 +3,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from '../store'
 
 /* UTILS */
-const SUPPORRTED_BACKENDS = ['sftp', 's3', 'b2', 'drive']
+const SUPPORRTED_BACKENDS = ['sftp', 's3', 'b2', 'drive', 'dropbox']
 
 function getAuthHeader() {
     return
