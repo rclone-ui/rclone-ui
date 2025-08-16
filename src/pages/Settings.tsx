@@ -1211,22 +1211,23 @@ function AboutSection() {
                         fullWidth={true}
                         color="secondary"
                         onPress={async () => {
-                            if (!info || !info.dirs.appLog) {
-                                await message('No logs folder found', {
-                                    title: 'Error',
-                                    kind: 'warning',
-                                    okLabel: 'OK',
-                                })
-                                return
-                            }
-                            await writeText(last30Lines.join('\n'))
-                            await message('Open the file in a text editor to copy the full log', {
-                                title: 'Copied last 30 lines',
-                                kind: 'info',
-                            })
+                            // if (!info || !info.dirs.appLog) {
+                            //     await message('No logs folder found', {
+                            //         title: 'Error',
+                            //         kind: 'warning',
+                            //         okLabel: 'OK',
+                            //     })
+                            //     return
+                            // }
+                            // await writeText(last30Lines.join('\n'))
+                            // await message('Open the file in a text editor to copy the full log', {
+                            //     title: 'Copied last 30 lines',
+                            //     kind: 'info',
+                            // })
+                            await openUrl('https://github.com/rclone-ui/rclone-ui/issues/18')
                         }}
                     >
-                        Copy Logs
+                        Request Feature
                     </Button>
                     <Button
                         fullWidth={true}
