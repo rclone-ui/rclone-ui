@@ -1,6 +1,5 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
-import {} from '@tauri-apps/plugin-fs'
 import cronstrue from 'cronstrue'
 import { AlertOctagonIcon, ClockIcon, FilterIcon, FoldersIcon, PlayIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
