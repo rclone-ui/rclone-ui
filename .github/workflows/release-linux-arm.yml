@@ -1,4 +1,4 @@
-name: 'release-linux'
+name: 'release-linux-arm'
 
 on:
   workflow_dispatch
