@@ -136,7 +136,6 @@ export default function RemoteCreateDrawer({
             const formData = new FormData(e.currentTarget)
             const data: Record<string, string | boolean> = {}
 
-            // First collect all form values
             for (const [key, value] of formData.entries()) {
                 if (value.toString().trim() === '') continue
                 if (
@@ -155,7 +154,6 @@ export default function RemoteCreateDrawer({
                 Object.entries(data).filter(([key]) => key !== 'name' && key !== 'type')
             )
 
-            // Create the remote
             await createRemote(name, type, parameters)
             addRemote(name)
             onClose()
@@ -223,7 +221,7 @@ export default function RemoteCreateDrawer({
                                     name="name"
                                     label="name"
                                     labelPlacement="outside"
-                                    placeholder="Remote Name"
+                                    placeholder="Remote Name (for your reference)"
                                     value={config.name || ''}
                                     onValueChange={(value) => setConfig({ ...config, name: value })}
                                     isRequired={true}
@@ -273,6 +271,50 @@ export default function RemoteCreateDrawer({
                                             )}
                                             <span>More Options</span>
                                         </button>
+                                        {config.type === 's3' && (
+                                            <>
+                                                <Input
+                                                    key={'region'}
+                                                    id={'field-region'}
+                                                    name={'region'}
+                                                    label={'region'}
+                                                    labelPlacement="outside"
+                                                    placeholder={
+                                                        'Region (optional, fill only if you have a custom region)'
+                                                    }
+                                                    type={'text'}
+                                                    value={config.region || ''}
+                                                    autoComplete="off"
+                                                    autoCapitalize="off"
+                                                    autoCorrect="off"
+                                                    spellCheck="false"
+                                                    onValueChange={(value) => {
+                                                        // console.log(value)
+                                                        setConfig({ ...config, region: value })
+                                                    }}
+                                                />
+                                                <Input
+                                                    key={'endpoint'}
+                                                    id={'field-endpoint'}
+                                                    name={'endpoint'}
+                                                    label={'endpoint'}
+                                                    labelPlacement="outside"
+                                                    placeholder={
+                                                        'Endpoint (optional, fill only if you have a custom endpoint)'
+                                                    }
+                                                    type={'text'}
+                                                    value={config.endpoint || ''}
+                                                    autoComplete="off"
+                                                    autoCapitalize="off"
+                                                    autoCorrect="off"
+                                                    spellCheck="false"
+                                                    onValueChange={(value) => {
+                                                        // console.log(value)
+                                                        setConfig({ ...config, endpoint: value })
+                                                    }}
+                                                />
+                                            </>
+                                        )}
                                         {showMoreOptions && (
                                             <div className="flex flex-col gap-4 pt-4 mt-4">
                                                 {currentBackendFields

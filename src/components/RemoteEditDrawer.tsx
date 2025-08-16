@@ -228,6 +228,50 @@ export default function RemoteEditDrawer({
                                             )}
                                             <span>Advanced Options</span>
                                         </button>
+                                        {config.type === 's3' && (
+                                            <>
+                                                <Input
+                                                    key={'region'}
+                                                    id={'field-region'}
+                                                    name={'region'}
+                                                    label={'region'}
+                                                    labelPlacement="outside"
+                                                    placeholder={
+                                                        'Region (optional, fill only if you have a custom region)'
+                                                    }
+                                                    type={'text'}
+                                                    value={config.region || ''}
+                                                    autoComplete="off"
+                                                    autoCapitalize="off"
+                                                    autoCorrect="off"
+                                                    spellCheck="false"
+                                                    onValueChange={(value) => {
+                                                        // console.log(value)
+                                                        setConfig({ ...config, region: value })
+                                                    }}
+                                                />
+                                                <Input
+                                                    key={'endpoint'}
+                                                    id={'field-endpoint'}
+                                                    name={'endpoint'}
+                                                    label={'endpoint'}
+                                                    labelPlacement="outside"
+                                                    placeholder={
+                                                        'Endpoint (optional, fill only if you have a custom endpoint)'
+                                                    }
+                                                    type={'text'}
+                                                    value={config.endpoint || ''}
+                                                    autoComplete="off"
+                                                    autoCapitalize="off"
+                                                    autoCorrect="off"
+                                                    spellCheck="false"
+                                                    onValueChange={(value) => {
+                                                        // console.log(value)
+                                                        setConfig({ ...config, endpoint: value })
+                                                    }}
+                                                />
+                                            </>
+                                        )}
                                         {showAdvanced && (
                                             <div className="flex flex-col gap-4 pt-4 mt-4">
                                                 {currentBackend.Options.filter(
