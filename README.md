@@ -21,7 +21,9 @@ Free to use, open source, actively maintained and built with [Tauri](https://tau
 ### 📊 Job Logs (visualize all background operations)
 ### 🚀 Start on boot (autostart) and Mount on start (automount)
 ### 🔒 Set a password for the Settings panel
-### 👁️ Hide commands or remotes from the tray menu
+### 👁️ Hide commands or Remotes from the tray menu
+### ⚙️ Import Configs (encrypted with pass or command)
+### ✍️ Signed by Microsoft and Notarized on macOS
 
 <img src=".github/screenshot.png" style="border-radius: 10px; margin-top: -150px" alt="Screenshot">
 
