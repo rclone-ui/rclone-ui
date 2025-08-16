@@ -2,12 +2,11 @@ import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/men
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message, open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
-import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
-import { sendNotification } from '@tauri-apps/plugin-notification'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
+import notify from './notify'
 import { cleanupRemote, deleteRemote, mountRemote, unmountRemote } from './rclone/api'
 import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
@@ -179,19 +178,10 @@ async function parseRemotes(remotes: string[]) {
                         })
                         storeState.mountedRemotes[remote] = selectedPath
 
-                        let permissionGranted = await isPermissionGranted()
-
-                        if (!permissionGranted) {
-                            const permission = await requestPermission()
-                            permissionGranted = permission === 'granted'
-                        }
-
-                        if (permissionGranted) {
-                            sendNotification({
-                                title: 'Mounted',
-                                body: `Successfully mounted ${remote} to ${selectedPath}`,
-                            })
-                        }
+                        await notify({
+                            title: 'Mounted',
+                            body: `Successfully mounted ${remote} to ${selectedPath}`,
+                        })
 
                         if (!remoteConfig?.defaultMountPoint) {
                             const answer = await ask(
