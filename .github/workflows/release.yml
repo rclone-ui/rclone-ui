@@ -47,7 +47,7 @@ jobs:
 
       - name: install Rust stable (linux only)
         uses: dtolnay/rust-toolchain@stable
-        if: matrix.platform == 'ubuntu-22.04' || matrix-platform == 'ubuntu-22.04-arm'
+        if: ${{ matrix.platform == 'ubuntu-22.04' || matrix-platform == 'ubuntu-22.04-arm' }}
         
       - name: install Rust stable (macos only)
         uses: dtolnay/rust-toolchain@stable
@@ -67,7 +67,7 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: install dependencies (linux only)
-        if: matrix.platform == 'ubuntu-22.04' || matrix-platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
+        if: ${{ matrix.platform == 'ubuntu-22.04' || matrix-platform == 'ubuntu-22.04-arm' }} # This must match the platform value defined above.
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
