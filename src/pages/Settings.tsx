@@ -1194,23 +1194,6 @@ function AboutSection() {
                         fullWidth={true}
                         color="primary"
                         onPress={async () => {
-                            if (!info || !info.dirs.appLog) {
-                                await message('No logs folder found', {
-                                    title: 'Error',
-                                    kind: 'warning',
-                                    okLabel: 'OK',
-                                })
-                                return
-                            }
-                            await revealItemInDir(info.dirs.appLog + '/Rclone UI.log')
-                        }}
-                    >
-                        Open Logs Folder
-                    </Button>
-                    <Button
-                        fullWidth={true}
-                        color="secondary"
-                        onPress={async () => {
                             // if (!info || !info.dirs.appLog) {
                             //     await message('No logs folder found', {
                             //         title: 'Error',
@@ -1229,6 +1212,24 @@ function AboutSection() {
                     >
                         Request Feature
                     </Button>
+                    <Button
+                        fullWidth={true}
+                        color="secondary"
+                        onPress={async () => {
+                            if (!info || !info.dirs.appLog) {
+                                await message('No logs folder found', {
+                                    title: 'Error',
+                                    kind: 'warning',
+                                    okLabel: 'OK',
+                                })
+                                return
+                            }
+                            await revealItemInDir(info.dirs.appLog + '/Rclone UI.log')
+                        }}
+                    >
+                        Open Logs Folder
+                    </Button>
+
                     <Button
                         fullWidth={true}
                         color="default"
