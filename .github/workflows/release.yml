@@ -21,6 +21,8 @@ jobs:
             type: 'x86_64'
           - platform: 'ubuntu-22.04' 
             args: ''
+          - platform: 'ubuntu-22.04-arm' 
+            args: ''
           - platform: 'windows-11-arm'
             args: '--target x86_64-pc-windows-msvc'
             arch: 'arm64'
@@ -45,7 +47,7 @@ jobs:
 
       - name: install Rust stable (linux only)
         uses: dtolnay/rust-toolchain@stable
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-22.04' || matrix-platform == 'ubuntu-22.04-arm'
         
       - name: install Rust stable (macos only)
         uses: dtolnay/rust-toolchain@stable
@@ -65,10 +67,15 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: install dependencies (linux only)
-        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
+        if: matrix.platform == 'ubuntu-22.04' || matrix-platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: install dependencies (linux arm only)
+        if: matrix.platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
+        run: |
+          sudo apt-get install -y xdg-utils
           
       - name: install dependencies (windows only)
         if: matrix.platform == 'windows-11-arm'
