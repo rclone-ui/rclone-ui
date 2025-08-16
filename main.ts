@@ -7,6 +7,7 @@ import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
 import { CronExpressionParser } from 'cron-parser'
 import { validateLicense } from './lib/license'
+import notify from './lib/notify'
 import {
     listRemotes,
     mountRemote,
@@ -274,6 +275,10 @@ async function resumeTasks() {
             if (difference <= MAX_INT_MS && difference > 0) {
                 setTimeout(() => {
                     console.log('running task', task)
+                    notify({
+                        title: 'Task Started',
+                        body: `Task ${task.type} (${task.id}) started`,
+                    })
                     handleTask(task)
                 }, difference)
                 console.log('scheduled task', task.type, task.id, nextRun)
