@@ -27,7 +27,6 @@ export default function ConfigSyncDrawer({
         label: 'New Config',
     })
 
-    // @ts-ignore
     const [isPasswordCommand, setIsPasswordCommand] = useState(false)
 
     const [isSaving, setIsSaving] = useState(false)
@@ -154,22 +153,21 @@ export default function ConfigSyncDrawer({
 
                                 {config.isEncrypted && (
                                     <Input
-                                        // label={
-                                        //     <div className="flex items-center gap-1.5">
-                                        //         <p className="text-medium">Password</p>
-                                        //         <Switch
-                                        //             size="sm"
-                                        //             isSelected={isPasswordCommand}
-                                        //             onValueChange={() =>
-                                        //                 setIsPasswordCommand(!isPasswordCommand)
-                                        //             }
-                                        //             color="primary"
-                                        //         >
-                                        //             Command
-                                        //         </Switch>
-                                        //     </div>
-                                        // }
-                                        label="Password"
+                                        label={
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="text-medium">Password</p>
+                                                <Switch
+                                                    size="sm"
+                                                    isSelected={isPasswordCommand}
+                                                    onValueChange={() =>
+                                                        setIsPasswordCommand(!isPasswordCommand)
+                                                    }
+                                                    color="primary"
+                                                >
+                                                    Command
+                                                </Switch>
+                                            </div>
+                                        }
                                         labelPlacement="outside"
                                         placeholder={
                                             isPasswordCommand

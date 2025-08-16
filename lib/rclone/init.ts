@@ -124,7 +124,9 @@ export async function initRclone(args: string[]) {
             : {
                   env: {
                       ...(activeConfigFile.isEncrypted
-                          ? { RCLONE_CONFIG_PASS: activeConfigFile.pass }
+                          ? activeConfigFile.passCommand
+                              ? { RCLONE_CONFIG_PASS_COMMAND: activeConfigFile.passCommand }
+                              : { RCLONE_CONFIG_PASS: activeConfigFile.pass! }
                           : {}),
                       RCLONE_CONFIG_DIR: configFolderPath,
                   },
