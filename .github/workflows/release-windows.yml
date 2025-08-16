@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'windows-2022'
+          - platform: 'windows-11-arm'
             args: '--target x86_64-pc-windows-msvc --verbose'
             arch: 'arm64'
             type: 'x86_64'
