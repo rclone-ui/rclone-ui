@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/browser'
+import { sep } from '@tauri-apps/api/path'
 import { readDir } from '@tauri-apps/plugin-fs'
 
 export async function isDirectoryEmpty(path: string): Promise<boolean> {
@@ -13,5 +14,5 @@ export async function isDirectoryEmpty(path: string): Promise<boolean> {
 }
 
 export function isRemotePath(path: string): boolean {
-    return path.includes(':/') && !path.startsWith('/')
+    return path.includes(':/') && !path.startsWith(sep())
 }

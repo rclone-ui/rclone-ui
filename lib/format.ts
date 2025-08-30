@@ -1,3 +1,5 @@
+import { sep } from '@tauri-apps/api/path'
+
 export function formatBytes(bytes: number) {
     if (bytes < 1024) {
         return `${bytes} B`
@@ -36,7 +38,7 @@ export function buildReadablePath(path: string, type: 'short' | 'long' = 'long')
         return ''
     }
 
-    const lastSegment = path.split('\\').slice(-1).join('').split('/').slice(-1).join('')
+    const lastSegment = path.split(sep()).slice(-1).join('')
 
     if (type === 'short') {
         return lastSegment

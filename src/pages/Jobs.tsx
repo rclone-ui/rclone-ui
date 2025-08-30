@@ -36,14 +36,13 @@ export default function Jobs() {
             await fetchJobs()
         }, 2000)
 
-        // prevents jobs being refreshed after closing the window
         const unlisten = listen('tauri://close-requested', () => {
             clearInterval(interval)
         })
 
         return () => {
             clearInterval(interval)
-            unlisten.then((unlisten) => unlisten())
+            unlisten.then((u) => u())
         }
     }, [fetchJobs])
 
@@ -69,6 +68,7 @@ export default function Jobs() {
                 <Card
                     key={job.id}
                     radius="none"
+                    shadow="sm"
                     style={{
                         flexShrink: 0,
                     }}

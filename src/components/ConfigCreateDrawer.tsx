@@ -8,9 +8,9 @@ import {
     Textarea,
 } from '@heroui/react'
 import { Button } from '@heroui/react'
+import { sep } from '@tauri-apps/api/path'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import { mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
-import { platform } from '@tauri-apps/plugin-os'
 import { UploadIcon } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { getConfigPath } from '../../lib/rclone/common'
@@ -59,9 +59,7 @@ export default function ConfigCreateDrawer({
 
                 const configPath = await getConfigPath({ id: generatedId, validate: false })
 
-                const slashSymbol = platform() === 'windows' ? '\\' : '/'
-
-                await mkdir(configPath.replace(slashSymbol + 'rclone.conf', ''), {
+                await mkdir(configPath.replace(sep() + 'rclone.conf', ''), {
                     recursive: true,
                 })
                 await writeTextFile(configPath, content)
@@ -202,15 +200,12 @@ export default function ConfigCreateDrawer({
                                                             }, '')
                                                     }
 
-                                                    const slashSymbol =
-                                                        platform() === 'windows' ? '\\' : '/'
-
                                                     setConfigContent(content)
                                                     setConfig({
                                                         ...config,
                                                         label:
                                                             config.label ||
-                                                            selectedFile.split(slashSymbol).pop() ||
+                                                            selectedFile.split(sep()).pop() ||
                                                             'New Config',
                                                         isEncrypted:
                                                             content.includes('RCLONE_ENCRYPT_V0:'),

@@ -28,7 +28,7 @@ fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
         let outpath = Path::new(output_folder).join(file.name());
 
-        if file.name().ends_with('/') {
+        if file.name().ends_with('/') || file.name().ends_with('\\') {
             fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
         } else {
             if let Some(p) = outpath.parent() {

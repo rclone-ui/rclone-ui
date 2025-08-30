@@ -1,4 +1,5 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
+import { sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
@@ -110,11 +111,7 @@ export default function Mount() {
             const _mountOptions = { ...mountOptions }
 
             if (!('VolumeName' in _mountOptions) && ['windows', 'macos'].includes(platform())) {
-                if (platform() === 'windows') {
-                    _mountOptions.VolumeName = source!.split('\\').pop()!
-                } else {
-                    _mountOptions.VolumeName = source!.split('/').pop()!
-                }
+                _mountOptions.VolumeName = source!.split(sep()).pop()!
             }
 
             let directoryExists: boolean | undefined

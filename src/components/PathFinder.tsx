@@ -2,9 +2,9 @@ import { Autocomplete, Tooltip } from '@heroui/react'
 import { AutocompleteItem, Button } from '@heroui/react'
 import { cn } from '@heroui/react'
 import * as Sentry from '@sentry/browser'
+import { sep } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readDir } from '@tauri-apps/plugin-fs'
-import { platform } from '@tauri-apps/plugin-os'
 import { ArrowDownUp, FolderOpen, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebounce } from 'use-debounce'
@@ -256,8 +256,6 @@ export function PathField({
 
             // console.log('fetching suggestions for', path, field)
 
-            const slashSymbol = platform() === 'windows' ? '\\' : '/'
-
             try {
                 // If path is empty, show list of remotes
                 if (!searchPath) {
@@ -282,17 +280,14 @@ export function PathField({
                         console.error('Failed to fetch local suggestions:', err)
                         try {
                             // we also retry in case the last part of the path is wrong
-                            cleanedPath = searchPath
-                                .split(slashSymbol)
-                                .slice(0, -1)
-                                .join(slashSymbol)
+                            cleanedPath = searchPath.split(sep()).slice(0, -1).join(sep())
                             localEntries = await readDir(cleanedPath)
                         } catch (err) {
                             console.error('Failed to fetch local suggestions (again):', err)
                         }
                     }
 
-                    const extraSlash = cleanedPath.endsWith(slashSymbol) ? '' : slashSymbol
+                    const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
 
                     const localSuggestions = localEntries
                         .filter((entry) => !entry.isSymlink)
@@ -484,8 +479,6 @@ export function MultiPathField({
 
             // console.log('fetching suggestions for', path, field)
 
-            const slashSymbol = platform() === 'windows' ? '\\' : '/'
-
             try {
                 // If path is empty, show list of remotes
                 if (!path) {
@@ -510,14 +503,14 @@ export function MultiPathField({
                         console.error('Failed to fetch local suggestions:', err)
                         try {
                             // we also retry in case the last part of the path is wrong
-                            cleanedPath = path.split(slashSymbol).slice(0, -1).join(slashSymbol)
+                            cleanedPath = path.split(sep()).slice(0, -1).join(sep())
                             localEntries = await readDir(cleanedPath)
                         } catch (err) {
                             console.error('Failed to fetch local suggestions (again):', err)
                         }
                     }
 
-                    const extraSlash = cleanedPath.endsWith(slashSymbol) ? '' : slashSymbol
+                    const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
 
                     const localSuggestions = localEntries
                         .filter((entry) => !entry.isSymlink)

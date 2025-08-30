@@ -8,9 +8,9 @@ import {
     Switch,
 } from '@heroui/react'
 import { Button } from '@heroui/react'
+import { sep } from '@tauri-apps/api/path'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
-import { platform } from '@tauri-apps/plugin-os'
 import { UploadIcon } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { usePersistedStore } from '../../lib/store'
@@ -221,10 +221,7 @@ export default function ConfigSyncDrawer({
                                                             return
                                                         }
 
-                                                        if (
-                                                            selectedFolder.endsWith('/') ||
-                                                            selectedFolder.endsWith('\\')
-                                                        ) {
+                                                        if (selectedFolder.endsWith(sep())) {
                                                             selectedFolder = selectedFolder.slice(
                                                                 0,
                                                                 -1
@@ -237,13 +234,8 @@ export default function ConfigSyncDrawer({
                                                             )
                                                         }
 
-                                                        const slashSymbol =
-                                                            platform() === 'windows' ? '\\' : '/'
-
                                                         const configPath =
-                                                            selectedFolder +
-                                                            slashSymbol +
-                                                            'rclone.conf'
+                                                            selectedFolder + sep() + 'rclone.conf'
 
                                                         let content: string | null = null
 
@@ -265,9 +257,7 @@ export default function ConfigSyncDrawer({
                                                             ...config,
                                                             label:
                                                                 config.label ||
-                                                                configPath
-                                                                    .split(slashSymbol)
-                                                                    .pop() ||
+                                                                configPath.split(sep()).pop() ||
                                                                 'New Config',
                                                             sync: selectedFolder,
                                                         })

@@ -1,7 +1,6 @@
-import { appLocalDataDir } from '@tauri-apps/api/path'
+import { appLocalDataDir, sep } from '@tauri-apps/api/path'
 import { exists } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
-import { platform } from '@tauri-apps/plugin-os'
 import { Command } from '@tauri-apps/plugin-shell'
 
 export async function getDefaultPaths() {
@@ -84,16 +83,7 @@ export async function getConfigPath({ id, validate = true }: { id: string; valid
     const appLocalDataDirPath = await appLocalDataDir()
     console.log('[getConfigPath] appLocalDataDirPath', appLocalDataDirPath)
 
-    const slashSymbol = platform() === 'windows' ? '\\' : '/'
-
-    let configPath =
-        appLocalDataDirPath +
-        slashSymbol +
-        'configs' +
-        slashSymbol +
-        id +
-        slashSymbol +
-        'rclone.conf'
+    let configPath = appLocalDataDirPath + sep() + 'configs' + sep() + id + sep() + 'rclone.conf'
 
     console.log('[getConfigPath] configPath', configPath)
 

@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/browser'
 import { invoke } from '@tauri-apps/api/core'
-import { BaseDirectory, appLocalDataDir } from '@tauri-apps/api/path'
+import { BaseDirectory, appLocalDataDir, sep } from '@tauri-apps/api/path'
 import { tempDir } from '@tauri-apps/api/path'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { copyFile, exists, mkdir, readTextFile, remove } from '@tauri-apps/plugin-fs'
@@ -104,8 +104,7 @@ export async function initRclone(args: string[]) {
           )
 
     if (activeConfigFile.sync) {
-        const slashSymbol = platform() === 'windows' ? '\\' : '/'
-        if (!(await exists(configFolderPath + slashSymbol + 'rclone.conf'))) {
+        if (!(await exists(configFolderPath + sep() + 'rclone.conf'))) {
             await message('The config file could not be found. Switching to the default config.', {
                 title: 'Invalid synced config',
                 kind: 'error',
@@ -176,7 +175,7 @@ export async function provisionRclone() {
     console.log('currentOs', currentOs)
 
     let tempDirPath = await tempDir()
-    if (tempDirPath.endsWith('/') || tempDirPath.endsWith('\\')) {
+    if (tempDirPath.endsWith(sep())) {
         tempDirPath = tempDirPath.slice(0, -1)
     }
     console.log('[provisionRclone] tempDirPath', tempDirPath)
@@ -265,8 +264,7 @@ export async function provisionRclone() {
 
     const binaryName = currentPlatform === 'windows' ? 'rclone.exe' : 'rclone'
 
-    // "/" here looks to be working on windows
-    const rcloneBinaryPath = unarchivedPath + '/' + binaryName
+    const rcloneBinaryPath = unarchivedPath + sep() + binaryName
     console.log('[provisionRclone] rcloneBinaryPath', rcloneBinaryPath)
 
     try {
