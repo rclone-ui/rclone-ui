@@ -39,6 +39,13 @@ export async function initRclone(args: string[]) {
     let activeConfigFile = state.activeConfigFile
     const defaultPath = await getDefaultPath(system ? 'system' : 'internal')
 
+    if (system) {
+        const hasConfig = await exists(defaultPath).catch(() => false)
+        if (!hasConfig) {
+            await writeFile(defaultPath, new Uint8Array())
+        }
+    }
+
     if (configFiles.length === 0) {
         if (system) {
             let isEncrypted = false
@@ -195,7 +202,7 @@ export async function provisionRclone() {
     const downloadedFile = await fetch(downloadUrl).then((res) => res.arrayBuffer())
     console.log('[provisionRclone] downloadedFile')
 
-    let tempDirExists
+    let tempDirExists = false
     try {
         tempDirExists = await exists('rclone', {
             baseDir: BaseDirectory.Temp,
