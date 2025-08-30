@@ -1,6 +1,7 @@
 import { Autocomplete, Tooltip } from '@heroui/react'
 import { AutocompleteItem, Button } from '@heroui/react'
 import { cn } from '@heroui/react'
+import * as Sentry from '@sentry/browser'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readDir } from '@tauri-apps/plugin-fs'
 import { platform } from '@tauri-apps/plugin-os'
@@ -356,6 +357,7 @@ export function PathField({
                 setPath(selected as string)
             }
         } catch (err) {
+            Sentry.captureException(err)
             console.error('Failed to open folder picker:', err)
             setError('Failed to open folder picker')
         }
@@ -585,6 +587,7 @@ export function MultiPathField({
                     }
                 }
             } catch (err) {
+                Sentry.captureException(err)
                 console.error('Failed to open folder picker:', err)
                 setError('Failed to open folder picker')
             }

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/browser'
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message, open } from '@tauri-apps/plugin-dialog'
@@ -48,9 +49,10 @@ async function parseRemotes(remotes: string[]) {
                         await message(`Successfully unmounted ${remote} from ${mountPoint}`, {
                             title: 'Success',
                         })
-                    } catch (err) {
-                        console.error('Unmount operation failed:', err)
-                        await message(`Failed to unmount ${remote}: ${err}`, {
+                    } catch (error) {
+                        Sentry.captureException(error)
+                        console.error('Unmount operation failed:', error)
+                        await message(`Failed to unmount ${remote}: ${error}`, {
                             kind: 'error',
                             title: 'Unmount Error',
                         })
@@ -71,9 +73,10 @@ async function parseRemotes(remotes: string[]) {
                     if (mountPoint) {
                         try {
                             await openPath(mountPoint)
-                        } catch (err) {
-                            console.error('Error opening path:', err)
-                            await message(`Failed to open ${mountPoint} (${err})`, {
+                        } catch (error) {
+                            Sentry.captureException(error)
+                            console.error('Error opening path:', error)
+                            await message(`Failed to open ${mountPoint} (${error})`, {
                                 title: 'Open Error',
                                 kind: 'error',
                             })
@@ -127,8 +130,8 @@ async function parseRemotes(remotes: string[]) {
 
                         try {
                             directoryExists = await exists(selectedPath)
-                        } catch (err) {
-                            console.error('Error checking if directory exists:', err)
+                        } catch (error) {
+                            console.error('Error checking if directory exists:', error)
                         }
                         console.log('directoryExists', directoryExists)
 
@@ -157,6 +160,7 @@ async function parseRemotes(remotes: string[]) {
                             try {
                                 await mkdir(selectedPath)
                             } catch (error) {
+                                Sentry.captureException(error)
                                 console.error('Error creating directory:', error)
                                 await message(
                                     'Failed to create mount directory. Try creating it manually first.',
@@ -206,10 +210,11 @@ async function parseRemotes(remotes: string[]) {
                         }
 
                         await rebuildTrayMenu()
-                    } catch (err) {
+                    } catch (error) {
                         // await resetMainWindow()
-                        console.error('Mount operation failed:', err)
-                        await message(`Failed to mount ${remote}: ${err}`, {
+                        Sentry.captureException(error)
+                        console.error('Mount operation failed:', error)
+                        await message(`Failed to mount ${remote}: ${error}`, {
                             title: 'Mount Error',
                         })
                     } finally {
@@ -236,7 +241,8 @@ async function parseRemotes(remotes: string[]) {
                                 'browse.html?url=' +
                                 encodeURIComponent(`http://localhost:5572/[${remote}:]/`),
                         })
-                    } catch {
+                    } catch (error) {
+                        Sentry.captureException(error)
                         await ask('Could not open browse window. Please try again.', {
                             title: 'Error',
                             kind: 'error',

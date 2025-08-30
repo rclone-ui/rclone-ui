@@ -15,6 +15,7 @@ import {
     Textarea,
     cn,
 } from '@heroui/react'
+import * as Sentry from '@sentry/browser'
 import { getTauriVersion, getVersion as getUiVersion } from '@tauri-apps/api/app'
 import {
     appDataDir,
@@ -280,6 +281,7 @@ function GeneralSection() {
                         timeout: 30000,
                     })
                 } catch (e) {
+                    Sentry.captureException(e)
                     console.error(e)
                     setUpdateButtonText('Failed to check')
                     return
@@ -295,6 +297,7 @@ function GeneralSection() {
                 setUpdate(receivedUpdate)
                 setUpdateButtonText('Tap to update')
             } catch (e) {
+                Sentry.captureException(e)
                 console.error(e)
             } finally {
                 setIsWorkingUpdate(false)
@@ -328,6 +331,7 @@ function GeneralSection() {
                 }
             })
         } catch (error) {
+            Sentry.captureException(error)
             console.error(error)
             setIsWorkingUpdate(false)
             setUpdateButtonText('Tap to retry')

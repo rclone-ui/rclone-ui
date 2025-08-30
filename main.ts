@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/browser'
 import { getVersion as getUiVersion } from '@tauri-apps/api/app'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message } from '@tauri-apps/plugin-dialog'
@@ -6,6 +7,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
 import { CronExpressionParser } from 'cron-parser'
+import { defaultOptions } from 'tauri-plugin-sentry-api'
 import { validateLicense } from './lib/license'
 import notify from './lib/notify'
 import {
@@ -22,25 +24,40 @@ import { usePersistedStore, useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
 import type { ScheduledTask } from './types/task'
 
+try {
+    Sentry.init({
+        ...defaultOptions,
+        sendDefaultPii: false,
+    })
+} catch {
+    console.error('Error initializing Sentry')
+}
+
 // forward console logs in webviews to the tauri logger, so they show up in terminal
 function forwardConsole(
     fnName: 'log' | 'debug' | 'info' | 'warn' | 'error',
     logger: (message: string) => Promise<void>
 ) {
-    const original = console[fnName]
-    console[fnName] = (message, ...args) => {
-        original(message, ...args)
-        logger(
-            `${message} ${args?.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ')}`
-        )
-    }
+    try {
+        const original = console[fnName]
+        console[fnName] = (message, ...args) => {
+            original(message, ...args)
+            logger(
+                `${message} ${args?.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ')}`
+            )
+        }
+    } catch {}
 }
 
-forwardConsole('log', trace)
-forwardConsole('debug', debug)
-forwardConsole('info', info)
-forwardConsole('warn', warn)
-forwardConsole('error', error)
+try {
+    forwardConsole('log', trace)
+    forwardConsole('debug', debug)
+    forwardConsole('info', info)
+    forwardConsole('warn', warn)
+    forwardConsole('error', error)
+} catch (error) {
+    console.error('Could not enable console logs', error)
+}
 
 async function waitForHydration() {
     console.log('waiting for store hydration')
@@ -125,6 +142,7 @@ async function startRclone() {
             // ':5572',
         ])
     } catch (error) {
+        Sentry.captureException(error)
         await ask(error.message || 'Failed to start rclone, please try again later.', {
             title: 'Error',
             kind: 'error',
@@ -149,6 +167,7 @@ async function startRclone() {
         console.log('close', event)
 
         if (event.code === 1 || event.code === 143) {
+            Sentry.captureException(new Error('Rclone has crashed'))
             await message('Rclone has crashed', {
                 title: 'Error',
                 kind: 'error',
@@ -215,6 +234,7 @@ async function startupMounts() {
                 })
             } catch (error) {
                 console.error('Error mounting remote:', error)
+                Sentry.captureException(error)
                 await message(`Failed to mount ${remote} on startup.`, {
                     title: 'Automount Error',
                     kind: 'error',
@@ -285,6 +305,7 @@ async function resumeTasks() {
             }
         } catch (error) {
             console.error('Error scheduling task:', error)
+            Sentry.captureException(error)
         }
     }
 
@@ -370,6 +391,7 @@ async function handleTask(task: ScheduledTask) {
                 break
         }
     } catch (err) {
+        Sentry.captureException(err)
         console.error('Failed to start task:', err)
         usePersistedStore.getState().updateScheduledTask(task.id, {
             isRunning: false,

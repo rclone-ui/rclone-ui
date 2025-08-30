@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/browser'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from '../store'
@@ -31,6 +32,7 @@ export async function getVersion() {
         headers: getAuthHeader(),
     })
         .catch((e) => {
+            Sentry.captureException(e)
             console.log('error', e)
             throw e
         })
@@ -62,6 +64,7 @@ export async function listRemotes() {
         headers: getAuthHeader(),
     })
         .catch((e) => {
+            Sentry.captureException(e)
             console.log('error', e)
             throw e
         })
@@ -382,6 +385,7 @@ export async function mountRemote({
     })
         .then((res) => res.json() as Promise<{ remotes: string[] } | Promise<{ error: string }>>)
         .catch((e) => {
+            Sentry.captureException(e)
             console.log('error', e)
             throw e
         })
@@ -409,6 +413,7 @@ export async function unmountRemote({
     })
         .then((res) => res.json())
         .catch((e) => {
+            Sentry.captureException(e)
             console.log('error', e)
             throw e
         })
@@ -429,6 +434,7 @@ export async function unmountAllRemotes() {
     })
         .then((res) => res.json())
         .catch((e) => {
+            Sentry.captureException(e)
             console.log('error', e)
             throw e
         })

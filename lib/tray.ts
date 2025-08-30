@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/browser'
 import { Menu } from '@tauri-apps/api/menu'
 import { MenuItem } from '@tauri-apps/api/menu'
 import { resolveResource } from '@tauri-apps/api/path'
@@ -65,6 +66,7 @@ export async function initTray(): Promise<void> {
             action: onTrayAction,
         })
     } catch (error) {
+        Sentry.captureException(error)
         console.error('[initTray] failed to create tray')
         console.error(error)
     }

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/browser'
 import { invoke } from '@tauri-apps/api/core'
 import { BaseDirectory, appLocalDataDir } from '@tauri-apps/api/path'
 import { tempDir } from '@tauri-apps/api/path'
@@ -202,6 +203,7 @@ export async function provisionRclone() {
         })
         console.log('[provisionRclone] tempDirExists', tempDirExists)
     } catch (error) {
+        Sentry.captureException(error)
         console.error('[provisionRclone] failed to check if rclone temp dir exists', error)
     }
 
@@ -213,6 +215,7 @@ export async function provisionRclone() {
             })
             console.log('[provisionRclone] removed rclone temp dir')
         } catch (error) {
+            Sentry.captureException(error)
             console.error('[provisionRclone] failed to remove rclone temp dir', error)
             await message('Failed to provision rclone.')
             return
@@ -225,6 +228,7 @@ export async function provisionRclone() {
         })
         console.log('[provisionRclone] created rclone temp dir')
     } catch (error) {
+        Sentry.captureException(error)
         console.error('[provisionRclone] failed to create rclone temp dir', error)
         await message('Failed to provision rclone.')
         return
@@ -237,6 +241,7 @@ export async function provisionRclone() {
         await writeFile(zipPath, new Uint8Array(downloadedFile))
         console.log('[provisionRclone] wrote zip file')
     } catch (error) {
+        Sentry.captureException(error)
         console.error('[provisionRclone] failed to write zip file', error)
         await message('Failed to provision rclone.')
         return
@@ -249,6 +254,7 @@ export async function provisionRclone() {
         })
         console.log('[provisionRclone] successfully unzipped file')
     } catch (error) {
+        Sentry.captureException(error)
         console.error('[provisionRclone] failed to unzip file', error)
         await message('Failed to provision rclone.')
         return
@@ -270,6 +276,7 @@ export async function provisionRclone() {
             throw new Error('Could not find rclone binary in zip')
         }
     } catch (error) {
+        Sentry.captureException(error)
         console.error('[provisionRclone] failed to check if rclone binary exists', error)
         await message('Failed to provision rclone.')
     }

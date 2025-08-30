@@ -82,6 +82,7 @@ pub fn run() {
     let _guard = minidump::init(&client);
 	
     let mut app = tauri::Builder::default()
+		.plugin(tauri_plugin_sentry::init_with_no_injection(&client))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
