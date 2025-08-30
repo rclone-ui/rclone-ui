@@ -10,6 +10,7 @@ import {
     SelectItem,
 } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { ChevronDown, ChevronUp, RefreshCcwIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createRemote } from '../../lib/rclone/api'
@@ -110,6 +111,29 @@ export default function RemoteCreateDrawer({
                         placeholder={option.Help.split('\n')[0]}
                         type={option.IsPassword ? 'password' : 'text'}
                         value={fieldValue}
+                        classNames={
+                            config.type === 'drive' && option.Name === 'client_id'
+                                ? {
+                                      description: 'text-danger',
+                                  }
+                                : undefined
+                        }
+                        endContent={
+                            config.type === 'drive' &&
+                            option.Name === 'client_id' && (
+                                <Button
+                                    size="sm"
+                                    variant="light"
+                                    onPress={() => {
+                                        openUrl(
+                                            'https://rclone.org/drive/#making-your-own-client-id'
+                                        )
+                                    }}
+                                >
+                                    Open Guide
+                                </Button>
+                            )
+                        }
                         autoComplete="off"
                         autoCapitalize="off"
                         autoCorrect="off"
