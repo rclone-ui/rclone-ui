@@ -22,7 +22,8 @@
                 "visible": false,
                 "decorations": false,
                 "focus": true,
-                "url": "tray.html"
+                "url": "tray.html",
+                "theme": "dark"
             }
         ],
         "security": {

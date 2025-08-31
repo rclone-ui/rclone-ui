@@ -40,6 +40,7 @@ export async function openFullWindow({
         title: name,
         decorations: true,
         url: url,
+        theme: 'dark',
     })
 
     let monitor = await currentMonitor()
@@ -96,6 +97,7 @@ export async function openWindow({
         title: name,
         decorations: false,
         url: url,
+        theme: 'dark',
         // parent: 'main',
     })
 
