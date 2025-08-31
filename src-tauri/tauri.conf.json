@@ -1,6 +1,7 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
     "productName": "Rclone UI",
+    "mainBinaryName": "Rclone UI",
     "version": "1.7.2",
     "identifier": "com.stray.app",
     "build": {
@@ -62,6 +63,10 @@
             "icons/favicon/frame_16_delay-0.1s.png",
             "icons/favicon/frame_17_delay-0.1s.png"
         ],
+        "shortDescription": "Cross-platform GUI for rclone & S3",
+        "longDescription": "Cross-platform GUI for rclone & S3",
+        "license": "Apache-2.0",
+        "homepage": "https://github.com/rclone-ui/rclone-ui",
         "category": "Utility",
         "copyright": "Copyright © 2025 Rclone UI.",
         "macOS": {
