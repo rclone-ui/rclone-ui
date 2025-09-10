@@ -372,8 +372,18 @@ export async function mountRemote({
     options.set('mountPoint', mountPoint)
 
     if (mountOptions && Object.keys(mountOptions).length > 0) {
-        options.set('mountOpt', JSON.stringify(mountOptions))
+    const parsedMountOptions: Record<string, string | number | boolean> = {}
+    for (const [key, value] of Object.entries(mountOptions)) {
+        if (value === 'true') {
+            parsedMountOptions[key] = true
+        } else if (value === 'false') {
+            parsedMountOptions[key] = false
+        } else {
+            parsedMountOptions[key] = value
+        }
     }
+    options.set('mountOpt', JSON.stringify(parsedMountOptions))
+}
 
     if (vfsOptions && Object.keys(vfsOptions).length > 0) {
         options.set('vfsOpt', JSON.stringify(vfsOptions))
