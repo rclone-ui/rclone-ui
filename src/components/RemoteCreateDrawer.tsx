@@ -94,7 +94,7 @@ export default function RemoteCreateDrawer({
                             }}
                         >
                             {(item) => (
-                                <AutocompleteItem key={item.Value}>
+                                <AutocompleteItem key={item.Value} textValue={item.Value}>
                                     {item.Help || item.Value}
                                 </AutocompleteItem>
                             )}
@@ -141,7 +141,6 @@ export default function RemoteCreateDrawer({
                         description={option.Help.split('\n').slice(1).join('\n')}
                         isRequired={option.Required}
                         onValueChange={(value) => {
-                            // console.log(value)
                             setConfig({ ...config, [option.Name]: value })
                         }}
                     />

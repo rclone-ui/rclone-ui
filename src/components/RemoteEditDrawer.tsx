@@ -88,7 +88,7 @@ export default function RemoteEditDrawer({
                             description={option.Help.split('\n').slice(1).join('\n')}
                         >
                             {(item) => (
-                                <AutocompleteItem key={item.Value}>
+                                <AutocompleteItem key={item.Value} textValue={item.Value}>
                                     {item.Help || item.Value}
                                 </AutocompleteItem>
                             )}
