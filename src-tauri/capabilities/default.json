@@ -318,6 +318,8 @@
         "process:default",
         "notification:default",
         "os:default",
-        "sentry:default"
+        "sentry:allow-event",
+        "sentry:allow-breadcrumb",
+        "sentry:allow-envelope"
     ]
 }
