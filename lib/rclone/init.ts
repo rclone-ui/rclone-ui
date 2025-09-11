@@ -164,20 +164,6 @@ export async function initRclone(args: string[]) {
 export async function provisionRclone() {
     console.log('[provisionRclone]')
 
-    const currentVersionString = await fetch('https://downloads.rclone.org/version.txt').then(
-        (res) => res.text()
-    )
-    console.log('[provisionRclone] currentVersionString', currentVersionString)
-
-    const currentVersion = currentVersionString.split('v')?.[1]?.trim()
-
-    if (!currentVersion) {
-        console.error('[provisionRclone] failed to get latest version')
-        await message('Failed to get latest rclone version, please try again later.')
-        return
-    }
-    console.log('[provisionRclone] currentVersion', currentVersion)
-
     const currentPlatform = platform()
     console.log('currentPlatform', currentPlatform)
 
@@ -199,7 +185,7 @@ export async function provisionRclone() {
         return
     }
 
-    const downloadUrl = `https://downloads.rclone.org/v${currentVersion}/rclone-v${currentVersion}-${currentOs}-${arch}.zip`
+    const downloadUrl = `https://downloads.rclone.org/rclone-current-${currentOs}-${arch}.zip`
     console.log('[provisionRclone] downloadUrl', downloadUrl)
 
     const downloadedFile = await fetch(downloadUrl).then((res) => res.arrayBuffer())
@@ -243,7 +229,7 @@ export async function provisionRclone() {
         return
     }
 
-    const zipPath = `${tempDirPath}/rclone/rclone-v${currentVersion}-${currentOs}-${arch}.zip`
+    const zipPath = `${tempDirPath}/rclone/rclone-current-${currentOs}-${arch}.zip`
     console.log('[provisionRclone] zipPath', zipPath)
 
     try {
@@ -269,7 +255,7 @@ export async function provisionRclone() {
         return
     }
 
-    const unarchivedPath = `${tempDirPath}/rclone/rclone-ui/rclone-v${currentVersion}-${currentOs}-${arch}`
+    const unarchivedPath = `${tempDirPath}/rclone/rclone-ui/rclone-current-${currentOs}-${arch}`
     console.log('[provisionRclone] unarchivedPath', unarchivedPath)
 
     const binaryName = currentPlatform === 'windows' ? 'rclone.exe' : 'rclone'
