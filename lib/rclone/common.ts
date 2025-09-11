@@ -19,7 +19,13 @@ export async function getDefaultPaths() {
 
     console.log('[getDefaultPaths] json', JSON.stringify(defaultPaths, null, 2))
 
-    return defaultPaths
+    const doubleBackslashRegex = /\\/g
+
+    return {
+        cache: defaultPaths.cache ? defaultPaths.cache.replace(doubleBackslashRegex, '/') : '',
+        config: defaultPaths.config ? defaultPaths.config.replace(doubleBackslashRegex, '/') : '',
+        temp: defaultPaths.temp ? defaultPaths.temp.replace(doubleBackslashRegex, '/') : '',
+    }
 }
 
 export async function getDefaultPath(type: 'system' | 'internal') {

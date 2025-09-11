@@ -39,10 +39,13 @@ export async function initRclone(args: string[]) {
     let activeConfigFile = state.activeConfigFile
     const defaultPath = await getDefaultPath(system ? 'system' : 'internal')
 
+    console.log('[initRclone] defaultPath', defaultPath)
+
     if (system) {
         const hasConfig = await exists(defaultPath).catch(() => false)
         if (!hasConfig) {
-            await writeFile(defaultPath, new Uint8Array())
+            // const data = new Uint8Array([32]) // ASCII code for space character
+            await writeFile(defaultPath, new Uint8Array([]))
         }
     }
 
