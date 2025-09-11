@@ -4,7 +4,16 @@ import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from '../store'
 
 /* UTILS */
-const SUPPORRTED_BACKENDS = ['sftp', 's3', 'b2', 'drive', 'dropbox', 'ftp']
+const SUPPORTED_BACKENDS = [
+    'sftp',
+    's3',
+    'b2',
+    'drive',
+    'dropbox',
+    'ftp',
+    'azurefiles',
+    'azureblob',
+]
 
 function getAuthHeader() {
     return
@@ -186,7 +195,7 @@ export async function getBackends() {
         .then((res) => res.json() as Promise<any>)
         .then((r) => r.providers)
 
-    return providers.filter((b: any) => SUPPORRTED_BACKENDS.includes(b.Name))
+    return providers.filter((b: any) => SUPPORTED_BACKENDS.includes(b.Name))
 }
 
 export interface ListOptions {
