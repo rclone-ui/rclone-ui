@@ -147,3 +147,22 @@ export async function isInternalRcloneInstalled() {
         return false
     }
 }
+
+export function parseRcloneOptions(options: Record<string, string | number | boolean | string[]>) {
+    console.log('[parseRcloneOptions]', options)
+
+    const parsedOptions: Record<string, string | number | boolean | string[]> = {}
+    for (const [key, value] of Object.entries(options)) {
+        if (value === 'true') {
+            parsedOptions[key] = true
+        } else if (value === 'false') {
+            parsedOptions[key] = false
+        } else {
+            parsedOptions[key] = value
+        }
+    }
+
+    console.log('[parseRcloneOptions] parsedOptions', parsedOptions)
+
+    return parsedOptions
+}
