@@ -9,12 +9,20 @@ import {
     FolderSyncIcon,
     FoldersIcon,
     PlayIcon,
+    WrenchIcon,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
 import { isRemotePath } from '../../lib/fs'
-import { getFilterFlags, getGlobalFlags, getSyncFlags, startSync } from '../../lib/rclone/api'
+import {
+    getConfigFlags,
+    getCurrentGlobalFlags,
+    getFilterFlags,
+    getSyncFlags,
+    startSync,
+} from '../../lib/rclone/api'
+import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
 import CronEditor from '../components/CronEditor'
@@ -31,7 +39,7 @@ export default function Sync() {
 
     const [isStarted, setIsStarted] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [jsonError, setJsonError] = useState<'sync' | 'filter' | null>(null)
+    const [jsonError, setJsonError] = useState<'sync' | 'filter' | 'config' | null>(null)
 
     const [syncOptionsLocked, setSyncOptionsLocked] = useState(false)
     const [syncOptions, setSyncOptions] = useState<Record<string, string>>({})
@@ -41,9 +49,25 @@ export default function Sync() {
     const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
 
+    const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
+    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
+    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+
     const [cronExpression, setCronExpression] = useState<string | null>(null)
 
-    const [globalOptions, setGlobalOptions] = useState<any[]>([])
+    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
+
+    useEffect(() => {
+        setConfigOptionsJson(JSON.stringify(RCLONE_CONFIG_DEFAULTS, null, 2))
+
+        return () => {
+            setConfigOptionsJson('{}')
+        }
+    }, [])
+
+    useEffect(() => {
+        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
+    }, [])
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
@@ -54,6 +78,7 @@ export default function Sync() {
 
         let mergedSyncDefaults = {}
         let mergedFilterDefaults = {}
+        let mergedConfigDefaults = {}
 
         // Helper function to merge defaults from a remote
         const mergeRemoteDefaults = (remote: string | null) => {
@@ -74,6 +99,13 @@ export default function Sync() {
                     ...remoteConfig.filterDefaults,
                 }
             }
+
+            if (remoteConfig.configDefaults) {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...remoteConfig.configDefaults,
+                }
+            }
         }
 
         // Only merge defaults for remote paths
@@ -87,26 +119,29 @@ export default function Sync() {
         if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
             setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
         }
+
+        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
+            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
+        }
     }, [source, dest])
 
     useEffect(() => {
-        getGlobalFlags().then((flags) => setGlobalOptions(flags))
-    }, [])
-
-    useEffect(() => {
-        let step: 'sync' | 'filter' = 'sync'
+        let step: 'sync' | 'filter' | 'config' = 'sync'
         try {
             setSyncOptions(JSON.parse(syncOptionsJson))
 
             step = 'filter'
             setFilterOptions(JSON.parse(filterOptionsJson))
 
+            step = 'config'
+            setConfigOptions(JSON.parse(configOptionsJson))
+
             setJsonError(null)
         } catch (error) {
             setJsonError(step)
             console.error(`Error parsing ${step} options:`, error)
         }
-    }, [syncOptionsJson, filterOptionsJson])
+    }, [syncOptionsJson, filterOptionsJson, configOptionsJson])
 
     const handleStartSync = useCallback(async () => {
         setIsLoading(true)
@@ -155,6 +190,11 @@ export default function Sync() {
             return
         }
 
+        const mergedConfig = {
+            ...configOptions,
+            ...syncOptions,
+        }
+
         if (cronExpression) {
             try {
                 cronstrue.toString(cronExpression)
@@ -167,13 +207,13 @@ export default function Sync() {
                 return
             }
             usePersistedStore.getState().addScheduledTask({
-                'type': 'sync',
-                'cron': cronExpression,
-                'args': {
-                    'source': source,
-                    'dest': dest,
-                    'syncOptions': syncOptions,
-                    'filterOptions': filterOptions,
+                type: 'sync',
+                cron: cronExpression,
+                args: {
+                    source: source,
+                    dest: dest,
+                    syncOptions: mergedConfig,
+                    filterOptions: filterOptions,
                 },
             })
         }
@@ -182,7 +222,7 @@ export default function Sync() {
             await startSync({
                 srcFs: source,
                 dstFs: dest,
-                _config: syncOptions,
+                _config: mergedConfig,
                 _filter: filterOptions,
             })
 
@@ -201,7 +241,7 @@ export default function Sync() {
         } finally {
             setIsLoading(false)
         }
-    }, [source, dest, syncOptions, filterOptions, cronExpression])
+    }, [source, dest, syncOptions, filterOptions, cronExpression, configOptions])
 
     const buttonText = useMemo(() => {
         if (isLoading) return 'STARTING...'
@@ -244,8 +284,10 @@ export default function Sync() {
                         <OptionsSection
                             optionsJson={syncOptionsJson}
                             setOptionsJson={setSyncOptionsJson}
-                            globalOptions={globalOptions['main' as keyof typeof globalOptions]}
-                            optionsFetcher={getSyncFlags}
+                            globalOptions={
+                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            }
+                            getAvailableOptions={getSyncFlags}
                             rows={20}
                             isLocked={syncOptionsLocked}
                             setIsLocked={setSyncOptionsLocked}
@@ -261,13 +303,36 @@ export default function Sync() {
                         title="Filters"
                     >
                         <OptionsSection
-                            globalOptions={globalOptions['filter' as keyof typeof globalOptions]}
+                            globalOptions={
+                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
+                            }
                             optionsJson={filterOptionsJson}
                             setOptionsJson={setFilterOptionsJson}
-                            optionsFetcher={getFilterFlags}
+                            getAvailableOptions={getFilterFlags}
                             rows={4}
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
+                        />
+                    </AccordionItem>
+                    <AccordionItem
+                        key="config"
+                        startContent={
+                            <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                        }
+                        indicator={<WrenchIcon />}
+                        subtitle="Tap to toggle config options for this operation"
+                        title="Config"
+                    >
+                        <OptionsSection
+                            globalOptions={
+                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            }
+                            optionsJson={configOptionsJson}
+                            setOptionsJson={setConfigOptionsJson}
+                            getAvailableOptions={getConfigFlags}
+                            rows={10}
+                            isLocked={configOptionsLocked}
+                            setIsLocked={setConfigOptionsLocked}
                         />
                     </AccordionItem>
                     <AccordionItem

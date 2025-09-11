@@ -10,12 +10,20 @@ import {
     FilterIcon,
     FoldersIcon,
     PlayIcon,
+    WrenchIcon,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
 import { isRemotePath } from '../../lib/fs'
-import { getCopyFlags, getFilterFlags, getGlobalFlags, startCopy } from '../../lib/rclone/api'
+import {
+    getConfigFlags,
+    getCopyFlags,
+    getCurrentGlobalFlags,
+    getFilterFlags,
+    startCopy,
+} from '../../lib/rclone/api'
+import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
 import CronEditor from '../components/CronEditor'
@@ -32,7 +40,7 @@ export default function Copy() {
 
     const [isStarted, setIsStarted] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [jsonError, setJsonError] = useState<'copy' | 'filter' | null>(null)
+    const [jsonError, setJsonError] = useState<'copy' | 'filter' | 'config' | null>(null)
 
     const [copyOptionsLocked, setCopyOptionsLocked] = useState(false)
     const [copyOptions, setCopyOptions] = useState<Record<string, string>>({})
@@ -42,9 +50,31 @@ export default function Copy() {
     const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
 
+    const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
+    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
+    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+
+    // const [remoteOptionsLocked, setRemoteOptionsLocked] = useState(false)
+    // const [remoteOptions, setRemoteOptions] = useState<Record<string, string>>({})
+    // const [remoteOptionsJson, setRemoteOptionsJson] = useState<string>('{}')
+
     const [cronExpression, setCronExpression] = useState<string | null>(null)
 
-    const [globalOptions, setGlobalOptions] = useState<any[]>([])
+    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
+
+    // const [backends, setBackends] = useState<Backend[]>([])
+    // useEffect(() => {
+    //     getBackends().then((b) => {
+    //         setBackends(b)
+    //     })
+    // }, [])
+
+    // console.log('sources', sources)
+    // console.log('dest', dest)
+
+    useEffect(() => {
+        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
+    }, [])
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
@@ -55,6 +85,7 @@ export default function Copy() {
 
         let mergedCopyDefaults = {}
         let mergedFilterDefaults = {}
+        let mergedConfigDefaults = {}
 
         // Helper function to merge defaults from a remote
         const mergeRemoteDefaults = (remote: string | null) => {
@@ -75,6 +106,18 @@ export default function Copy() {
                     ...remoteConfig.filterDefaults,
                 }
             }
+
+            if (remoteConfig.configDefaults) {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...remoteConfig.configDefaults,
+                }
+            } else {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...RCLONE_CONFIG_DEFAULTS,
+                }
+            }
         }
 
         // Only merge defaults for remote paths
@@ -88,26 +131,29 @@ export default function Copy() {
         if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
             setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
         }
+
+        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
+            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
+        }
     }, [sources, dest])
 
     useEffect(() => {
-        getGlobalFlags().then((flags) => setGlobalOptions(flags))
-    }, [])
-
-    useEffect(() => {
-        let step: 'copy' | 'filter' = 'copy'
+        let step: 'copy' | 'filter' | 'config' = 'copy'
         try {
             setCopyOptions(JSON.parse(copyOptionsJson))
 
             step = 'filter'
             setFilterOptions(JSON.parse(filterOptionsJson))
 
+            step = 'config'
+            setConfigOptions(JSON.parse(configOptionsJson))
+
             setJsonError(null)
         } catch (error) {
             setJsonError(step)
             console.error(`Error parsing ${step} options:`, error)
         }
-    }, [copyOptionsJson, filterOptionsJson])
+    }, [copyOptionsJson, filterOptionsJson, configOptionsJson])
 
     const handleStartCopy = useCallback(async () => {
         setIsLoading(true)
@@ -169,6 +215,11 @@ export default function Copy() {
             )
         }
 
+        const mergedConfig = {
+            ...configOptions,
+            ...copyOptions,
+        }
+
         if (cronExpression) {
             if (sources.length > 1) {
                 await message(
@@ -192,13 +243,13 @@ export default function Copy() {
                 return
             }
             usePersistedStore.getState().addScheduledTask({
-                'type': 'copy',
-                'cron': cronExpression,
-                'args': {
-                    'srcFs': sources[0],
-                    'dstFs': dest,
-                    '_config': copyOptions,
-                    '_filter': filterOptions,
+                type: 'copy',
+                cron: cronExpression,
+                args: {
+                    srcFs: sources[0],
+                    dstFs: dest,
+                    _config: mergedConfig,
+                    _filter: filterOptions,
                 },
             })
         }
@@ -220,7 +271,7 @@ export default function Copy() {
                 const jobId = await startCopy({
                     srcFs: customSource,
                     dstFs: dest,
-                    _config: copyOptions,
+                    _config: mergedConfig,
                     _filter: customFilterOptions,
                 })
 
@@ -293,7 +344,7 @@ export default function Copy() {
         }
 
         setIsLoading(false)
-    }, [sources, dest, copyOptions, filterOptions, cronExpression])
+    }, [sources, dest, copyOptions, filterOptions, cronExpression, configOptions])
 
     const buttonText = useMemo(() => {
         if (isLoading) return 'STARTING...'
@@ -335,10 +386,12 @@ export default function Copy() {
                         title="Copy"
                     >
                         <OptionsSection
-                            globalOptions={globalOptions['main' as keyof typeof globalOptions]}
+                            globalOptions={
+                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            }
                             optionsJson={copyOptionsJson}
                             setOptionsJson={setCopyOptionsJson}
-                            optionsFetcher={getCopyFlags}
+                            getAvailableOptions={getCopyFlags}
                             rows={18}
                             isLocked={copyOptionsLocked}
                             setIsLocked={setCopyOptionsLocked}
@@ -354,13 +407,36 @@ export default function Copy() {
                         title="Filters"
                     >
                         <OptionsSection
-                            globalOptions={globalOptions['filter' as keyof typeof globalOptions]}
+                            globalOptions={
+                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
+                            }
                             optionsJson={filterOptionsJson}
                             setOptionsJson={setFilterOptionsJson}
-                            optionsFetcher={getFilterFlags}
+                            getAvailableOptions={getFilterFlags}
                             rows={4}
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
+                        />
+                    </AccordionItem>
+                    <AccordionItem
+                        key="config"
+                        startContent={
+                            <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                        }
+                        indicator={<WrenchIcon />}
+                        subtitle="Tap to toggle config options for this operation"
+                        title="Config"
+                    >
+                        <OptionsSection
+                            globalOptions={
+                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            }
+                            optionsJson={configOptionsJson}
+                            setOptionsJson={setConfigOptionsJson}
+                            getAvailableOptions={getConfigFlags}
+                            rows={10}
+                            isLocked={configOptionsLocked}
+                            setIsLocked={setConfigOptionsLocked}
                         />
                     </AccordionItem>
                     <AccordionItem
@@ -427,7 +503,7 @@ export default function Copy() {
                         }
                         isLoading={isLoading}
                         endContent={buttonIcon}
-                        className="max-w-2xl"
+                        className="max-w-2xl gap-2"
                         data-focus-visible="false"
                     >
                         {buttonText}

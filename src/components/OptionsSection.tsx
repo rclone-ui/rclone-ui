@@ -7,7 +7,7 @@ export default function OptionsSection({
     optionsJson,
     setOptionsJson,
     globalOptions,
-    optionsFetcher,
+    getAvailableOptions,
     rows = 14,
     isLocked,
     setIsLocked,
@@ -15,24 +15,26 @@ export default function OptionsSection({
     optionsJson: string
     setOptionsJson: (value: string) => void
     globalOptions: any[]
-    optionsFetcher: () => Promise<any>
+    getAvailableOptions: () => Promise<any>
     rows?: number
     isLocked?: boolean
     setIsLocked?: (value: boolean) => void
 }) {
-    const [copyAvailableOptions, setCopyAvailableOptions] = useState<any[]>([])
+    const [availableOptions, setAvailableOptions] = useState<any[]>([])
 
     const [options, setOptions] = useState<any>({})
     const [isJsonValid, setIsJsonValid] = useState(true)
 
+    console.log('[OptionsSection] globalOptions', globalOptions)
+
     useEffect(() => {
-        optionsFetcher()
+        getAvailableOptions()
             .then((flags) => {
                 console.log(JSON.stringify(flags, null, 2))
                 return flags
             })
-            .then((flags) => setCopyAvailableOptions(flags))
-    }, [optionsFetcher])
+            .then((flags) => setAvailableOptions(flags))
+    }, [getAvailableOptions])
 
     useEffect(() => {
         try {
@@ -93,7 +95,11 @@ export default function OptionsSection({
                 }}
                 endContent={
                     setIsLocked && (
-                        <Tooltip content="Lock to prevent changes when switching paths">
+                        <Tooltip
+                            content="Lock to prevent changes when switching paths"
+                            className="max-w-48"
+                            color="foreground"
+                        >
                             {isLocked ? (
                                 <LockKeyholeIcon
                                     className="w-3 h-3 cursor-pointer"
@@ -112,7 +118,7 @@ export default function OptionsSection({
             />
 
             <div className="flex flex-wrap w-1/2 gap-2">
-                {copyAvailableOptions.map((option) => {
+                {availableOptions.map((option) => {
                     const alreadyAdded = isOptionAdded(option.FieldName)
 
                     return (
@@ -120,10 +126,20 @@ export default function OptionsSection({
                             key={option.FieldName}
                             delay={500}
                             content={
-                                copyAvailableOptions.find((o) => o.FieldName === option.FieldName)
-                                    ?.Help
+                                <div className="flex flex-col w-full gap-1 max-w-52">
+                                    <p className="font-mono font-bold truncate ">{option.Name}</p>
+                                    <p>
+                                        {
+                                            availableOptions.find(
+                                                (o) => o.FieldName === option.FieldName
+                                            )?.Help
+                                        }
+                                    </p>
+                                </div>
                             }
                             closeDelay={0}
+                            className="pt-1.5 max-w-52"
+                            color="foreground"
                         >
                             <Chip
                                 isDisabled={!isJsonValid}
@@ -145,7 +161,7 @@ export default function OptionsSection({
                                         ]
 
                                     const defaultValue =
-                                        copyAvailableOptions.find(
+                                        availableOptions.find(
                                             (o) => o.FieldName === option.FieldName
                                         )?.DefaultStr || ''
 
@@ -159,7 +175,9 @@ export default function OptionsSection({
                                 className="cursor-pointer"
                                 size="sm"
                                 endContent={
-                                    alreadyAdded ? <XIcon className="w-4 h-4 mr-1" /> : undefined
+                                    alreadyAdded ? (
+                                        <XIcon className="w-3.5 h-3.5 mr-1 stroke-1" />
+                                    ) : undefined
                                 }
                             >
                                 {option.FieldName}

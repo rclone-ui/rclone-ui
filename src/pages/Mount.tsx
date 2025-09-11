@@ -7,15 +7,25 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import {
     AlertOctagonIcon,
+    FilterIcon,
     FoldersIcon,
     HardDriveIcon,
     PlayIcon,
     WavesLadderIcon,
+    WrenchIcon,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { isDirectoryEmpty } from '../../lib/fs'
-import { getGlobalFlags, getMountFlags, getVfsFlags, mountRemote } from '../../lib/rclone/api'
+import {
+    getConfigFlags,
+    getCurrentGlobalFlags,
+    getFilterFlags,
+    getMountFlags,
+    getVfsFlags,
+    mountRemote,
+} from '../../lib/rclone/api'
+import { RCLONE_CONFIG_DEFAULTS, RCLONE_VFS_DEFAULTS } from '../../lib/rclone/constants'
 import { dialogGetMountPlugin } from '../../lib/rclone/mount'
 import { needsMountPlugin } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../lib/store'
@@ -32,7 +42,7 @@ export default function Mount() {
 
     const [isMounted, setIsMounted] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [jsonError, setJsonError] = useState<'mount' | 'vfs' | null>(null)
+    const [jsonError, setJsonError] = useState<'mount' | 'vfs' | 'filter' | 'config' | null>(null)
 
     const [mountOptionsLocked, setMountOptionsLocked] = useState(false)
     const [mountOptions, setMountOptions] = useState<Record<string, string>>({})
@@ -42,7 +52,15 @@ export default function Mount() {
     const [vfsOptions, setVfsOptions] = useState<Record<string, string>>({})
     const [vfsOptionsJson, setVfsOptionsJson] = useState<string>('{}')
 
-    const [globalOptions, setGlobalOptions] = useState<any[]>([])
+    const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
+    const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
+    const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
+
+    const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
+    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
+    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+
+    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
@@ -64,35 +82,67 @@ export default function Mount() {
             )
         }
 
+        if (!vfsOptionsLocked) {
+            if (
+                storeData.remoteConfigList[remote].vfsDefaults &&
+                Object.keys(storeData.remoteConfigList[remote].vfsDefaults).length > 0
+            ) {
+                setVfsOptionsJson(
+                    JSON.stringify(storeData.remoteConfigList[remote].vfsDefaults, null, 2)
+                )
+            } else {
+                setVfsOptionsJson(JSON.stringify(RCLONE_VFS_DEFAULTS, null, 2))
+            }
+        }
+
         if (
-            storeData.remoteConfigList[remote].vfsDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].vfsDefaults).length > 0 &&
-            !vfsOptionsLocked
+            storeData.remoteConfigList[remote].filterDefaults &&
+            Object.keys(storeData.remoteConfigList[remote].filterDefaults).length > 0 &&
+            !filterOptionsLocked
         ) {
-            setVfsOptionsJson(
-                JSON.stringify(storeData.remoteConfigList[remote].vfsDefaults, null, 2)
+            setFilterOptionsJson(
+                JSON.stringify(storeData.remoteConfigList[remote].filterDefaults, null, 2)
             )
+        }
+
+        if (!configOptionsLocked) {
+            if (
+                storeData.remoteConfigList[remote].configDefaults &&
+                Object.keys(storeData.remoteConfigList[remote].configDefaults).length > 0
+            ) {
+                setConfigOptionsJson(
+                    JSON.stringify(storeData.remoteConfigList[remote].configDefaults, null, 2)
+                )
+            } else {
+                setConfigOptionsJson(JSON.stringify(RCLONE_CONFIG_DEFAULTS, null, 2))
+            }
         }
     }, [source])
 
     useEffect(() => {
-        getGlobalFlags().then((flags) => setGlobalOptions(flags))
+        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
     }, [])
 
     useEffect(() => {
-        let step: 'mount' | 'vfs' = 'mount'
+        let step: 'mount' | 'vfs' | 'filter' | 'config' = 'mount'
         try {
             setMountOptions(JSON.parse(mountOptionsJson))
 
             step = 'vfs'
             setVfsOptions(JSON.parse(vfsOptionsJson))
 
+            step = 'filter'
+            setFilterOptions(JSON.parse(filterOptionsJson))
+
+            step = 'config'
+            setConfigOptions(JSON.parse(configOptionsJson))
+
             setJsonError(null)
         } catch (error) {
             setJsonError(step)
             console.error(`[Mount] Error parsing ${step} options:`, error)
         }
-    }, [mountOptionsJson, vfsOptionsJson])
+    }, [mountOptionsJson, vfsOptionsJson, filterOptionsJson, configOptionsJson])
 
     const handleStartMount = useCallback(async () => {
         if (!dest || !source) return
@@ -110,7 +160,10 @@ export default function Mount() {
 
             const _mountOptions = { ...mountOptions }
 
-            if (!('VolumeName' in _mountOptions) && ['windows', 'macos'].includes(platform())) {
+            if (
+                (!('VolumeName' in _mountOptions) || !_mountOptions.VolumeName) &&
+                ['windows', 'macos'].includes(platform())
+            ) {
                 _mountOptions.VolumeName = `${source.split(sep()).pop()}${Math.random().toString(36).substring(2, 3).toUpperCase()}`
             }
 
@@ -162,6 +215,8 @@ export default function Mount() {
                 mountPoint: dest,
                 mountOptions: _mountOptions,
                 vfsOptions,
+                _filter: filterOptions,
+                _config: configOptions,
             })
 
             setIsMounted(true)
@@ -176,7 +231,7 @@ export default function Mount() {
         } finally {
             setIsLoading(false)
         }
-    }, [source, dest, mountOptions, vfsOptions])
+    }, [source, dest, mountOptions, vfsOptions, filterOptions, configOptions])
 
     const buttonText = useMemo(() => {
         if (isLoading) return 'MOUNTING...'
@@ -235,8 +290,10 @@ export default function Mount() {
                         <OptionsSection
                             optionsJson={mountOptionsJson}
                             setOptionsJson={setMountOptionsJson}
-                            globalOptions={globalOptions['mount' as keyof typeof globalOptions]}
-                            optionsFetcher={getMountFlags}
+                            globalOptions={
+                                currentGlobalOptions['mount' as keyof typeof currentGlobalOptions]
+                            }
+                            getAvailableOptions={getMountFlags}
                             rows={7}
                             isLocked={mountOptionsLocked}
                             setIsLocked={setMountOptionsLocked}
@@ -254,11 +311,55 @@ export default function Mount() {
                         <OptionsSection
                             optionsJson={vfsOptionsJson}
                             setOptionsJson={setVfsOptionsJson}
-                            globalOptions={globalOptions['vfs' as keyof typeof globalOptions]}
-                            optionsFetcher={getVfsFlags}
+                            globalOptions={
+                                currentGlobalOptions['vfs' as keyof typeof currentGlobalOptions]
+                            }
+                            getAvailableOptions={getVfsFlags}
                             rows={10}
                             isLocked={vfsOptionsLocked}
                             setIsLocked={setVfsOptionsLocked}
+                        />
+                    </AccordionItem>
+                    <AccordionItem
+                        key="filters"
+                        startContent={
+                            <Avatar color="danger" radius="lg" fallback={<FilterIcon />} />
+                        }
+                        indicator={<FilterIcon />}
+                        subtitle="Tap to toggle filtering options for this operation"
+                        title="Filters"
+                    >
+                        <OptionsSection
+                            globalOptions={
+                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
+                            }
+                            optionsJson={filterOptionsJson}
+                            setOptionsJson={setFilterOptionsJson}
+                            getAvailableOptions={getFilterFlags}
+                            rows={4}
+                            isLocked={filterOptionsLocked}
+                            setIsLocked={setFilterOptionsLocked}
+                        />
+                    </AccordionItem>
+                    <AccordionItem
+                        key="config"
+                        startContent={
+                            <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                        }
+                        indicator={<WrenchIcon />}
+                        subtitle="Tap to toggle config options for this operation"
+                        title="Config"
+                    >
+                        <OptionsSection
+                            globalOptions={
+                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            }
+                            optionsJson={configOptionsJson}
+                            setOptionsJson={setConfigOptionsJson}
+                            getAvailableOptions={getConfigFlags}
+                            rows={10}
+                            isLocked={configOptionsLocked}
+                            setIsLocked={setConfigOptionsLocked}
                         />
                     </AccordionItem>
                 </Accordion>

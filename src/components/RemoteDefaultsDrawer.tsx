@@ -11,12 +11,14 @@ import {
     FolderSyncIcon,
     HardDriveIcon,
     WavesLadderIcon,
+    WrenchIcon,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import {
+    getConfigFlags,
     getCopyFlags,
+    getCurrentGlobalFlags,
     getFilterFlags,
-    getGlobalFlags,
     getMountFlags,
     getSyncFlags,
     getVfsFlags,
@@ -42,6 +44,7 @@ export default function RemoteDefaultsDrawer({
 
     const [config, setConfig] = useState<RemoteConfig | null>(null)
 
+    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
     const [copyOptionsJson, setCopyOptionsJson] = useState<string>('{}')
     const [syncOptionsJson, setSyncOptionsJson] = useState<string>('{}')
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
@@ -51,7 +54,7 @@ export default function RemoteDefaultsDrawer({
     const [globalOptions, setGlobalOptions] = useState<any[]>([])
 
     useEffect(() => {
-        getGlobalFlags().then((flags) => setGlobalOptions(flags))
+        getCurrentGlobalFlags().then((flags) => setGlobalOptions(flags))
     }, [])
 
     useEffect(() => {
@@ -72,6 +75,7 @@ export default function RemoteDefaultsDrawer({
         console.log('remoteName', remoteName)
         // console.log(JSON.stringify(remoteConfig, null, 2))
 
+        setConfigOptionsJson(JSON.stringify(remoteConfig?.configDefaults, null, 2) || '{}')
         setCopyOptionsJson(JSON.stringify(remoteConfig?.copyDefaults, null, 2) || '{}')
         setSyncOptionsJson(JSON.stringify(remoteConfig?.syncDefaults, null, 2) || '{}')
         setFilterOptionsJson(JSON.stringify(remoteConfig?.filterDefaults, null, 2) || '{}')
@@ -91,9 +95,14 @@ export default function RemoteDefaultsDrawer({
             ...config,
         }
 
-        let step = 'Copy'
+        let step = 'Config'
 
         try {
+            const configOptions = JSON.parse(configOptionsJson)
+            newConfig.configDefaults =
+                Object.keys(configOptions).length > 0 ? configOptions : undefined
+
+            step = 'Copy'
             const copyOptions = JSON.parse(copyOptionsJson)
             newConfig.copyDefaults = Object.keys(copyOptions).length > 0 ? copyOptions : undefined
 
@@ -143,6 +152,7 @@ export default function RemoteDefaultsDrawer({
         syncOptionsJson,
         vfsOptionsJson,
         mountOptionsJson,
+        configOptionsJson,
         remoteName,
         mergeRemoteConfig,
     ])
@@ -443,10 +453,33 @@ export default function RemoteDefaultsDrawer({
                                             globalOptions={
                                                 globalOptions['mount' as keyof typeof globalOptions]
                                             }
-                                            optionsFetcher={getMountFlags}
+                                            getAvailableOptions={getMountFlags}
                                             rows={5}
                                         />
                                     </div>
+                                </AccordionItem>
+
+                                <AccordionItem
+                                    key="config"
+                                    startContent={
+                                        <Avatar
+                                            color="default"
+                                            radius="lg"
+                                            fallback={<WrenchIcon />}
+                                        />
+                                    }
+                                    indicator={<WrenchIcon />}
+                                    subtitle={`Default config flags for ${remoteName}`}
+                                    title="Config"
+                                >
+                                    <OptionsSection
+                                        optionsJson={configOptionsJson}
+                                        setOptionsJson={setConfigOptionsJson}
+                                        globalOptions={
+                                            globalOptions['main' as keyof typeof globalOptions]
+                                        }
+                                        getAvailableOptions={getConfigFlags}
+                                    />
                                 </AccordionItem>
                                 <AccordionItem
                                     key="vfs"
@@ -467,7 +500,7 @@ export default function RemoteDefaultsDrawer({
                                         globalOptions={
                                             globalOptions['vfs' as keyof typeof globalOptions]
                                         }
-                                        optionsFetcher={getVfsFlags}
+                                        getAvailableOptions={getVfsFlags}
                                         rows={10}
                                     />
                                 </AccordionItem>
@@ -490,7 +523,7 @@ export default function RemoteDefaultsDrawer({
                                         globalOptions={
                                             globalOptions['filter' as keyof typeof globalOptions]
                                         }
-                                        optionsFetcher={getFilterFlags}
+                                        getAvailableOptions={getFilterFlags}
                                         rows={4}
                                     />
                                 </AccordionItem>
@@ -513,7 +546,7 @@ export default function RemoteDefaultsDrawer({
                                         globalOptions={
                                             globalOptions['main' as keyof typeof globalOptions]
                                         }
-                                        optionsFetcher={getCopyFlags}
+                                        getAvailableOptions={getCopyFlags}
                                     />
                                 </AccordionItem>
 
@@ -536,7 +569,7 @@ export default function RemoteDefaultsDrawer({
                                         globalOptions={
                                             globalOptions['main' as keyof typeof globalOptions]
                                         }
-                                        optionsFetcher={getSyncFlags}
+                                        getAvailableOptions={getSyncFlags}
                                         rows={20}
                                     />
                                 </AccordionItem>

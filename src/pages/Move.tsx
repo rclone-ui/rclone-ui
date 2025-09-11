@@ -10,12 +10,20 @@ import {
     FoldersIcon,
     MoveIcon,
     PlayIcon,
+    WrenchIcon,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
 import { isRemotePath } from '../../lib/fs'
-import { getCopyFlags, getFilterFlags, getGlobalFlags, startMove } from '../../lib/rclone/api'
+import {
+    getConfigFlags,
+    getCopyFlags,
+    getCurrentGlobalFlags,
+    getFilterFlags,
+    startMove,
+} from '../../lib/rclone/api'
+import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
 import CronEditor from '../components/CronEditor'
@@ -34,7 +42,7 @@ export default function Move() {
 
     const [isStarted, setIsStarted] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [jsonError, setJsonError] = useState<'move' | 'filter' | null>(null)
+    const [jsonError, setJsonError] = useState<'move' | 'filter' | 'config' | null>(null)
 
     const [moveOptionsLocked, setMoveOptionsLocked] = useState(false)
     const [moveOptions, setMoveOptions] = useState<Record<string, string>>({})
@@ -44,9 +52,17 @@ export default function Move() {
     const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
 
+    const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
+    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
+    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+
     const [cronExpression, setCronExpression] = useState<string | null>(null)
 
-    const [globalOptions, setGlobalOptions] = useState<any[]>([])
+    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
+
+    useEffect(() => {
+        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
+    }, [])
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
@@ -57,6 +73,7 @@ export default function Move() {
 
         let mergedMoveDefaults = {}
         let mergedFilterDefaults = {}
+        let mergedConfigDefaults = {}
 
         // Helper function to merge defaults from a remote
         const mergeRemoteDefaults = (remote: string | null) => {
@@ -77,6 +94,18 @@ export default function Move() {
                     ...remoteConfig.filterDefaults,
                 }
             }
+
+            if (remoteConfig.configDefaults) {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...remoteConfig.configDefaults,
+                }
+            } else {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...RCLONE_CONFIG_DEFAULTS,
+                }
+            }
         }
 
         // Only merge defaults for remote paths
@@ -90,26 +119,29 @@ export default function Move() {
         if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
             setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
         }
+
+        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
+            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
+        }
     }, [sources, dest])
 
     useEffect(() => {
-        getGlobalFlags().then((flags) => setGlobalOptions(flags))
-    }, [])
-
-    useEffect(() => {
-        let step: 'move' | 'filter' = 'move'
+        let step: 'move' | 'filter' | 'config' = 'move'
         try {
             setMoveOptions(JSON.parse(moveOptionsJson))
 
             step = 'filter'
             setFilterOptions(JSON.parse(filterOptionsJson))
 
+            step = 'config'
+            setConfigOptions(JSON.parse(configOptionsJson))
+
             setJsonError(null)
         } catch (error) {
             setJsonError(step)
             console.error(`Error parsing ${step} options:`, error)
         }
-    }, [moveOptionsJson, filterOptionsJson])
+    }, [moveOptionsJson, filterOptionsJson, configOptionsJson])
 
     const handleStartMove = useCallback(async () => {
         setIsLoading(true)
@@ -171,6 +203,11 @@ export default function Move() {
             )
         }
 
+        const mergedConfig = {
+            ...configOptions,
+            ...moveOptions,
+        }
+
         if (cronExpression) {
             if (sources.length > 1) {
                 await message(
@@ -194,15 +231,15 @@ export default function Move() {
                 return
             }
             usePersistedStore.getState().addScheduledTask({
-                'type': 'move',
-                'cron': cronExpression,
-                'args': {
-                    'srcFs': sources[0],
-                    'dstFs': dest,
-                    'createEmptySrcDirs': createEmptySrcDirs,
-                    'deleteEmptyDstDirs': deleteEmptyDstDirs,
-                    '_config': moveOptions,
-                    '_filter': filterOptions,
+                type: 'move',
+                cron: cronExpression,
+                args: {
+                    srcFs: sources[0],
+                    dstFs: dest,
+                    createEmptySrcDirs,
+                    deleteEmptyDstDirs,
+                    _config: mergedConfig,
+                    _filter: filterOptions,
                 },
             })
         }
@@ -226,7 +263,7 @@ export default function Move() {
                     dstFs: dest,
                     createEmptySrcDirs,
                     deleteEmptyDstDirs,
-                    _config: moveOptions,
+                    _config: mergedConfig,
                     _filter: customFilterOptions,
                 })
 
@@ -307,6 +344,7 @@ export default function Move() {
         cronExpression,
         createEmptySrcDirs,
         deleteEmptyDstDirs,
+        configOptions,
     ])
 
     const buttonText = useMemo(() => {
@@ -359,10 +397,12 @@ export default function Move() {
                         title="Move"
                     >
                         <OptionsSection
-                            globalOptions={globalOptions['main' as keyof typeof globalOptions]}
+                            globalOptions={
+                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            }
                             optionsJson={moveOptionsJson}
                             setOptionsJson={setMoveOptionsJson}
-                            optionsFetcher={getCopyFlags}
+                            getAvailableOptions={getCopyFlags}
                             rows={18}
                             isLocked={moveOptionsLocked}
                             setIsLocked={setMoveOptionsLocked}
@@ -378,13 +418,36 @@ export default function Move() {
                         title="Filters"
                     >
                         <OptionsSection
-                            globalOptions={globalOptions['filter' as keyof typeof globalOptions]}
+                            globalOptions={
+                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
+                            }
                             optionsJson={filterOptionsJson}
                             setOptionsJson={setFilterOptionsJson}
-                            optionsFetcher={getFilterFlags}
+                            getAvailableOptions={getFilterFlags}
                             rows={4}
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
+                        />
+                    </AccordionItem>
+                    <AccordionItem
+                        key="config"
+                        startContent={
+                            <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                        }
+                        indicator={<WrenchIcon />}
+                        subtitle="Tap to toggle config options for this operation"
+                        title="Config"
+                    >
+                        <OptionsSection
+                            globalOptions={
+                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            }
+                            optionsJson={configOptionsJson}
+                            setOptionsJson={setConfigOptionsJson}
+                            getAvailableOptions={getConfigFlags}
+                            rows={10}
+                            isLocked={configOptionsLocked}
+                            setIsLocked={setConfigOptionsLocked}
                         />
                     </AccordionItem>
                     <AccordionItem

@@ -369,11 +369,15 @@ export async function mountRemote({
     mountPoint,
     mountOptions,
     vfsOptions,
+    _filter,
+    _config,
 }: {
     remotePath: string
     mountPoint: string
     mountOptions?: Record<string, string | number | boolean | string[]>
     vfsOptions?: Record<string, string | number | boolean | string[]>
+    _filter?: Record<string, string | number | boolean | string[]>
+    _config?: Record<string, string | number | boolean | string[]>
 }) {
     console.log('[mountRemote]', remotePath, mountPoint)
 
@@ -387,6 +391,14 @@ export async function mountRemote({
 
     if (vfsOptions && Object.keys(vfsOptions).length > 0) {
         options.set('vfsOpt', JSON.stringify(parseRcloneOptions(vfsOptions)))
+    }
+
+    if (_filter && Object.keys(_filter).length > 0) {
+        options.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    }
+
+    if (_config && Object.keys(_config).length > 0) {
+        options.set('_config', JSON.stringify(parseRcloneOptions(_config)))
     }
 
     const r = await fetch(`http://localhost:5572/mount/mount?${options.toString()}`, {
@@ -594,10 +606,12 @@ export async function startDelete({
     fs,
     rmDirs,
     _filter,
+    _config,
 }: {
     fs: string
     rmDirs?: boolean // delete empty src directories if set
     _filter?: Record<string, string | number | boolean | string[]>
+    _config?: Record<string, string | number | boolean | string[]>
 }) {
     console.log('[startDelete]', fs, rmDirs)
 
@@ -614,6 +628,10 @@ export async function startDelete({
         params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
     }
 
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    }
+
     const r = await fetch(`http://localhost:5572/operations/delete?${params.toString()}`, {
         method: 'POST',
         headers: getAuthHeader(),
@@ -627,9 +645,8 @@ export async function startDelete({
 }
 
 /* FLAGS */
-
-export async function getGlobalFlags() {
-    console.log('[getGlobalFlags]')
+export async function getCurrentGlobalFlags() {
+    console.log('[getCurrentGlobalFlags]')
 
     const r = await fetch('http://localhost:5572/options/get', {
         method: 'POST',
@@ -649,9 +666,9 @@ export async function getCopyFlags() {
 
     const mainFlags = r.main
 
-    const copyFlags = mainFlags.filter(
-        (flag: any) => flag?.Groups?.includes('Copy') || flag?.Groups?.includes('Performance')
-    )
+    const copyFlags = mainFlags
+        .filter((flag: any) => flag?.Groups?.includes('Copy'))
+        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
 
     return copyFlags
 }
@@ -666,12 +683,9 @@ export async function getSyncFlags() {
 
     const mainFlags = r.main
 
-    const syncFlags = mainFlags.filter(
-        (flag: any) =>
-            flag?.Groups?.includes('Copy') ||
-            flag?.Groups?.includes('Sync') ||
-            flag?.Groups?.includes('Performance')
-    )
+    const syncFlags = mainFlags
+        .filter((flag: any) => flag?.Groups?.includes('Copy') || flag?.Groups?.includes('Sync'))
+        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
 
     return syncFlags
 }
@@ -687,7 +701,9 @@ export async function getFilterFlags() {
     const filterFlags = r.filter
 
     // ignore "Metadata" fields as they have the same FieldNames as the normal non-metadata filters
-    const filteredFlags = filterFlags.filter((flag: any) => !flag.Groups.includes('Metadata'))
+    const filteredFlags = filterFlags
+        .filter((flag: any) => !flag.Groups.includes('Metadata'))
+        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
 
     return filteredFlags
 }
@@ -704,7 +720,9 @@ export async function getVfsFlags() {
 
     const IGNORED_FLAGS = ['NONE']
 
-    const filteredFlags = vfsFlags.filter((flag: any) => !IGNORED_FLAGS.includes(flag.Name))
+    const filteredFlags = vfsFlags
+        .filter((flag: any) => !IGNORED_FLAGS.includes(flag.Name))
+        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
 
     return filteredFlags
 }
@@ -721,7 +739,33 @@ export async function getMountFlags() {
 
     const IGNORED_FLAGS = ['debug_fuse', 'daemon', 'daemon_timeout']
 
-    const filteredFlags = mountFlags.filter((flag: any) => !IGNORED_FLAGS.includes(flag.Name))
+    const filteredFlags = mountFlags
+        .filter((flag: any) => !IGNORED_FLAGS.includes(flag.Name))
+        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
 
     return filteredFlags
+}
+
+export async function getConfigFlags() {
+    console.log('[getConfigFlags]')
+
+    const r = await fetch('http://localhost:5572/options/info', {
+        method: 'POST',
+        headers: getAuthHeader(),
+    }).then((res) => res.json() as Promise<any>)
+
+    const mainFlags = r.main
+
+    const copyFlags = mainFlags
+        .filter(
+            (flag: any) =>
+                flag?.Groups?.includes('Performance') ||
+                flag?.Groups?.includes('Listing') ||
+                flag?.Groups?.includes('Networking') ||
+                flag?.Groups?.includes('Check') ||
+                flag?.Name === 'use_server_modtime'
+        )
+        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
+
+    return copyFlags
 }

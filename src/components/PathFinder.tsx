@@ -180,7 +180,7 @@ export function MultiPathFinder({
 
             {switchable && (
                 <div className="flex justify-center">
-                    <Tooltip content={swapDisabledReason}>
+                    <Tooltip content={swapDisabledReason} className="max-w-48">
                         <div>
                             <Button
                                 onPress={handleSwap}

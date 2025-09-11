@@ -21,6 +21,8 @@ export interface RemoteConfig {
     copyDefaults?: Record<string, any>
     moveDefaults?: Record<string, any>
     syncDefaults?: Record<string, any>
+    configDefaults?: Record<string, any>
+    remoteDefaults?: Record<string, any>
 }
 
 interface State {

@@ -1,11 +1,24 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import cronstrue from 'cronstrue'
-import { AlertOctagonIcon, ClockIcon, FilterIcon, FoldersIcon, PlayIcon } from 'lucide-react'
+import {
+    AlertOctagonIcon,
+    ClockIcon,
+    FilterIcon,
+    FoldersIcon,
+    PlayIcon,
+    WrenchIcon,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
-import { getFilterFlags, getGlobalFlags, startDelete } from '../../lib/rclone/api'
+import {
+    getConfigFlags,
+    getCurrentGlobalFlags,
+    getFilterFlags,
+    startDelete,
+} from '../../lib/rclone/api'
+import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
@@ -24,13 +37,17 @@ export default function Delete() {
 
     const [isStarted, setIsStarted] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [jsonError, setJsonError] = useState<'filter' | null>(null)
+    const [jsonError, setJsonError] = useState<'filter' | 'config' | null>(null)
 
     const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
     const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
 
-    const [globalOptions, setGlobalOptions] = useState<any[]>([])
+    const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
+    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
+    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+
+    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
@@ -39,6 +56,7 @@ export default function Delete() {
         const sourceRemote = getRemoteName(sourceFs?.[0])
 
         let mergedFilterDefaults = {}
+        let mergedConfigDefaults = {}
 
         // Helper function to merge defaults from a remote
         const mergeRemoteDefaults = (remote: string | null) => {
@@ -52,6 +70,18 @@ export default function Delete() {
                     ...remoteConfig.filterDefaults,
                 }
             }
+
+            if (remoteConfig.configDefaults) {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...remoteConfig.configDefaults,
+                }
+            } else {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...RCLONE_CONFIG_DEFAULTS,
+                }
+            }
         }
 
         // Only merge defaults for remote paths
@@ -60,22 +90,30 @@ export default function Delete() {
         if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
             setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
         }
+
+        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
+            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
+        }
     }, [sourceFs])
 
     useEffect(() => {
-        getGlobalFlags().then((flags) => setGlobalOptions(flags))
+        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
     }, [])
 
     useEffect(() => {
+        let step: 'filter' | 'config' = 'filter'
         try {
             setFilterOptions(JSON.parse(filterOptionsJson))
 
+            step = 'config'
+            setConfigOptions(JSON.parse(configOptionsJson))
+
             setJsonError(null)
         } catch (error) {
-            setJsonError('filter')
-            console.error('Error parsing filter options:', error)
+            setJsonError(step)
+            console.error(`Error parsing ${step} options:`, error)
         }
-    }, [filterOptionsJson])
+    }, [filterOptionsJson, configOptionsJson])
 
     const handleStartDelete = useCallback(async () => {
         setIsLoading(true)
@@ -100,12 +138,13 @@ export default function Delete() {
                 return
             }
             usePersistedStore.getState().addScheduledTask({
-                'type': 'delete',
-                'cron': cronExpression,
-                'args': {
-                    'fs': sourceFs,
-                    'rmDirs': rmDirs,
-                    '_filter': filterOptions,
+                type: 'delete',
+                cron: cronExpression,
+                args: {
+                    fs: sourceFs,
+                    rmDirs: rmDirs,
+                    _filter: filterOptions,
+                    _config: configOptions,
                 },
             })
         }
@@ -115,6 +154,7 @@ export default function Delete() {
                 fs: sourceFs,
                 rmDirs,
                 _filter: filterOptions,
+                _config: configOptions,
             })
 
             setIsStarted(true)
@@ -132,7 +172,7 @@ export default function Delete() {
         } finally {
             setIsLoading(false)
         }
-    }, [sourceFs, filterOptions, rmDirs, cronExpression])
+    }, [sourceFs, filterOptions, rmDirs, cronExpression, configOptions])
 
     const buttonText = useMemo(() => {
         if (isLoading) return 'STARTING...'
@@ -178,13 +218,36 @@ export default function Delete() {
                         title="Filters"
                     >
                         <OptionsSection
-                            globalOptions={globalOptions['filter' as keyof typeof globalOptions]}
+                            globalOptions={
+                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
+                            }
                             optionsJson={filterOptionsJson}
                             setOptionsJson={setFilterOptionsJson}
-                            optionsFetcher={getFilterFlags}
+                            getAvailableOptions={getFilterFlags}
                             rows={4}
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
+                        />
+                    </AccordionItem>
+                    <AccordionItem
+                        key="config"
+                        startContent={
+                            <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                        }
+                        indicator={<WrenchIcon />}
+                        subtitle="Tap to toggle config options for this operation"
+                        title="Config"
+                    >
+                        <OptionsSection
+                            globalOptions={
+                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            }
+                            optionsJson={configOptionsJson}
+                            setOptionsJson={setConfigOptionsJson}
+                            getAvailableOptions={getConfigFlags}
+                            rows={10}
+                            isLocked={configOptionsLocked}
+                            setIsLocked={setConfigOptionsLocked}
                         />
                     </AccordionItem>
                     <AccordionItem
