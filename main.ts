@@ -137,7 +137,7 @@ async function startRclone() {
             //     : ['--rc-user', 'admin', '--rc-pass', sessionPassword]),
             '--rc-no-auth',
             '--rc-serve',
-            '--rc_job_expire_duration',
+            '--rc-job-expire-duration',
             '24h',
             // defaults
             // '-rc-addr',
