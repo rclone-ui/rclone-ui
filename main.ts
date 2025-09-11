@@ -139,6 +139,8 @@ async function startRclone() {
             '--rc-serve',
             '--rc-job-expire-duration',
             '24h',
+            '--rc-job-expire-interval',
+            '1h',
             // defaults
             // '-rc-addr',
             // ':5572',
