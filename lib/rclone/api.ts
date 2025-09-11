@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/browser'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from '../store'
+import { parseRcloneOptions } from './common'
 
 /* UTILS */
 const SUPPORRTED_BACKENDS = ['sftp', 's3', 'b2', 'drive', 'dropbox', 'ftp']
@@ -362,8 +363,8 @@ export async function mountRemote({
 }: {
     remotePath: string
     mountPoint: string
-    mountOptions?: Record<string, string | number | boolean>
-    vfsOptions?: Record<string, string | number | boolean>
+    mountOptions?: Record<string, string | number | boolean | string[]>
+    vfsOptions?: Record<string, string | number | boolean | string[]>
 }) {
     console.log('[mountRemote]', remotePath, mountPoint)
 
@@ -372,21 +373,11 @@ export async function mountRemote({
     options.set('mountPoint', mountPoint)
 
     if (mountOptions && Object.keys(mountOptions).length > 0) {
-    const parsedMountOptions: Record<string, string | number | boolean> = {}
-    for (const [key, value] of Object.entries(mountOptions)) {
-        if (value === 'true') {
-            parsedMountOptions[key] = true
-        } else if (value === 'false') {
-            parsedMountOptions[key] = false
-        } else {
-            parsedMountOptions[key] = value
-        }
+        options.set('mountOpt', JSON.stringify(parseRcloneOptions(mountOptions)))
     }
-    options.set('mountOpt', JSON.stringify(parsedMountOptions))
-}
 
     if (vfsOptions && Object.keys(vfsOptions).length > 0) {
-        options.set('vfsOpt', JSON.stringify(vfsOptions))
+        options.set('vfsOpt', JSON.stringify(parseRcloneOptions(vfsOptions)))
     }
 
     const r = await fetch(`http://localhost:5572/mount/mount?${options.toString()}`, {
@@ -476,11 +467,11 @@ export async function startCopy({
     params.set('_async', 'true')
 
     if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(_config))
+        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
     }
 
     if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(_filter))
+        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
     }
 
     const r = await fetch(`http://localhost:5572/sync/copy?${params.toString()}`, {
@@ -530,11 +521,11 @@ export async function startMove({
     params.set('_async', 'true')
 
     if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(_config))
+        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
     }
 
     if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(_filter))
+        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
     }
 
     const r = await fetch(`http://localhost:5572/sync/move?${params.toString()}`, {
@@ -571,11 +562,11 @@ export async function startSync({
     params.set('_async', 'true')
 
     if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(_config))
+        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
     }
 
     if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(_filter))
+        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
     }
 
     const r = await fetch(`http://localhost:5572/sync/sync?${params.toString()}`, {
@@ -611,7 +602,7 @@ export async function startDelete({
     params.set('_async', 'true')
 
     if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(_filter))
+        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
     }
 
     const r = await fetch(`http://localhost:5572/operations/delete?${params.toString()}`, {

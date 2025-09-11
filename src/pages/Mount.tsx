@@ -90,7 +90,7 @@ export default function Mount() {
             setJsonError(null)
         } catch (error) {
             setJsonError(step)
-            console.error(`Error parsing ${step} options:`, error)
+            console.error(`[Mount] Error parsing ${step} options:`, error)
         }
     }, [mountOptionsJson, vfsOptionsJson])
 
@@ -102,16 +102,16 @@ export default function Mount() {
         try {
             const needsPlugin = await needsMountPlugin()
             if (needsPlugin) {
-                console.log('Mount plugin not installed')
+                console.log('[Mount] Mount plugin not installed')
                 await dialogGetMountPlugin()
                 return
             }
-            console.log('Mount plugin installed')
+            console.log('[Mount] Mount plugin installed')
 
             const _mountOptions = { ...mountOptions }
 
             if (!('VolumeName' in _mountOptions) && ['windows', 'macos'].includes(platform())) {
-                _mountOptions.VolumeName = source!.split(sep()).pop()!
+                _mountOptions.VolumeName = `${source.split(sep()).pop()}${Math.random().toString(36).substring(2, 3).toUpperCase()}`
             }
 
             let directoryExists: boolean | undefined
@@ -119,9 +119,9 @@ export default function Mount() {
             try {
                 directoryExists = await exists(dest)
             } catch (err) {
-                console.error('Error checking if directory exists:', err)
+                console.error('[Mount] Error checking if directory exists:', err)
             }
-            console.log('directoryExists', directoryExists)
+            console.log('[Mount] directoryExists', directoryExists)
 
             const isPlatformWindows = platform() === 'windows'
 
@@ -145,7 +145,7 @@ export default function Mount() {
                 try {
                     await mkdir(dest)
                 } catch (error) {
-                    console.error('Error creating directory:', error)
+                    console.error('[Mount] Error creating directory:', error)
                     await message(
                         'Failed to create mount directory. Try creating it manually first.',
                         {
@@ -166,7 +166,7 @@ export default function Mount() {
 
             setIsMounted(true)
         } catch (err) {
-            console.error('Failed to start mount:', err)
+            console.error('[Mount] Failed to start mount:', err)
             const errorMessage =
                 err instanceof Error ? err.message : 'Failed to start mount operation'
             await message(errorMessage, {
@@ -288,7 +288,7 @@ export default function Mount() {
                                 try {
                                     await openPath(dest)
                                 } catch (err) {
-                                    console.error('Error opening path:', err)
+                                    console.error('[Mount] Error opening path:', err)
                                     await message(`Failed to open ${dest} (${err})`, {
                                         title: 'Open Error',
                                         kind: 'error',
