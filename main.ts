@@ -363,6 +363,7 @@ async function handleTask(task: ScheduledTask) {
                     fs,
                     rmDirs,
                     _filter,
+                    _config,
                 })
                 break
             case 'copy':
