@@ -25,12 +25,9 @@ export default function OptionsSection({
     const [options, setOptions] = useState<any>({})
     const [isJsonValid, setIsJsonValid] = useState(true)
 
-    console.log('[OptionsSection] globalOptions', globalOptions)
-
     useEffect(() => {
         getAvailableOptions()
             .then((flags) => {
-                console.log(JSON.stringify(flags, null, 2))
                 return flags
             })
             .then((flags) => setAvailableOptions(flags))
@@ -149,25 +146,48 @@ export default function OptionsSection({
                                         const newOptions = {
                                             ...options,
                                         }
-                                        delete newOptions[option.FieldName]
+                                        // delete newOptions[option.FieldName]
+                                        newOptions[option.FieldName] = undefined
                                         setOptionsJson(JSON.stringify(newOptions, null, 2))
 
                                         return
                                     }
+
+                                    let value: string | number | boolean = ''
 
                                     const defaultGlobalValue =
                                         globalOptions[
                                             option.FieldName as keyof typeof globalOptions
                                         ]
 
-                                    const defaultValue =
+                                    if (
+                                        defaultGlobalValue !== null &&
+                                        defaultGlobalValue !== undefined
+                                    ) {
+                                        value = defaultGlobalValue
+                                    } else {
+                                        value = availableOptions.find(
+                                            (o) => o.FieldName === option.FieldName
+                                        )?.DefaultStr
+                                    }
+
+                                    const valueType =
                                         availableOptions.find(
                                             (o) => o.FieldName === option.FieldName
-                                        )?.DefaultStr || ''
+                                        )?.Type || 'string'
+
+                                    if (valueType === 'bool') {
+                                        value = Boolean(value || false)
+                                    } else if (
+                                        valueType.includes('int') ||
+                                        valueType.includes('float')
+                                    ) {
+                                        value = Number(value || 0)
+                                    }
 
                                     const newOptions = {
                                         ...options,
-                                        [option.FieldName]: defaultGlobalValue || defaultValue,
+                                        [option.FieldName]: value,
                                     }
 
                                     setOptionsJson(JSON.stringify(newOptions, null, 2))

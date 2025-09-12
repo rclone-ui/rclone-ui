@@ -1,5 +1,4 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
-import { sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
@@ -29,6 +28,7 @@ import { RCLONE_CONFIG_DEFAULTS, RCLONE_VFS_DEFAULTS } from '../../lib/rclone/co
 import { dialogGetMountPlugin } from '../../lib/rclone/mount'
 import { needsMountPlugin } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../lib/store'
+import { triggerTrayRebuild } from '../../lib/tray'
 import OptionsSection from '../components/OptionsSection'
 import { PathFinder } from '../components/PathFinder'
 
@@ -70,11 +70,9 @@ export default function Mount() {
 
         if (!remote) return
 
-        if (!(remote in storeData.remoteConfigList)) return
-
         if (
-            storeData.remoteConfigList[remote].mountDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].mountDefaults).length > 0 &&
+            storeData.remoteConfigList?.[remote]?.mountDefaults &&
+            Object.keys(storeData.remoteConfigList?.[remote]?.mountDefaults).length > 0 &&
             !mountOptionsLocked
         ) {
             setMountOptionsJson(
@@ -84,8 +82,8 @@ export default function Mount() {
 
         if (!vfsOptionsLocked) {
             if (
-                storeData.remoteConfigList[remote].vfsDefaults &&
-                Object.keys(storeData.remoteConfigList[remote].vfsDefaults).length > 0
+                storeData.remoteConfigList?.[remote]?.vfsDefaults &&
+                Object.keys(storeData.remoteConfigList?.[remote]?.vfsDefaults).length > 0
             ) {
                 setVfsOptionsJson(
                     JSON.stringify(storeData.remoteConfigList[remote].vfsDefaults, null, 2)
@@ -96,8 +94,8 @@ export default function Mount() {
         }
 
         if (
-            storeData.remoteConfigList[remote].filterDefaults &&
-            Object.keys(storeData.remoteConfigList[remote].filterDefaults).length > 0 &&
+            storeData.remoteConfigList?.[remote]?.filterDefaults &&
+            Object.keys(storeData.remoteConfigList?.[remote]?.filterDefaults).length > 0 &&
             !filterOptionsLocked
         ) {
             setFilterOptionsJson(
@@ -107,8 +105,8 @@ export default function Mount() {
 
         if (!configOptionsLocked) {
             if (
-                storeData.remoteConfigList[remote].configDefaults &&
-                Object.keys(storeData.remoteConfigList[remote].configDefaults).length > 0
+                storeData.remoteConfigList?.[remote]?.configDefaults &&
+                Object.keys(storeData.remoteConfigList?.[remote]?.configDefaults).length > 0
             ) {
                 setConfigOptionsJson(
                     JSON.stringify(storeData.remoteConfigList[remote].configDefaults, null, 2)
@@ -164,7 +162,14 @@ export default function Mount() {
                 (!('VolumeName' in _mountOptions) || !_mountOptions.VolumeName) &&
                 ['windows', 'macos'].includes(platform())
             ) {
-                _mountOptions.VolumeName = `${source.split(sep()).pop()}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
+                const segments = source.split('/').filter(Boolean)
+                console.log('[Mount] segments', segments)
+
+                const sourcePath =
+                    segments.length === 1 ? segments[0].replace(/:/g, '') : segments.pop()
+                console.log('[Mount] sourcePath', sourcePath)
+
+                _mountOptions.VolumeName = `${sourcePath}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
             }
 
             let directoryExists: boolean | undefined

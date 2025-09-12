@@ -89,9 +89,9 @@ export default function Copy() {
 
         // Helper function to merge defaults from a remote
         const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote || !(remote in storeData.remoteConfigList)) return
+            if (!remote) return
 
-            const remoteConfig = storeData.remoteConfigList[remote]
+            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
 
             if (remoteConfig.copyDefaults) {
                 mergedCopyDefaults = {
@@ -154,6 +154,23 @@ export default function Copy() {
             console.error(`Error parsing ${step} options:`, error)
         }
     }, [copyOptionsJson, filterOptionsJson, configOptionsJson])
+
+    const buttonText = useMemo(() => {
+        if (isLoading) return 'STARTING...'
+        if (!sources || sources.length === 0) return 'Please select a source path'
+        if (!dest) return 'Please select a destination path'
+        if (sources[0] === dest) return 'Source and destination cannot be the same'
+        if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        return 'START COPY'
+    }, [isLoading, jsonError, sources, dest])
+
+    const buttonIcon = useMemo(() => {
+        if (isLoading) return
+        if (!sources || sources.length === 0 || !dest || sources[0] === dest)
+            return <FoldersIcon className="w-5 h-5" />
+        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
+        return <PlayIcon className="w-5 h-5" />
+    }, [isLoading, jsonError, sources, dest])
 
     const handleStartCopy = useCallback(async () => {
         setIsLoading(true)
@@ -345,23 +362,6 @@ export default function Copy() {
 
         setIsLoading(false)
     }, [sources, dest, copyOptions, filterOptions, cronExpression, configOptions])
-
-    const buttonText = useMemo(() => {
-        if (isLoading) return 'STARTING...'
-        if (!sources || sources.length === 0) return 'Please select a source path'
-        if (!dest) return 'Please select a destination path'
-        if (sources[0] === dest) return 'Source and destination cannot be the same'
-        if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        return 'START COPY'
-    }, [isLoading, jsonError, sources, dest])
-
-    const buttonIcon = useMemo(() => {
-        if (isLoading) return
-        if (!sources || sources.length === 0 || !dest || sources[0] === dest)
-            return <FoldersIcon className="w-5 h-5" />
-        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5" />
-    }, [isLoading, jsonError, sources, dest])
 
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">

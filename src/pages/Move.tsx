@@ -77,9 +77,9 @@ export default function Move() {
 
         // Helper function to merge defaults from a remote
         const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote || !(remote in storeData.remoteConfigList)) return
+            if (!remote) return
 
-            const remoteConfig = storeData.remoteConfigList[remote]
+            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
 
             if (remoteConfig.moveDefaults) {
                 mergedMoveDefaults = {
