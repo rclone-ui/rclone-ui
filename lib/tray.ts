@@ -7,7 +7,6 @@ import { TrayIcon } from '@tauri-apps/api/tray'
 import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
-import { exit } from '@tauri-apps/plugin-process'
 import { buildMenu } from './menu'
 import { resetMainWindow } from './window'
 
@@ -89,7 +88,6 @@ export async function initLoadingTray() {
             const answer = await ask('An operation is in progress, are you sure you want to exit?')
             if (answer) {
                 await getCurrentWindow().emit('close-app')
-                await exit(0)
             }
         },
     })

@@ -12,13 +12,13 @@ import { isDirectoryEmpty } from './lib/fs'
 import { validateLicense } from './lib/license'
 import notify from './lib/notify'
 import {
+    listJobs,
     listRemotes,
     mountRemote,
     startCopy,
     startDelete,
     startMove,
     startSync,
-    unmountAllRemotes,
 } from './lib/rclone/api'
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
@@ -192,21 +192,47 @@ async function startRclone() {
     getCurrentWindow().listen('close-app', async (e) => {
         console.log('[startRclone] (main) window close-app requested')
 
-        if (rclone?.system) {
-            const answer = await ask('Unmount all remotes before exiting?', {
+        const jobs = await listJobs().catch(() => ({ active: [] }))
+
+        if (jobs.active.length > 0) {
+            const answer = await ask('All active jobs will be stopped.', {
                 title: 'Exit',
                 kind: 'info',
-                okLabel: 'Unmount',
-                cancelLabel: 'Exit',
+                okLabel: 'Quit',
+                cancelLabel: 'Cancel',
             })
-            if (answer) {
-                await unmountAllRemotes()
+
+            if (!answer) {
+                return
             }
         }
 
         await childProcess.kill()
+        await exit(0)
     })
     console.log('[startRclone] set listener for close-app')
+
+    getCurrentWindow().listen('relaunch-app', async (e) => {
+        console.log('[startRclone] (main) window relaunch-app requested')
+
+        const jobs = await listJobs().catch(() => ({ active: [] }))
+
+        if (jobs.active.length > 0) {
+            const answer = await ask('All active jobs will be stopped.', {
+                title: 'Exit',
+                kind: 'info',
+                okLabel: 'Relaunch',
+                cancelLabel: 'Cancel',
+            })
+            if (!answer) {
+                return
+            }
+        }
+
+        await childProcess.kill()
+        await relaunch()
+    })
+    console.log('[startRclone] set listener for relaunch-app')
 
     await new Promise((resolve) => setTimeout(resolve, 200))
 
@@ -485,10 +511,7 @@ async function checkVersion() {
                 okLabel: 'Restart',
             })
 
-            await getCurrentWindow().emit('close-app')
-            await new Promise((resolve) => setTimeout(resolve, 200))
-
-            await relaunch()
+            await getCurrentWindow().emit('relaunch-app')
         } else if (compareVersions(currentVersion, okVersion) < 0) {
             const confirmed = await ask(
                 'You are running an outdated version of Rclone UI. Please update to the latest version.',
@@ -512,10 +535,7 @@ async function checkVersion() {
                 okLabel: 'Restart',
             })
 
-            await getCurrentWindow().emit('close-app')
-            await new Promise((resolve) => setTimeout(resolve, 200))
-
-            await relaunch()
+            await getCurrentWindow().emit('relaunch-app')
         }
     } catch {}
 }

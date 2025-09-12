@@ -5,7 +5,6 @@ import { ask, message, open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
-import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
 import notify from './notify'
 import { cleanupRemote, deleteRemote, listMounts, mountRemote, unmountRemote } from './rclone/api'
@@ -495,7 +494,6 @@ export async function buildMenu() {
         text: 'Quit',
         action: async () => {
             await getCurrentWindow().emit('close-app')
-            await exit(0)
         },
     })
     menuItems.push(quitItem)

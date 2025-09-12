@@ -354,9 +354,6 @@ function GeneralSection() {
         }
 
         await getCurrentWindow().emit('close-app')
-        await new Promise((resolve) => setTimeout(resolve, 200))
-
-        await relaunch()
     }, [update])
 
     useEffect(() => {
