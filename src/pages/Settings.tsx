@@ -28,8 +28,8 @@ import {
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { disable, enable } from '@tauri-apps/plugin-autostart'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { ask, message } from '@tauri-apps/plugin-dialog'
-import { readTextFileLines, remove } from '@tauri-apps/plugin-fs'
+import { ask, message, open } from '@tauri-apps/plugin-dialog'
+import { readTextFile, readTextFileLines, remove, writeTextFile } from '@tauri-apps/plugin-fs'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { version as osVersion, type } from '@tauri-apps/plugin-os'
 import { relaunch } from '@tauri-apps/plugin-process'
@@ -38,6 +38,7 @@ import {
     CheckIcon,
     CodeIcon,
     CogIcon,
+    DownloadIcon,
     EyeIcon,
     ImportIcon,
     InfoIcon,
@@ -926,6 +927,43 @@ function ConfigSection() {
     const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false)
     const [focusedConfigId, setFocusedConfigId] = useState<string | null>(null)
 
+    const [isExportingId, setIsExportingId] = useState('')
+
+    const exportConfig = useCallback(async ({ id, label }: { id: string; label: string }) => {
+        try {
+            setIsExportingId(id)
+
+            const configPath = await getConfigPath({ id: id, validate: true })
+            const text = await readTextFile(configPath)
+
+            const selectedPath = await open({
+                title: `Select a directory to export "${label}"`,
+                multiple: false,
+                directory: true,
+            })
+
+            if (!selectedPath) {
+                return
+            }
+
+            console.log('[exportConfig] selectedPath', selectedPath)
+
+            // allow spaces, dashes, and underscores
+            const exportPath = `${selectedPath}/${label.replace(/[^a-zA-Z0-9\s\-_]/g, '')}.conf`
+
+            await writeTextFile(exportPath, text)
+        } catch (error) {
+            console.error('[exportConfig] failed to export config', error)
+            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
+                title: 'Failed to export config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+        } finally {
+            setIsExportingId('')
+        }
+    }, [])
+
     return (
         <div className="flex flex-col gap-4">
             <BaseHeader
@@ -1084,6 +1122,20 @@ function ConfigSection() {
                                 isDisabled={configFile.id === 'default'}
                             >
                                 <Trash2Icon className="w-4 h-4" />
+                            </Button>
+                            <Button
+                                isIconOnly={true}
+                                variant="light"
+                                size="sm"
+                                onPress={() => {
+                                    exportConfig({
+                                        id: configFile.id!,
+                                        label: configFile.label,
+                                    })
+                                }}
+                                isLoading={isExportingId === configFile.id}
+                            >
+                                <DownloadIcon className="w-4 h-4" />
                             </Button>
                         </div>
                     </Button>
