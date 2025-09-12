@@ -479,6 +479,7 @@ export default function RemoteDefaultsDrawer({
                                             globalOptions['main' as keyof typeof globalOptions]
                                         }
                                         getAvailableOptions={getConfigFlags}
+                                        rows={10}
                                     />
                                 </AccordionItem>
                                 <AccordionItem

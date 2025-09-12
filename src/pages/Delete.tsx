@@ -305,7 +305,7 @@ export default function Delete() {
                         isDisabled={isLoading || !!jsonError || !sourceFs || sourceFs.length === 0}
                         isLoading={isLoading}
                         endContent={buttonIcon}
-                        className="max-w-2xl"
+                        className="max-w-2xl gap-2"
                         data-focus-visible="false"
                     >
                         {buttonText}

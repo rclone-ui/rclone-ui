@@ -392,7 +392,7 @@ export default function Sync() {
                         isDisabled={isLoading || !!jsonError || !source || !dest || source === dest}
                         isLoading={isLoading}
                         endContent={buttonIcon}
-                        className="max-w-2xl"
+                        className="max-w-2xl gap-2"
                         data-focus-visible="false"
                     >
                         {buttonText}

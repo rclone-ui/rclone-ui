@@ -204,7 +204,7 @@ export async function getBackends() {
         .then((res) => res.json() as Promise<any>)
         .then((r) => r.providers)
 
-    return providers.filter((b: any) => SUPPORTED_BACKENDS.includes(b.Name))
+    return providers.filter((b: any) => SUPPORTED_BACKENDS.includes(b.Prefix))
 }
 
 export interface ListOptions {

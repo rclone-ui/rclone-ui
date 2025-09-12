@@ -514,7 +514,7 @@ export default function Move() {
                         }
                         isLoading={isLoading}
                         endContent={buttonIcon}
-                        className="max-w-2xl"
+                        className="max-w-2xl gap-2"
                         data-focus-visible="false"
                     >
                         {buttonText}

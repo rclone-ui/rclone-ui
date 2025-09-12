@@ -200,7 +200,17 @@ export default function RemoteEditDrawer({
                                     isDisabled={true}
                                 >
                                     {backends.map((backend) => (
-                                        <SelectItem key={backend.Name}>
+                                        <SelectItem
+                                            className="h-12"
+                                            key={backend.Name}
+                                            startContent={
+                                                <img
+                                                    src={`/icons/${backend.Prefix}.png`}
+                                                    className="object-contain w-8 h-8"
+                                                    alt={backend.Name}
+                                                />
+                                            }
+                                        >
                                             {backend.Description.includes('Compliant')
                                                 ? `${backend.Description.split('Compliant')[0]} Compliant`
                                                 : backend.Description || backend.Name}

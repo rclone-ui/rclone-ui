@@ -253,8 +253,8 @@ export default function Mount() {
     const buttonIcon = useMemo(() => {
         if (isLoading || isMounted) return
         if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
-        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5" />
+        if (jsonError) return <AlertOctagonIcon className="w-4 h-4" />
+        return <PlayIcon className="w-4 h-4 fill-current" />
     }, [isLoading, jsonError, source, dest, isMounted])
 
     return (
@@ -425,7 +425,7 @@ export default function Mount() {
                         }
                         isLoading={isLoading}
                         endContent={buttonIcon}
-                        className="max-w-2xl"
+                        className="max-w-2xl gap-2"
                         data-focus-visible="false"
                     >
                         {buttonText}
