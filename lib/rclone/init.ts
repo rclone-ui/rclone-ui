@@ -1,8 +1,8 @@
 import * as Sentry from '@sentry/browser'
 import { invoke } from '@tauri-apps/api/core'
-import { BaseDirectory, appLocalDataDir, sep } from '@tauri-apps/api/path'
+import { BaseDirectory, appLocalDataDir, appLogDir, sep } from '@tauri-apps/api/path'
 import { tempDir } from '@tauri-apps/api/path'
-import { ask, message } from '@tauri-apps/plugin-dialog'
+import { message } from '@tauri-apps/plugin-dialog'
 import { copyFile, exists, mkdir, readTextFile, remove } from '@tauri-apps/plugin-fs'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
@@ -49,43 +49,6 @@ export async function initRclone(args: string[]) {
         }
     }
 
-    if (configFiles.length === 0) {
-        if (system) {
-            let isEncrypted = false
-
-            // Detect if the config is encrypted
-            try {
-                const configContent = await readTextFile(defaultPath)
-                isEncrypted = configContent.includes('RCLONE_ENCRYPT_V0:')
-            } catch (error) {
-                console.log('[initRclone] could not read config file, asking user:', error)
-                isEncrypted = await ask(
-                    'Is your configuration encrypted? Press "No" if you\'re unsure or using the default config file.',
-                    {
-                        title: 'Config file found',
-                        kind: 'info',
-                        okLabel: 'Yes',
-                        cancelLabel: 'No',
-                    }
-                )
-            }
-
-            if (isEncrypted) {
-                await ask(
-                    'Encrypted config files cannot be imported during the initial setup. Use a blank conf file and import the encrypted configuration later in Settings.',
-                    {
-                        title: 'Not supported yet',
-                        kind: 'error',
-                        okLabel: 'OK',
-                        cancelLabel: '',
-                    }
-                )
-                await exit(0)
-                return
-            }
-        }
-    }
-
     configFiles = configFiles.filter((config) => config.id !== 'default')
     configFiles.unshift({
         id: 'default',
@@ -113,6 +76,8 @@ export async function initRclone(args: string[]) {
               ''
           )
 
+    console.log('[initRclone] configFolderPath', configFolderPath)
+
     if (activeConfigFile.sync) {
         if (!(await exists(configFolderPath + sep() + 'rclone.conf'))) {
             await message('The config file could not be found. Switching to the default config.', {
@@ -120,6 +85,7 @@ export async function initRclone(args: string[]) {
                 kind: 'error',
                 okLabel: 'OK',
             })
+            activeConfigFile = configFiles[0]
             configFolderPath = (await getConfigPath({ id: 'default', validate: true })).replace(
                 /\/rclone\.conf$/,
                 ''
@@ -128,19 +94,71 @@ export async function initRclone(args: string[]) {
         }
     }
 
-    const extraParams =
-        activeConfigFile.id === 'default'
-            ? undefined
-            : {
-                  env: {
-                      ...(activeConfigFile.isEncrypted
-                          ? activeConfigFile.passCommand
-                              ? { RCLONE_CONFIG_PASS_COMMAND: activeConfigFile.passCommand }
-                              : { RCLONE_CONFIG_PASS: activeConfigFile.pass! }
-                          : {}),
-                      RCLONE_CONFIG_DIR: configFolderPath,
-                  },
-              }
+    let password: string | null = activeConfigFile.pass || activeConfigFile.passCommand || null
+    try {
+        const configContent = await readTextFile(`${configFolderPath}${sep()}rclone.conf`)
+        const isEncrypted = configContent.includes('RCLONE_ENCRYPT_V0:')
+        if (isEncrypted && !password) {
+            password = await promptForConfigPassword(activeConfigFile.label)
+            console.log('[initRclone] password', password)
+
+            if (!password) {
+                await message('Password is required for encrypted configurations.', {
+                    title: 'Password Required',
+                    kind: 'error',
+                    okLabel: 'OK',
+                })
+                await exit(0)
+                return
+            }
+
+            if (!activeConfigFile.isEncrypted) {
+                const updatedConfigFile = { ...activeConfigFile, isEncrypted: true }
+                const updatedConfigFiles = configFiles.map((config) =>
+                    config.id === activeConfigFile!.id ? updatedConfigFile : config
+                )
+                usePersistedStore.setState({
+                    configFiles: updatedConfigFiles,
+                    activeConfigFile: updatedConfigFile,
+                })
+
+                // Update activeConfigFile reference for the rest of the function
+                activeConfigFile = updatedConfigFile
+            }
+        }
+    } catch (error) {
+        console.log('[initRclone] could not read config file', error)
+        const appLogDirPath = await appLogDir()
+        await message(
+            'Could not read config file, please file an issue on GitHub.\n\nLogs: ' + appLogDirPath,
+            {
+                title: 'Error',
+                kind: 'error',
+                okLabel: 'OK',
+            }
+        )
+        await exit(0)
+        return
+    }
+
+    const extraParams: { env: Record<string, string> } = {
+        env: {},
+    }
+
+    if (activeConfigFile.isEncrypted) {
+        extraParams.env.RCLONE_ASK_PASSWORD = 'false'
+        if (activeConfigFile.passCommand) {
+            extraParams.env.RCLONE_CONFIG_PASS_COMMAND = activeConfigFile.passCommand
+        } else {
+            extraParams.env.RCLONE_CONFIG_PASS = activeConfigFile.pass || password!
+        }
+    }
+
+    if (activeConfigFile.id !== 'default') {
+        extraParams.env.RCLONE_CONFIG_DIR = configFolderPath
+    }
+
+    console.log('[initRclone] extraParams', extraParams)
 
     if (system) {
         console.log('[initRclone] running system rclone')
@@ -300,4 +318,27 @@ export async function provisionRclone() {
     console.log('[provisionRclone] rclone has been installed')
 
     return true
+}
+
+/**
+ * Prompts the user for a password for an encrypted configuration
+ * @param configLabel - The label of the configuration file
+ * @returns Promise<string | null> - The password entered by the user, or null if cancelled
+ */
+async function promptForConfigPassword(configLabel: string): Promise<string | null> {
+    try {
+        const result = (await invoke('prompt_password', {
+            title: 'Rclone UI',
+            message: `Please enter the password for the encrypted configuration "${configLabel}".`,
+        })) as string | null
+
+        if (typeof result === 'string') {
+            return result.trim()
+        }
+
+        return null
+    } catch (error) {
+        console.error('[promptForConfigPassword] Error prompting for password:', error)
+        return null
+    }
 }

@@ -5,6 +5,7 @@ import {
     DrawerFooter,
     DrawerHeader,
     Input,
+    Switch,
     Textarea,
 } from '@heroui/react'
 import { Button } from '@heroui/react'
@@ -28,8 +29,10 @@ export default function ConfigEditDrawer({
 
     const [configLabel, setConfigLabel] = useState<string | null>(null)
     const [configPass, setConfigPass] = useState<string | null>(null)
+    const [configPassCommand, setConfigPassCommand] = useState<string | null>(null)
     const [configContent, setConfigContent] = useState<string | null>(null)
 
+    const [isPasswordCommand, setIsPasswordCommand] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
     const isEncrypted = useMemo(() => {
@@ -37,7 +40,21 @@ export default function ConfigEditDrawer({
     }, [configContent])
 
     const handleUpdate = useCallback(
-        async ({ label, pass, content }: { label?: string; pass?: string; content?: string }) => {
+        async ({
+            label,
+            pass,
+            content,
+            passCommand,
+            isPasswordCommand,
+            isEncrypted,
+        }: {
+            label?: string
+            pass?: string
+            content?: string
+            passCommand?: string
+            isPasswordCommand?: boolean
+            isEncrypted?: boolean
+        }) => {
             if (!id) return
 
             try {
@@ -49,8 +66,8 @@ export default function ConfigEditDrawer({
                     throw new Error('Content is required')
                 }
 
-                if (content.includes('RCLONE_ENCRYPT_V0:') && !pass) {
-                    throw new Error('Password is required for encrypted configs')
+                if (isEncrypted && isPasswordCommand && !passCommand) {
+                    throw new Error('Password command is required for encrypted configs')
                 }
 
                 setIsSaving(true)
@@ -60,8 +77,9 @@ export default function ConfigEditDrawer({
 
                 usePersistedStore.getState().updateConfigFile(id, {
                     label,
-                    pass: pass || undefined,
-                    isEncrypted: content.includes('RCLONE_ENCRYPT_V0:'),
+                    pass: isPasswordCommand ? undefined : pass,
+                    passCommand: isPasswordCommand ? passCommand : undefined,
+                    isEncrypted: isEncrypted,
                 })
 
                 onClose()
@@ -92,6 +110,8 @@ export default function ConfigEditDrawer({
         setConfigContent(text)
         setConfigLabel(initialConfig.label)
         setConfigPass(initialConfig.pass || null)
+        setConfigPassCommand(initialConfig.passCommand || null)
+        setIsPasswordCommand(initialConfig.passCommand !== null)
     }, [initialConfig])
 
     useEffect(() => {
@@ -103,6 +123,8 @@ export default function ConfigEditDrawer({
             setConfigContent(null)
             setConfigLabel(null)
             setConfigPass(null)
+            setConfigPassCommand(null)
+            setIsPasswordCommand(false)
         }
     }, [isOpen, initializeConfig, configLabel, configContent])
 
@@ -134,6 +156,10 @@ export default function ConfigEditDrawer({
                                         label: configLabel || undefined,
                                         pass: configPass || undefined,
                                         content: configContent || undefined,
+                                        passCommand: configPassCommand || undefined,
+                                        isPasswordCommand: isPasswordCommand,
+                                        isEncrypted:
+                                            configContent?.includes('RCLONE_ENCRYPT_V0:') || false,
                                     })
                                 }}
                             >
@@ -159,21 +185,50 @@ export default function ConfigEditDrawer({
 
                                 {isEncrypted && (
                                     <Input
-                                        name="label"
-                                        label="Password"
+                                        label={
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="text-medium">Password</p>
+                                                <Switch
+                                                    size="sm"
+                                                    isSelected={isPasswordCommand}
+                                                    onValueChange={() =>
+                                                        setIsPasswordCommand(!isPasswordCommand)
+                                                    }
+                                                    color="primary"
+                                                >
+                                                    Command
+                                                </Switch>
+                                            </div>
+                                        }
                                         labelPlacement="outside"
-                                        placeholder="Enter the password for your config file"
-                                        type="password"
-                                        value={configPass || ''}
-                                        autoComplete="off"
+                                        placeholder={
+                                            isPasswordCommand
+                                                ? 'Enter the password command for your config file'
+                                                : 'Leave blank to be prompted on every startup'
+                                        }
+                                        type={isPasswordCommand ? 'text' : 'password'}
+                                        value={
+                                            (isPasswordCommand ? configPassCommand : configPass) ||
+                                            ''
+                                        }
                                         autoCapitalize="off"
+                                        autoComplete="off"
                                         autoCorrect="off"
+                                        spellCheck="false"
                                         onValueChange={(value) => {
-                                            setConfigPass(value)
+                                            if (isPasswordCommand) {
+                                                setConfigPassCommand(value)
+                                            } else {
+                                                setConfigPass(value)
+                                            }
                                         }}
                                         isClearable={true}
                                         onClear={() => {
-                                            setConfigPass(null)
+                                            if (isPasswordCommand) {
+                                                setConfigPassCommand(null)
+                                            } else {
+                                                setConfigPass(null)
+                                            }
                                         }}
                                         size="lg"
                                     />

@@ -38,12 +38,14 @@ export default function ConfigSyncDrawer({
             isEncrypted,
             passCommand,
             sync,
+            isPasswordCommand,
         }: {
             label?: string
             sync?: string
             isEncrypted?: boolean
             pass?: string
             passCommand?: string
+            isPasswordCommand?: boolean
         }) => {
             try {
                 if (!label) {
@@ -54,10 +56,8 @@ export default function ConfigSyncDrawer({
                     throw new Error('Path is required')
                 }
 
-                if (isEncrypted) {
-                    if (!pass && !passCommand) {
-                        throw new Error('Password is required for encrypted configs')
-                    }
+                if (isEncrypted && isPasswordCommand && !passCommand) {
+                    throw new Error('Password command is required for encrypted configs')
                 }
 
                 setIsSaving(true)
@@ -68,8 +68,8 @@ export default function ConfigSyncDrawer({
                     id: generatedId,
                     label,
                     isEncrypted: isEncrypted || false,
-                    pass,
-                    passCommand,
+                    pass: isPasswordCommand ? undefined : pass,
+                    passCommand: isPasswordCommand ? passCommand : undefined,
                     sync,
                 })
 
@@ -111,12 +111,11 @@ export default function ConfigSyncDrawer({
                                     e.preventDefault()
                                     handleCreate({
                                         label: config.label,
-                                        pass: isPasswordCommand ? undefined : config.pass,
+                                        pass: config.pass,
                                         isEncrypted: config.isEncrypted,
-                                        passCommand: isPasswordCommand
-                                            ? config.passCommand
-                                            : undefined,
+                                        passCommand: config.passCommand,
                                         sync: config.sync,
+                                        isPasswordCommand: isPasswordCommand,
                                     })
                                 }}
                             >
@@ -172,7 +171,7 @@ export default function ConfigSyncDrawer({
                                         placeholder={
                                             isPasswordCommand
                                                 ? 'Enter the password command for your config file'
-                                                : 'Enter the password for your config file'
+                                                : 'Leave blank to be prompted on every startup'
                                         }
                                         type={isPasswordCommand ? 'text' : 'password'}
                                         value={isPasswordCommand ? config.passCommand : config.pass}
