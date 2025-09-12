@@ -170,8 +170,8 @@ export async function cleanupRemote(remote: string) {
     // console.log(JSON.stringify(r, null, 2))
 }
 
-export async function getMountPoints() {
-    console.log('[getMountPoints]')
+export async function listMounts() {
+    console.log('[listMounts]')
 
     const r = await fetch('http://localhost:5572/mount/listmounts', {
         method: 'POST',
@@ -179,7 +179,11 @@ export async function getMountPoints() {
     }).then(
         (res) =>
             res.json() as Promise<{
-                mountPoints: string[]
+                mountPoints: {
+                    Fs: string
+                    MountPoint: string
+                    MountedOn: string
+                }[]
             }>
     )
 

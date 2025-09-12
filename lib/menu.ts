@@ -8,21 +8,25 @@ import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { isDirectoryEmpty } from './fs'
 import notify from './notify'
-import { cleanupRemote, deleteRemote, mountRemote, unmountRemote } from './rclone/api'
+import { cleanupRemote, deleteRemote, listMounts, mountRemote, unmountRemote } from './rclone/api'
 import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
 import { getLoadingTray, getMainTray, rebuildTrayMenu } from './tray'
 import { lockWindows, openFullWindow, openWindow, unlockWindows } from './window'
 
 async function parseRemotes(remotes: string[]) {
-    console.log('[parseRemotes]')
+    console.log('[parseRemotes] remotes', remotes)
 
-    const storeState = useStore.getState()
     const persistedStoreState = usePersistedStore.getState()
+
+    console.log('[parseRemotes] listing mounts')
+    const currentMounts = await listMounts()
+    console.log('[parseRemotes] currentMounts', currentMounts)
 
     const parsedRemotes: Record<string, (MenuItem | Submenu | PredefinedMenuItem)[]> = {}
 
     for (const remote of remotes) {
+        console.log('[parseRemotes] remote', remote)
         const remoteConfig = persistedStoreState.remoteConfigList?.[remote]
         if (remoteConfig?.disabledActions?.includes('tray')) {
             continue
@@ -30,64 +34,7 @@ async function parseRemotes(remotes: string[]) {
 
         const submenuItems: (MenuItem | Submenu | PredefinedMenuItem)[] = []
 
-        const alreadyMounted = storeState.mountedRemotes[remote]
-
-        if (alreadyMounted) {
-            const unmountMenuItem = await MenuItem.new({
-                id: `unmount-${remote}`,
-                text: 'Unmount',
-                action: async () => {
-                    try {
-                        const mountPoint = storeState.mountedRemotes[remote]
-                        if (!mountPoint) {
-                            console.error(`No mount point found for remote ${remote}`)
-                            return
-                        }
-                        await unmountRemote({ mountPoint })
-                        delete storeState.mountedRemotes[remote]
-                        await rebuildTrayMenu()
-                        await message(`Successfully unmounted ${remote} from ${mountPoint}`, {
-                            title: 'Success',
-                        })
-                    } catch (error) {
-                        Sentry.captureException(error)
-                        console.error('Unmount operation failed:', error)
-                        await message(`Failed to unmount ${remote}: ${error}`, {
-                            kind: 'error',
-                            title: 'Unmount Error',
-                        })
-                    }
-                },
-            })
-            submenuItems.push(unmountMenuItem)
-
-            // Add "Show Location" option for mounted remotes
-            const mountPoint = storeState.mountedRemotes[remote]
-            console.log('Adding Show Location', mountPoint)
-            const showLocationItem = await MenuItem.new({
-                id: `open-${remote}`,
-
-                text: 'Show Location',
-                action: async () => {
-                    console.log('Show Location', mountPoint)
-                    if (mountPoint) {
-                        try {
-                            await openPath(mountPoint)
-                        } catch (error) {
-                            Sentry.captureException(error)
-                            console.error('Error opening path:', error)
-                            await message(`Failed to open ${mountPoint} (${error})`, {
-                                title: 'Open Error',
-                                kind: 'error',
-                            })
-                        }
-                    }
-                },
-            })
-            submenuItems.push(showLocationItem)
-        }
-
-        if (!alreadyMounted && !remoteConfig?.disabledActions?.includes('tray-mount')) {
+        if (!remoteConfig?.disabledActions?.includes('tray-mount')) {
             const mountMenuItem = await MenuItem.new({
                 id: `mount-${remote}`,
                 text: 'Quick Mount',
@@ -180,7 +127,6 @@ async function parseRemotes(remotes: string[]) {
                             mountOptions: remoteConfig?.mountDefaults,
                             vfsOptions: remoteConfig?.vfsDefaults,
                         })
-                        storeState.mountedRemotes[remote] = selectedPath
 
                         await notify({
                             title: 'Mounted',
@@ -297,6 +243,73 @@ async function parseRemotes(remotes: string[]) {
                 },
             })
             submenuItems.push(removeMenuItem)
+        }
+
+        const currentRemoteMounts = currentMounts.filter(
+            (mount) => mount.Fs.split(':')[0] === remote
+        )
+
+        console.log('[parseRemotes] currentRemoteMounts', currentRemoteMounts)
+
+        for (const currentMount of currentRemoteMounts) {
+            console.log(
+                '[parseRemotes] Adding Unmount (' +
+                    currentMount.MountPoint.split('/').pop() +
+                    ') for ',
+                remote
+            )
+            const unmountMenuItem = await MenuItem.new({
+                id: `unmount-${remote}-${currentMount.MountPoint}`,
+                text: 'Unmount (' + currentMount.MountPoint.split('/').pop() + ')',
+                action: async () => {
+                    try {
+                        await unmountRemote({ mountPoint: currentMount.MountPoint })
+                        await rebuildTrayMenu()
+                        await message(
+                            `Successfully unmounted ${remote} from ${currentMount.MountPoint.split('/').pop()}`,
+                            {
+                                title: 'Success',
+                            }
+                        )
+                    } catch (error) {
+                        Sentry.captureException(error)
+                        console.error('Unmount operation failed:', error)
+                        await message(`Failed to unmount ${remote}: ${error}`, {
+                            kind: 'error',
+                            title: 'Unmount Error',
+                        })
+                    }
+                },
+            })
+            submenuItems.push(unmountMenuItem)
+
+            console.log(
+                '[parseRemotes] Adding Open (' +
+                    currentMount.MountPoint.split('/').pop() +
+                    ') for ',
+                remote
+            )
+            const showLocationItem = await MenuItem.new({
+                id: `open-${remote}-${currentMount.MountPoint}`,
+
+                text: 'Open (' + currentMount.MountPoint.split('/').pop() + ')',
+                action: async () => {
+                    console.log(
+                        '[parseRemotes] Opening (' + currentMount.MountPoint.split('/').pop() + ')'
+                    )
+                    try {
+                        await openPath(currentMount.MountPoint)
+                    } catch (error) {
+                        Sentry.captureException(error)
+                        console.error('Error opening path:', error)
+                        await message(`Failed to open ${currentMount.MountPoint} (${error})`, {
+                            title: 'Open Error',
+                            kind: 'error',
+                        })
+                    }
+                },
+            })
+            submenuItems.push(showLocationItem)
         }
 
         parsedRemotes[remote] = submenuItems

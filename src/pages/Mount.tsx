@@ -164,7 +164,7 @@ export default function Mount() {
                 (!('VolumeName' in _mountOptions) || !_mountOptions.VolumeName) &&
                 ['windows', 'macos'].includes(platform())
             ) {
-                _mountOptions.VolumeName = `${source.split(sep()).pop()}${Math.random().toString(36).substring(2, 3).toUpperCase()}`
+                _mountOptions.VolumeName = `${source.split(sep()).pop()}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
             }
 
             let directoryExists: boolean | undefined
@@ -220,6 +220,8 @@ export default function Mount() {
             })
 
             setIsMounted(true)
+
+            await triggerTrayRebuild()
         } catch (err) {
             console.error('[Mount] Failed to start mount:', err)
             const errorMessage =

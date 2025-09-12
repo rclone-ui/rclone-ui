@@ -8,6 +8,7 @@ import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
 import { CronExpressionParser } from 'cron-parser'
 import { defaultOptions } from 'tauri-plugin-sentry-api'
+import { isDirectoryEmpty } from './lib/fs'
 import { validateLicense } from './lib/license'
 import notify from './lib/notify'
 import {
@@ -221,15 +222,18 @@ async function startRclone() {
 
 async function startupMounts() {
     const remoteConfigList = usePersistedStore.getState().remoteConfigList
+    const remotes = useStore.getState().remotes
 
-    if (!remoteConfigList) {
-        return
-    }
-
-    for (const remote in remoteConfigList) {
+    for (const remote in remotes) {
         const remoteConfig = remoteConfigList[remote]
+        if (!remoteConfig) continue
         if (remoteConfig.mountOnStart && remoteConfig.defaultMountPoint) {
             try {
+                const isEmpty = await isDirectoryEmpty(remoteConfig.defaultMountPoint)
+                if (!isEmpty) {
+                    continue
+                }
+
                 await mountRemote({
                     remotePath: `${remote}:${remoteConfig?.defaultRemotePath || ''}`,
                     mountPoint: remoteConfig.defaultMountPoint,

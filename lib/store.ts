@@ -32,8 +32,6 @@ interface State {
     rcloneAuth: string
     rcloneAuthHeader: string
 
-    mountedRemotes: Record<string, string>
-
     serveList: { pid: number; protocol: string; remote: string }[]
     setServeList: (serve: { pid: number; protocol: string; remote: string }) => void
     removeServeList: (pid: number) => void
@@ -125,8 +123,6 @@ export const useStore = create<State>()(
             rcloneLoaded: false,
             rcloneAuth: '',
             rcloneAuthHeader: '',
-
-            mountedRemotes: {},
 
             serveList: [],
             setServeList: (serve: { pid: number; protocol: string; remote: string }) =>
