@@ -14,6 +14,10 @@ const SUPPORTED_BACKENDS = [
     'ftp',
     'azurefiles',
     'azureblob',
+    'gcs',
+    'protondrive',
+    'box',
+    'webdav',
 ]
 
 function getAuthHeader() {

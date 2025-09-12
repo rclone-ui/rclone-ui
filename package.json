@@ -1,7 +1,7 @@
 {
     "name": "s-tray",
     "private": true,
-    "version": "1.8.2",
+    "version": "1.9.0",
     "type": "module",
     "scripts": {
         "dev": "node scripts/buildExternal.js && vite",
