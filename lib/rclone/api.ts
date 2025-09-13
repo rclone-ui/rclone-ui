@@ -18,6 +18,7 @@ const SUPPORTED_BACKENDS = [
     'protondrive',
     'box',
     'webdav',
+    'onedrive',
 ]
 
 function getAuthHeader() {
