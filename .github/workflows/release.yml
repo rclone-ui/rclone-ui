@@ -135,7 +135,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
           releaseBody: "<img width=\"1645\" height=\"626\" alt=\"Rclone UI\" src=\"https://github.com/user-attachments/assets/539c0b90-fee1-487e-879a-6a9168a44508\" />\n\n# Rclone UI v__VERSION__\n- Bug squashing & improvements.\n\n**See the assets to download this version and install.**"
-          assetNamePattern: '[name]_[platform]_[arch][ext]'
+          assetNamePattern: '[name]_[arch][ext]'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
