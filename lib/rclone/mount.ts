@@ -4,7 +4,6 @@ import { exists, writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
-import { exit } from '@tauri-apps/plugin-process'
 import { Command } from '@tauri-apps/plugin-shell'
 
 export async function needsMountPlugin() {
@@ -37,9 +36,9 @@ export async function dialogGetMountPlugin() {
     if (currentPlatform === 'macos') {
         // download fuse-t or osxfuse
         const wantsDownload = await ask(
-            "Fuse-t is required on macOS to mount remotes. You can open rclone UI again once you're done with the installation.",
+            "Fuse-t is required on macOS to mount remotes. You can continue the operation once you're done with the installation.",
             {
-                title: 'Mount plugin not installed',
+                title: 'Fuse-t not installed',
                 kind: 'warning',
                 okLabel: 'Download',
                 cancelLabel: 'Cancel',
@@ -52,15 +51,14 @@ export async function dialogGetMountPlugin() {
             const installer = await (await fetch(fuseInstallerUrl)).arrayBuffer()
             await writeFile(localPath, new Uint8Array(installer))
             await revealItemInDir(localPath)
-            return await exit(0)
         }
     }
     if (currentPlatform === 'windows') {
         // download winfsp
         const wantsDownload = await ask(
-            "WinFsp is required on Windows to mount remotes. You can open rclone UI again once you're done with the installation.",
+            "WinFsp is required on Windows to mount remotes. You can continue the operation once you're done with the installation.",
             {
-                title: 'Mount plugin not installed',
+                title: 'WinFsp not installed',
                 kind: 'warning',
                 okLabel: 'Download',
                 cancelLabel: 'Cancel',
@@ -73,7 +71,6 @@ export async function dialogGetMountPlugin() {
             const installer = await (await fetch(winFspInstallerUrl)).arrayBuffer()
             await writeFile(localPath, new Uint8Array(installer))
             await revealItemInDir(localPath)
-            return await exit(0)
         }
     }
 }
