@@ -294,6 +294,10 @@ export async function listJobs() {
             .map((t: any) => Number(t.group.split('/')[1]))
             .sort((a: number, b: number) => a - b)
     )
+    console.log('[listJobs] activeJobIds', activeJobIds.size)
+
+    const isWindows = platform() === 'windows'
+    console.log('[listJobs] isWindows', isWindows)
 
     for (const jobId of activeJobIds) {
         const job = await fetch(`http://localhost:5572/core/stats?group=job/${jobId}`, {
@@ -305,6 +309,7 @@ export async function listJobs() {
         const dstFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.dstFs
 
         if (!srcFs) {
+            console.log('[listJobs] srcFs not found', jobId)
             continue
         }
 
@@ -318,8 +323,8 @@ export async function listJobs() {
             progress: Math.round((job.bytes / job.totalBytes) * 100),
             fatal: job.fatalError,
 
-            srcFs,
-            dstFs,
+            srcFs: isWindows ? srcFs.replace(/^(\/\/\?\/|\\\\\?\\)/, '') : srcFs,
+            dstFs: isWindows ? dstFs.replace(/^(\/\/\?\/|\\\\\?\\)/, '') : dstFs,
         })
     }
 
@@ -341,6 +346,7 @@ export async function listJobs() {
         const dstFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.dstFs
 
         if (!srcFs) {
+            console.log('[listJobs] srcFs not found', jobId)
             continue
         }
 
@@ -354,8 +360,8 @@ export async function listJobs() {
             progress: Math.round((job.bytes / job.totalBytes) * 100),
             fatal: job.fatalError,
 
-            srcFs,
-            dstFs,
+            srcFs: isWindows ? srcFs.replace(/^(\/\/\?\/|\\\\\?\\)/, '') : srcFs,
+            dstFs: isWindows ? dstFs.replace(/^(\/\/\?\/|\\\\\?\\)/, '') : dstFs,
         })
     }
 
