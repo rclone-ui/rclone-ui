@@ -103,7 +103,7 @@ checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 
 [[package]]
 name = "app"
-version = "1.9.2"
+version = "1.9.3"
 dependencies = [
  "cocoa",
  "fix-path-env",
