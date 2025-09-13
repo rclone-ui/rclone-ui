@@ -6,7 +6,7 @@ import { sep } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readDir } from '@tauri-apps/plugin-fs'
 import { ArrowDownUp, FolderOpen, XIcon } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDebounce } from 'use-debounce'
 import { isRemotePath } from '../../lib/fs'
 import { listPath } from '../../lib/rclone/api'
@@ -150,11 +150,9 @@ export function MultiPathFinder({
         setDestPath(temp)
     }
 
-    const isSwapDisabled = useMemo(() => {
-        return sourcePaths.length !== 1 || !destPath
-    }, [sourcePaths, destPath])
+    const isSwapDisabled = sourcePaths.length !== 1 || !destPath
 
-    const swapDisabledReason = useMemo(() => {
+    const swapDisabledReason = (() => {
         if (sourcePaths.length === 0) {
             return 'No source selected'
         }
@@ -165,7 +163,7 @@ export function MultiPathFinder({
             return 'No destination selected'
         }
         return 'Swap sources'
-    }, [sourcePaths, destPath])
+    })()
 
     return (
         <div className="flex flex-col gap-8">
@@ -242,103 +240,96 @@ export function PathField({
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const [error, setError] = useState<string | null>(null)
 
-    const visibleSuggestions = useMemo(() => {
-        if (!showSuggestions) {
-            return []
-        }
-        return suggestions
-    }, [suggestions, showSuggestions])
+    const visibleSuggestions = showSuggestions ? suggestions : []
 
-    const fetchSuggestions = useCallback(
-        async (searchPath: string) => {
-            setIsLoading(true)
-            setError(null)
+    async function fetchSuggestions(searchPath: string) {
+        setIsLoading(true)
+        setError(null)
 
-            // console.log('fetching suggestions for', path, field)
+        // console.log('fetching suggestions for', path, field)
 
-            try {
-                // If path is empty, show list of remotes
-                if (!searchPath) {
-                    const remoteItems = remotes.map((remote) => ({
-                        IsDir: true,
-                        Name: remote + ':/',
-                        Path: remote + ':/',
-                    }))
-                    setSuggestions(remoteItems)
-                    return
-                }
+        let cleanedPath = searchPath
+        const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
 
-                // Fetch suggestions for local paths
-                if (!isRemotePath(searchPath)) {
-                    let localEntries: Awaited<ReturnType<typeof readDir>> = []
-                    let cleanedPath = searchPath
+        try {
+            // If path is empty, show list of remotes
+            if (!searchPath) {
+                const remoteItems = remotes.map((remote) => ({
+                    IsDir: true,
+                    Name: remote + ':/',
+                    Path: remote + ':/',
+                }))
+                setSuggestions(remoteItems)
+                setIsLoading(false)
+                return
+            }
 
+            // Fetch suggestions for local paths
+            if (!isRemotePath(searchPath)) {
+                let localEntries: Awaited<ReturnType<typeof readDir>> = []
+
+                try {
+                    localEntries = await readDir(cleanedPath)
+                } catch (err) {
+                    // most likely due to the path being a file
+                    console.error('Failed to fetch local suggestions:', err)
                     try {
+                        // we also retry in case the last part of the path is wrong
+                        cleanedPath = searchPath.split(sep()).slice(0, -1).join(sep())
                         localEntries = await readDir(cleanedPath)
                     } catch (err) {
-                        // most likely due to the path being a file
-                        console.error('Failed to fetch local suggestions:', err)
-                        try {
-                            // we also retry in case the last part of the path is wrong
-                            cleanedPath = searchPath.split(sep()).slice(0, -1).join(sep())
-                            localEntries = await readDir(cleanedPath)
-                        } catch (err) {
-                            console.error('Failed to fetch local suggestions (again):', err)
-                        }
+                        console.error('Failed to fetch local suggestions (again):', err)
                     }
-
-                    const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
-
-                    const localSuggestions = localEntries
-                        .filter((entry) => !entry.isSymlink)
-                        .map((entry) => ({
-                            IsDir: entry.isDirectory,
-                            Name: entry.name,
-                            Path: `${cleanedPath}${extraSlash}${entry.name}`,
-                        }))
-
-                    setSuggestions(localSuggestions)
-
-                    return
                 }
 
-                // Split the path into remote and path parts
-                const [remote, ...pathParts] = searchPath.split(':/')
-                if (!remote) {
-                    throw new Error('Invalid remote path format')
-                }
+                const localSuggestions = localEntries
+                    .filter((entry) => !entry.isSymlink)
+                    .map((entry) => ({
+                        IsDir: entry.isDirectory,
+                        Name: entry.name,
+                        Path: `${cleanedPath}${extraSlash}${entry.name}`,
+                    }))
 
-                let remotePath = pathParts.join('/')
-                if (remotePath.endsWith('/')) {
-                    remotePath = remotePath.slice(0, -1)
-                }
-
-                const items = await listPath(remote, remotePath, {
-                    noModTime: true,
-                    noMimeType: true,
-                })
-
-                const suggestionsWithRemote = items.map((item) => ({
-                    IsDir: item.IsDir,
-                    Name: item.Path,
-                    Path: `${remote}:/${item.Path}`,
-                }))
-
-                setSuggestions(suggestionsWithRemote)
-            } catch (err) {
-                console.error('Failed to fetch suggestions:', err)
-                const errorMessage =
-                    err instanceof Error ? err.message : 'Failed to fetch suggestions'
-                setError(errorMessage)
-                setSuggestions([])
-            } finally {
+                setSuggestions(localSuggestions)
                 setIsLoading(false)
+                return
             }
-        },
-        [remotes]
-    )
 
-    const handleBrowse = useCallback(async () => {
+            // Split the path into remote and path parts
+            const [remote, ...pathParts] = searchPath.split(':/')
+            if (!remote) {
+                // throw new Error('Invalid remote path format')
+                setIsLoading(false)
+                return
+            }
+
+            let remotePath = pathParts.join('/')
+            if (remotePath.endsWith('/')) {
+                remotePath = remotePath.slice(0, -1)
+            }
+
+            const items = await listPath(remote, remotePath, {
+                noModTime: true,
+                noMimeType: true,
+            })
+
+            const suggestionsWithRemote = items.map((item) => ({
+                IsDir: item.IsDir,
+                Name: item.Path,
+                Path: `${remote}:/${item.Path}`,
+            }))
+
+            setSuggestions(suggestionsWithRemote)
+        } catch (err) {
+            console.error('Failed to fetch suggestions:', err)
+            const errorMessage = err instanceof Error ? err.message : 'Failed to fetch suggestions'
+            setError(errorMessage)
+            setSuggestions([])
+        }
+        setIsLoading(false)
+    }
+
+    async function handleBrowse() {
         try {
             await lockWindows()
             const selected = await open({
@@ -356,7 +347,7 @@ export function PathField({
             console.error('Failed to open folder picker:', err)
             setError('Failed to open folder picker')
         }
-    }, [path, setPath])
+    }
 
     useEffect(() => {
         let cancelTimeout: ReturnType<typeof setTimeout> | null = null
@@ -379,6 +370,7 @@ export function PathField({
                 cancelTimeout = null
             }
         }
+        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
     }, [debouncedPath, fetchSuggestions, showSuggestions])
 
     return (
@@ -460,7 +452,7 @@ export function MultiPathField({
 
     const fieldRef = useRef<HTMLInputElement>(null)
 
-    const isMultiple = useMemo(() => paths.length > 1, [paths])
+    const isMultiple = paths.length > 1
 
     const [suggestions, setSuggestions] = useState<
         {
@@ -472,128 +464,120 @@ export function MultiPathField({
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const [error, setError] = useState<string | null>(null)
 
-    const fetchSuggestions = useCallback(
-        async (path: string) => {
-            setIsLoading(true)
-            setError(null)
+    async function fetchSuggestions(path: string) {
+        setIsLoading(true)
+        setError(null)
 
-            // console.log('fetching suggestions for', path, field)
+        // console.log('fetching suggestions for', path, field)
 
-            try {
-                // If path is empty, show list of remotes
-                if (!path) {
-                    const remoteItems = remotes.map((remote) => ({
-                        IsDir: true,
-                        Name: remote + ':/',
-                        Path: remote + ':/',
-                    }))
-                    setSuggestions(remoteItems)
-                    return
-                }
+        let cleanedPath = path
+        const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
 
-                // Fetch suggestions for local paths
-                if (!isRemotePath(path)) {
-                    let localEntries: Awaited<ReturnType<typeof readDir>> = []
-                    let cleanedPath = path
+        try {
+            // If path is empty, show list of remotes
+            if (!path) {
+                const remoteItems = remotes.map((remote) => ({
+                    IsDir: true,
+                    Name: remote + ':/',
+                    Path: remote + ':/',
+                }))
+                setSuggestions(remoteItems)
+                setIsLoading(false)
+                return
+            }
 
+            // Fetch suggestions for local paths
+            if (!isRemotePath(path)) {
+                let localEntries: Awaited<ReturnType<typeof readDir>> = []
+
+                try {
+                    localEntries = await readDir(cleanedPath)
+                } catch (err) {
+                    // most likely due to the path being a file
+                    console.error('Failed to fetch local suggestions:', err)
                     try {
+                        // we also retry in case the last part of the path is wrong
+                        cleanedPath = path.split(sep()).slice(0, -1).join(sep())
                         localEntries = await readDir(cleanedPath)
                     } catch (err) {
-                        // most likely due to the path being a file
-                        console.error('Failed to fetch local suggestions:', err)
-                        try {
-                            // we also retry in case the last part of the path is wrong
-                            cleanedPath = path.split(sep()).slice(0, -1).join(sep())
-                            localEntries = await readDir(cleanedPath)
-                        } catch (err) {
-                            console.error('Failed to fetch local suggestions (again):', err)
-                        }
+                        console.error('Failed to fetch local suggestions (again):', err)
                     }
-
-                    const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
-
-                    const localSuggestions = localEntries
-                        .filter((entry) => !entry.isSymlink)
-                        .map((entry) => ({
-                            IsDir: entry.isDirectory,
-                            Name: entry.name,
-                            Path: `${cleanedPath}${extraSlash}${entry.name}`,
-                        }))
-
-                    setSuggestions(localSuggestions)
-
-                    return
                 }
 
-                // Split the path into remote and path parts
-                const [remote, ...pathParts] = path.split(':/')
-                if (!remote) {
-                    throw new Error('Invalid remote path format')
-                }
+                const localSuggestions = localEntries
+                    .filter((entry) => !entry.isSymlink)
+                    .map((entry) => ({
+                        IsDir: entry.isDirectory,
+                        Name: entry.name,
+                        Path: `${cleanedPath}${extraSlash}${entry.name}`,
+                    }))
 
-                let remotePath = pathParts.join('/')
-                if (remotePath.endsWith('/')) {
-                    remotePath = remotePath.slice(0, -1)
-                }
-
-                const items = await listPath(remote, remotePath, {
-                    noModTime: true,
-                    noMimeType: true,
-                })
-
-                const suggestionsWithRemote = items.map((item) => ({
-                    IsDir: item.IsDir,
-                    Name: item.Path,
-                    Path: `${remote}:/${item.Path}`,
-                }))
-
-                setSuggestions(suggestionsWithRemote)
-            } catch (err) {
-                console.error('Failed to fetch suggestions:', err)
-                const errorMessage =
-                    err instanceof Error ? err.message : 'Failed to fetch suggestions'
-                setError(errorMessage)
-                setSuggestions([])
-            } finally {
+                setSuggestions(localSuggestions)
                 setIsLoading(false)
+                return
             }
-        },
-        [remotes]
-    )
 
-    const handleBrowse = useCallback(
-        async (type: 'file' | 'folder') => {
-            try {
-                await lockWindows()
-                const selected = await open({
-                    directory: type === 'folder',
-                    multiple: type === 'file',
-                    defaultPath: paths?.[0],
-                    title: type === 'file' ? 'Select one or more files' : 'Select a folder',
-                })
-                await unlockWindows()
-                if (selected) {
-                    if (typeof selected === 'string') {
-                        setPaths([selected])
-                    } else {
-                        setPaths(selected)
-                    }
-                }
-            } catch (err) {
-                Sentry.captureException(err)
-                console.error('Failed to open folder picker:', err)
-                setError('Failed to open folder picker')
+            // Split the path into remote and path parts
+            const [remote, ...pathParts] = path.split(':/')
+            if (!remote) {
+                // throw new Error('Invalid remote path format')
+                setIsLoading(false)
+                return
             }
-        },
-        [paths, setPaths]
-    )
 
-    const visibleSuggestions = useMemo(() => {
-        if (!showSuggestions) {
-            return []
+            let remotePath = pathParts.join('/')
+            if (remotePath.endsWith('/')) {
+                remotePath = remotePath.slice(0, -1)
+            }
+
+            const items = await listPath(remote, remotePath, {
+                noModTime: true,
+                noMimeType: true,
+            })
+
+            const suggestionsWithRemote = items.map((item) => ({
+                IsDir: item.IsDir,
+                Name: item.Path,
+                Path: `${remote}:/${item.Path}`,
+            }))
+
+            setSuggestions(suggestionsWithRemote)
+        } catch (err) {
+            console.error('Failed to fetch suggestions:', err)
+            const errorMessage = err instanceof Error ? err.message : 'Failed to fetch suggestions'
+            setError(errorMessage)
+            setSuggestions([])
         }
-        return suggestions
-    }, [suggestions, showSuggestions])
+        setIsLoading(false)
+    }
+
+    async function handleBrowse(type: 'file' | 'folder') {
+        const defaultPath = paths?.[0]
+        const title = type === 'file' ? 'Select one or more files' : 'Select a folder'
+        try {
+            await lockWindows()
+            const selected = await open({
+                directory: type === 'folder',
+                multiple: type === 'file',
+                defaultPath: defaultPath,
+                title: title,
+            })
+            await unlockWindows()
+            if (selected) {
+                if (typeof selected === 'string') {
+                    setPaths([selected])
+                } else {
+                    setPaths(selected)
+                }
+            }
+        } catch (err) {
+            Sentry.captureException(err)
+            console.error('Failed to open folder picker:', err)
+            setError('Failed to open folder picker')
+        }
+    }
+
+    const visibleSuggestions = showSuggestions ? suggestions : []
 
     useEffect(() => {
         if (!showSuggestions) {
@@ -605,6 +589,7 @@ export function MultiPathField({
         if (paths?.[0]) {
             fetchSuggestions(paths?.[0])
         }
+        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
     }, [paths, fetchSuggestions, showSuggestions, isMultiple])
 
     useEffect(() => {
@@ -631,6 +616,7 @@ export function MultiPathField({
                 cancelTimeout = null
             }
         }
+        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
     }, [debouncedPath, fetchSuggestions, showSuggestions, isMultiple])
 
     return (

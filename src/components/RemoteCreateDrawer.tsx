@@ -12,7 +12,7 @@ import {
 import { message } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { ChevronDown, ChevronUp, RefreshCcwIcon } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createRemote } from '../../lib/rclone/api'
 import { getBackends } from '../../lib/rclone/api'
 import { useStore } from '../../lib/store'
@@ -29,20 +29,24 @@ export default function RemoteCreateDrawer({
     const [isSaving, setIsSaving] = useState(false)
     const [backends, setBackends] = useState<Backend[]>([])
 
-    useEffect(() => {
-        getBackends().then((b) => {
-            setBackends(b)
-        })
-    }, [])
+    const currentBackend = config.type ? backends.find((b) => b.Name === config.type) : null
 
-    const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const currentBackendFields = currentBackend
+        ? (currentBackend.Options as BackendOption[]).filter(
+              (opt) =>
+                  !opt.Provider ||
+                  (opt.Provider.includes(config.provider) && !opt.Provider.startsWith('!'))
+          ) || []
+        : []
+
+    function handleTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
         const newType = e.target.value
 
         // preserve name when resetting type
         setConfig((prev) => ({ name: prev.name, type: newType }))
     }
 
-    const renderField = (option: BackendOption) => {
+    function renderField(option: BackendOption) {
         // Skip rendering if the field should be hidden
         if (option.Hide !== 0) return null
 
@@ -151,26 +155,25 @@ export default function RemoteCreateDrawer({
         }
     }
 
-    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
         setIsSaving(true)
 
-        try {
-            const formData = new FormData(e.currentTarget)
-            const data: Record<string, string | boolean> = {}
+        const formData = new FormData(e.currentTarget)
+        const data: Record<string, string | boolean> = {}
 
-            for (const [key, value] of formData.entries()) {
-                if (value.toString().trim() === '') continue
-                if (
-                    e.currentTarget[key] instanceof HTMLInputElement &&
-                    e.currentTarget[key].type === 'checkbox'
-                ) {
-                    data[key] = (e.currentTarget[key] as HTMLInputElement).checked
-                } else {
-                    data[key] = value.toString()
-                }
+        for (const [key, value] of formData.entries()) {
+            if (value.toString().trim() === '') continue
+            if (
+                e.currentTarget[key] instanceof HTMLInputElement &&
+                e.currentTarget[key].type === 'checkbox'
+            ) {
+                data[key] = (e.currentTarget[key] as HTMLInputElement).checked
+            } else {
+                data[key] = value.toString()
             }
-
+        }
+        try {
             const name = data.name as string
             const type = data.type as string
             const parameters = Object.fromEntries(
@@ -187,27 +190,15 @@ export default function RemoteCreateDrawer({
                 title: 'Could not create remote',
                 kind: 'error',
             })
-        } finally {
-            setIsSaving(false)
         }
+        setIsSaving(false)
     }
 
-    const currentBackend = useMemo(() => {
-        if (!config.type) return null
-        return backends.find((b) => b.Name === config.type)
-    }, [config, backends])
-
-    const currentBackendFields = useMemo(() => {
-        if (!currentBackend) return []
-        const options =
-            (currentBackend?.Options as BackendOption[]).filter(
-                (opt) =>
-                    !opt.Provider ||
-                    (opt.Provider.includes(config.provider) && !opt.Provider.startsWith('!'))
-            ) || []
-
-        return options
-    }, [config.provider, currentBackend])
+    useEffect(() => {
+        getBackends().then((b) => {
+            setBackends(b)
+        })
+    }, [])
 
     return (
         <Drawer

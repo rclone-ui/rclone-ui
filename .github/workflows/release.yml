@@ -132,9 +132,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          tagName: v__VERSION__
           releaseName: 'v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseBody: "<img width=\"1645\" height=\"626\" alt=\"Rclone UI\" src=\"https://github.com/user-attachments/assets/539c0b90-fee1-487e-879a-6a9168a44508\" />\n\n# Rclone UI v__VERSION__\n- Bug squashing & improvements.\n\n**See the assets to download this version and install.**"
+          assetNamePattern: '[name]_[platform]_[arch][ext]'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

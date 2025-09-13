@@ -433,6 +433,7 @@ async function handleTask(task: ScheduledTask) {
             currentRunId: undefined,
             error: err instanceof Error ? err.message : 'Unknown error',
         })
+    } finally {
     }
 }
 

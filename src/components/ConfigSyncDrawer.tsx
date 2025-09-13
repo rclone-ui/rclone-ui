@@ -12,7 +12,7 @@ import { sep } from '@tauri-apps/api/path'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { UploadIcon } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { usePersistedStore } from '../../lib/store'
 import type { ConfigFile } from '../../types/config'
 
@@ -31,65 +31,77 @@ export default function ConfigSyncDrawer({
 
     const [isSaving, setIsSaving] = useState(false)
 
-    const handleCreate = useCallback(
-        async ({
-            label,
-            pass,
-            isEncrypted,
-            passCommand,
-            sync,
-            isPasswordCommand,
-        }: {
-            label?: string
-            sync?: string
-            isEncrypted?: boolean
-            pass?: string
-            passCommand?: string
-            isPasswordCommand?: boolean
-        }) => {
-            try {
-                if (!label) {
-                    throw new Error('Label is required')
-                }
+    async function handleCreate({
+        label,
+        pass,
+        isEncrypted,
+        passCommand,
+        sync,
+        isPasswordCommand,
+    }: {
+        label?: string
+        sync?: string
+        isEncrypted?: boolean
+        pass?: string
+        passCommand?: string
+        isPasswordCommand?: boolean
+    }) {
+        if (!label) {
+            await message('Label is required', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                if (!sync) {
-                    throw new Error('Path is required')
-                }
+        if (!sync) {
+            await message('Path is required', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                if (isEncrypted && isPasswordCommand && !passCommand) {
-                    throw new Error('Password command is required for encrypted configs')
-                }
+        if (isEncrypted && isPasswordCommand && !passCommand) {
+            await message('Password command is required for encrypted configs', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                setIsSaving(true)
+        setIsSaving(true)
 
-                const generatedId = crypto.randomUUID()
+        const savedPass = isPasswordCommand ? undefined : pass
+        const savedPassCommand = isPasswordCommand ? passCommand : undefined
+        const savedIsEncrypted = isEncrypted || false
 
-                usePersistedStore.getState().addConfigFile({
-                    id: generatedId,
-                    label,
-                    isEncrypted: isEncrypted || false,
-                    pass: isPasswordCommand ? undefined : pass,
-                    passCommand: isPasswordCommand ? passCommand : undefined,
-                    sync,
-                })
+        try {
+            const generatedId = crypto.randomUUID()
 
-                onClose()
-            } catch (error) {
-                console.error('[handleCreate] failed to save config', error)
-                await message(
-                    error instanceof Error ? error.message : 'An unknown error occurred',
-                    {
-                        title: 'Failed to save config',
-                        kind: 'error',
-                        okLabel: 'OK',
-                    }
-                )
-            } finally {
-                setIsSaving(false)
-            }
-        },
-        [onClose]
-    )
+            usePersistedStore.getState().addConfigFile({
+                id: generatedId,
+                label,
+                isEncrypted: savedIsEncrypted,
+                pass: savedPass,
+                passCommand: savedPassCommand,
+                sync,
+            })
+
+            onClose()
+        } catch (error) {
+            console.error('[handleCreate] failed to save config', error)
+            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+        }
+        setIsSaving(false)
+    }
 
     return (
         <Drawer
@@ -209,6 +221,14 @@ export default function ConfigSyncDrawer({
                                                 variant="light"
                                                 size="sm"
                                                 onPress={async () => {
+                                                    const getSavedLabel = (
+                                                        a: any,
+                                                        b: any,
+                                                        c: any
+                                                    ) => {
+                                                        return a || b || c
+                                                    }
+
                                                     try {
                                                         let selectedFolder = await open({
                                                             directory: true,
@@ -228,9 +248,15 @@ export default function ConfigSyncDrawer({
                                                         }
 
                                                         if (!(await exists(selectedFolder))) {
-                                                            throw new Error(
-                                                                'The selected path does not exist'
+                                                            await message(
+                                                                'The selected path does not exist',
+                                                                {
+                                                                    title: 'Failed to sync config',
+                                                                    kind: 'error',
+                                                                    okLabel: 'OK',
+                                                                }
                                                             )
+                                                            return
                                                         }
 
                                                         const configPath =
@@ -241,23 +267,36 @@ export default function ConfigSyncDrawer({
                                                         try {
                                                             content = await readTextFile(configPath)
                                                         } catch {
-                                                            throw new Error(
-                                                                'Could not find an rclone.conf file in the selected folder'
+                                                            await message(
+                                                                'Could not find an rclone.conf file in the selected folder',
+                                                                {
+                                                                    title: 'Failed to sync config',
+                                                                    kind: 'error',
+                                                                    okLabel: 'OK',
+                                                                }
                                                             )
+                                                            return
                                                         }
 
                                                         if (!content) {
-                                                            throw new Error(
-                                                                'Empty rclone.conf file'
+                                                            await message(
+                                                                'Empty rclone.conf file',
+                                                                {
+                                                                    title: 'Failed to sync config',
+                                                                    kind: 'error',
+                                                                    okLabel: 'OK',
+                                                                }
                                                             )
+                                                            return
                                                         }
 
                                                         setConfig({
                                                             ...config,
-                                                            label:
-                                                                config.label ||
-                                                                configPath.split(sep()).pop() ||
-                                                                'New Config',
+                                                            label: getSavedLabel(
+                                                                config.label,
+                                                                configPath.split(sep()).pop(),
+                                                                'New Config'
+                                                            ),
                                                             sync: selectedFolder,
                                                         })
                                                     } catch (error) {

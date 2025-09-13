@@ -11,7 +11,7 @@ import {
     PlayIcon,
     WrenchIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
 import { isRemotePath } from '../../lib/fs'
@@ -57,93 +57,23 @@ export default function Sync() {
 
     const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
 
-    useEffect(() => {
-        setConfigOptionsJson(JSON.stringify(RCLONE_CONFIG_DEFAULTS, null, 2))
+    const buttonText = (() => {
+        if (isLoading) return 'STARTING...'
+        if (!source) return 'Please select a source path'
+        if (!dest) return 'Please select a destination path'
+        if (source === dest) return 'Source and destination cannot be the same'
+        if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        return 'START SYNC'
+    })()
 
-        return () => {
-            setConfigOptionsJson('{}')
-        }
-    }, [])
+    const buttonIcon = (() => {
+        if (isLoading) return
+        if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
+        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
+        return <PlayIcon className="w-5 h-5" />
+    })()
 
-    useEffect(() => {
-        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
-    }, [])
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
-    useEffect(() => {
-        const storeData = usePersistedStore.getState()
-
-        const sourceRemote = getRemoteName(source)
-        const destRemote = getRemoteName(dest)
-
-        let mergedSyncDefaults = {}
-        let mergedFilterDefaults = {}
-        let mergedConfigDefaults = {}
-
-        // Helper function to merge defaults from a remote
-        const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote) return
-
-            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
-
-            if (remoteConfig.syncDefaults) {
-                mergedSyncDefaults = {
-                    ...mergedSyncDefaults,
-                    ...remoteConfig.syncDefaults,
-                }
-            }
-
-            if (remoteConfig.filterDefaults) {
-                mergedFilterDefaults = {
-                    ...mergedFilterDefaults,
-                    ...remoteConfig.filterDefaults,
-                }
-            }
-
-            if (remoteConfig.configDefaults) {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...remoteConfig.configDefaults,
-                }
-            }
-        }
-
-        // Only merge defaults for remote paths
-        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
-        if (destRemote) mergeRemoteDefaults(destRemote)
-
-        if (Object.keys(mergedSyncDefaults).length > 0 && !syncOptionsLocked) {
-            setSyncOptionsJson(JSON.stringify(mergedSyncDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
-            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
-            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
-        }
-    }, [source, dest])
-
-    useEffect(() => {
-        let step: 'sync' | 'filter' | 'config' = 'sync'
-        try {
-            setSyncOptions(JSON.parse(syncOptionsJson))
-
-            step = 'filter'
-            setFilterOptions(JSON.parse(filterOptionsJson))
-
-            step = 'config'
-            setConfigOptions(JSON.parse(configOptionsJson))
-
-            setJsonError(null)
-        } catch (error) {
-            setJsonError(step)
-            console.error(`Error parsing ${step} options:`, error)
-        }
-    }, [syncOptionsJson, filterOptionsJson, configOptionsJson])
-
-    const handleStartSync = useCallback(async () => {
+    async function handleStartSync() {
         setIsLoading(true)
 
         if (!source || !dest) {
@@ -238,26 +168,95 @@ export default function Sync() {
                 title: 'Error',
                 kind: 'error',
             })
-        } finally {
-            setIsLoading(false)
         }
-    }, [source, dest, syncOptions, filterOptions, cronExpression, configOptions])
+        setIsLoading(false)
+    }
 
-    const buttonText = useMemo(() => {
-        if (isLoading) return 'STARTING...'
-        if (!source) return 'Please select a source path'
-        if (!dest) return 'Please select a destination path'
-        if (source === dest) return 'Source and destination cannot be the same'
-        if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        return 'START SYNC'
-    }, [isLoading, jsonError, source, dest])
+    useEffect(() => {
+        setConfigOptionsJson(JSON.stringify(RCLONE_CONFIG_DEFAULTS, null, 2))
 
-    const buttonIcon = useMemo(() => {
-        if (isLoading) return
-        if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
-        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5" />
-    }, [isLoading, jsonError, source, dest])
+        return () => {
+            setConfigOptionsJson('{}')
+        }
+    }, [])
+
+    useEffect(() => {
+        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
+    }, [])
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
+    useEffect(() => {
+        const storeData = usePersistedStore.getState()
+
+        const sourceRemote = getRemoteName(source)
+        const destRemote = getRemoteName(dest)
+
+        let mergedSyncDefaults = {}
+        let mergedFilterDefaults = {}
+        let mergedConfigDefaults = {}
+
+        // Helper function to merge defaults from a remote
+        const mergeRemoteDefaults = (remote: string | null) => {
+            if (!remote) return
+
+            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
+
+            if (remoteConfig.syncDefaults) {
+                mergedSyncDefaults = {
+                    ...mergedSyncDefaults,
+                    ...remoteConfig.syncDefaults,
+                }
+            }
+
+            if (remoteConfig.filterDefaults) {
+                mergedFilterDefaults = {
+                    ...mergedFilterDefaults,
+                    ...remoteConfig.filterDefaults,
+                }
+            }
+
+            if (remoteConfig.configDefaults) {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...remoteConfig.configDefaults,
+                }
+            }
+        }
+
+        // Only merge defaults for remote paths
+        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
+        if (destRemote) mergeRemoteDefaults(destRemote)
+
+        if (Object.keys(mergedSyncDefaults).length > 0 && !syncOptionsLocked) {
+            setSyncOptionsJson(JSON.stringify(mergedSyncDefaults, null, 2))
+        }
+
+        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
+            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
+        }
+
+        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
+            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
+        }
+    }, [source, dest])
+
+    useEffect(() => {
+        let step: 'sync' | 'filter' | 'config' = 'sync'
+        try {
+            setSyncOptions(JSON.parse(syncOptionsJson))
+
+            step = 'filter'
+            setFilterOptions(JSON.parse(filterOptionsJson))
+
+            step = 'config'
+            setConfigOptions(JSON.parse(configOptionsJson))
+
+            setJsonError(null)
+        } catch (error) {
+            setJsonError(step)
+            console.error(`Error parsing ${step} options:`, error)
+        }
+    }, [syncOptionsJson, filterOptionsJson, configOptionsJson])
 
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">

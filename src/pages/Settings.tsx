@@ -48,14 +48,7 @@ import {
     ServerIcon,
     Trash2Icon,
 } from 'lucide-react'
-import {
-    type DetailedHTMLProps,
-    type HTMLAttributes,
-    useCallback,
-    useEffect,
-    useRef,
-    useState,
-} from 'react'
+import { type DetailedHTMLProps, type HTMLAttributes, useEffect, useRef, useState } from 'react'
 import { revokeMachineLicense, validateLicense } from '../../lib/license'
 import { deleteRemote, getVersion as getCliVersion, getVersion } from '../../lib/rclone/api'
 import { getConfigPath, getDefaultPaths } from '../../lib/rclone/common'
@@ -269,7 +262,7 @@ function GeneralSection() {
     const [isWorkingUpdate, setIsWorkingUpdate] = useState(false)
     const [update, setUpdate] = useState<Update | null>(null)
 
-    const updateCallback = useCallback(async () => {
+    async function updateCallback() {
         if (!update) {
             try {
                 console.log('checking for updates')
@@ -300,9 +293,8 @@ function GeneralSection() {
             } catch (e) {
                 Sentry.captureException(e)
                 console.error(e)
-            } finally {
-                setIsWorkingUpdate(false)
             }
+            setIsWorkingUpdate(false)
             return
         }
 
@@ -355,7 +347,7 @@ function GeneralSection() {
         }
 
         await getCurrentWindow().emit('close-app')
-    }, [update])
+    }
 
     useEffect(() => {
         // needed since the first value from the persisted store is undefined
@@ -661,9 +653,8 @@ function LicenseSection() {
                                         okLabel: 'Ok',
                                         cancelLabel: '',
                                     })
-                                } finally {
-                                    setIsActivating(false)
                                 }
+                                setIsActivating(false)
 
                                 await message('Your license has been successfully activated.', {
                                     title: 'Congrats!',
@@ -720,9 +711,8 @@ function LicenseSection() {
                                         okLabel: 'Ok',
                                         cancelLabel: '',
                                     })
-                                } finally {
-                                    setIsRevoking(false)
                                 }
+                                setIsRevoking(false)
 
                                 await message('Your license has been successfully deactivated.', {
                                     title: 'License deactivated',
@@ -929,10 +919,9 @@ function ConfigSection() {
 
     const [isExportingId, setIsExportingId] = useState('')
 
-    const exportConfig = useCallback(async ({ id, label }: { id: string; label: string }) => {
+    async function exportConfig({ id, label }: { id: string; label: string }) {
+        setIsExportingId(id)
         try {
-            setIsExportingId(id)
-
             const configPath = await getConfigPath({ id: id, validate: true })
             const text = await readTextFile(configPath)
 
@@ -959,10 +948,9 @@ function ConfigSection() {
                 kind: 'error',
                 okLabel: 'OK',
             })
-        } finally {
-            setIsExportingId('')
         }
-    }, [])
+        setIsExportingId('')
+    }
 
     return (
         <div className="flex flex-col gap-4">
@@ -1177,7 +1165,7 @@ function AboutSection() {
     const isLoadingLogs = useRef(false)
     const [last30Lines, setLast30Lines] = useState<string[]>([])
 
-    const fetchInfo = useCallback(async () => {
+    async function fetchInfo() {
         const defaultPaths = await getDefaultPaths()
         const version = await getVersion()
         const dirs = {
@@ -1205,24 +1193,34 @@ function AboutSection() {
                 isEncrypted: currentConfig?.isEncrypted!,
             },
         }
-    }, [currentConfig])
+    }
 
-    const fetchLogs = useCallback(async (logFilePath: string) => {
+    async function fetchLogs(logFilePath: string) {
         if (isLoadingLogs.current) {
             return []
         }
         isLoadingLogs.current = true
         const logLines = await readTextFileLines(logFilePath)
-        const lines = []
-        for await (const line of logLines) {
-            lines.push(line)
+
+        const lines: string[] = []
+        const iterator = logLines[Symbol.asyncIterator]()
+        let result = await iterator.next()
+
+        while (!result.done) {
+            lines.push(result.value)
+            if (lines.length > 35) {
+                lines.splice(0, 5)
+            }
+            result = await iterator.next()
         }
+
         isLoadingLogs.current = false
-        return lines.slice(-30)
-    }, [])
+        return lines
+    }
 
     useEffect(() => {
         fetchInfo().then(setInfo)
+        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
     }, [fetchInfo])
 
     useEffect(() => {
@@ -1233,6 +1231,7 @@ function AboutSection() {
             return
         }
         fetchLogs(info.dirs.appLog + '/Rclone UI.log').then(setLast30Lines)
+        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
     }, [fetchLogs, info, last30Lines.length])
 
     return (

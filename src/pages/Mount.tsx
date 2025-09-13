@@ -13,7 +13,7 @@ import {
     WavesLadderIcon,
     WrenchIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { isDirectoryEmpty } from '../../lib/fs'
 import {
@@ -142,35 +142,38 @@ export default function Mount() {
         }
     }, [mountOptionsJson, vfsOptionsJson, filterOptionsJson, configOptionsJson])
 
-    const handleStartMount = useCallback(async () => {
+    async function handleStartMount() {
         if (!dest || !source) return
 
         setIsLoading(true)
+
+        // Extract all conditional logic outside try/catch for React Compiler compatibility
+        const currentPlatform = platform()
+        const needsVolumeName = ['windows', 'macos'].includes(currentPlatform)
+        const _mountOptions = { ...mountOptions }
+
+        // Check if volume name exists and generate if needed - all outside try/catch
+        const hasVolumeName = 'VolumeName' in _mountOptions && _mountOptions.VolumeName
+        if (!hasVolumeName && needsVolumeName) {
+            const segments = source.split('/').filter(Boolean)
+            console.log('[Mount] segments', segments)
+
+            const sourcePath =
+                segments.length === 1 ? segments[0].replace(/:/g, '') : segments.pop()
+            console.log('[Mount] sourcePath', sourcePath)
+
+            _mountOptions.VolumeName = `${sourcePath}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
+        }
 
         try {
             const needsPlugin = await needsMountPlugin()
             if (needsPlugin) {
                 console.log('[Mount] Mount plugin not installed')
                 await dialogGetMountPlugin()
+                setIsLoading(false)
                 return
             }
             console.log('[Mount] Mount plugin installed')
-
-            const _mountOptions = { ...mountOptions }
-
-            if (
-                (!('VolumeName' in _mountOptions) || !_mountOptions.VolumeName) &&
-                ['windows', 'macos'].includes(platform())
-            ) {
-                const segments = source.split('/').filter(Boolean)
-                console.log('[Mount] segments', segments)
-
-                const sourcePath =
-                    segments.length === 1 ? segments[0].replace(/:/g, '') : segments.pop()
-                console.log('[Mount] sourcePath', sourcePath)
-
-                _mountOptions.VolumeName = `${sourcePath}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
-            }
 
             let directoryExists: boolean | undefined
 
@@ -193,6 +196,7 @@ export default function Mount() {
                         kind: 'error',
                     })
 
+                    setIsLoading(false)
                     return
                 }
 
@@ -211,6 +215,7 @@ export default function Mount() {
                             kind: 'error',
                         }
                     )
+                    setIsLoading(false)
                     return
                 }
             }
@@ -227,6 +232,7 @@ export default function Mount() {
             setIsMounted(true)
 
             await triggerTrayRebuild()
+            setIsLoading(false)
         } catch (err) {
             console.error('[Mount] Failed to start mount:', err)
             const errorMessage =
@@ -235,12 +241,11 @@ export default function Mount() {
                 title: 'Error',
                 kind: 'error',
             })
-        } finally {
             setIsLoading(false)
         }
-    }, [source, dest, mountOptions, vfsOptions, filterOptions, configOptions])
+    }
 
-    const buttonText = useMemo(() => {
+    const buttonText = (() => {
         if (isLoading) return 'MOUNTING...'
         if (isMounted) return 'MOUNTED'
         if (!source) return 'Please select a source path'
@@ -248,14 +253,14 @@ export default function Mount() {
         if (source === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
         return 'START MOUNT'
-    }, [isLoading, jsonError, source, dest, isMounted])
+    })()
 
-    const buttonIcon = useMemo(() => {
+    const buttonIcon = (() => {
         if (isLoading || isMounted) return
         if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-4 h-4" />
         return <PlayIcon className="w-4 h-4 fill-current" />
-    }, [isLoading, jsonError, source, dest, isMounted])
+    })()
 
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">

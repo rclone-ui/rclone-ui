@@ -311,6 +311,9 @@
                 },
                 {
                     "url": "https://checkout.link.com/**"
+                },
+                {
+                    "url": "https://**.sentry.io/**"
                 }
             ]
         },

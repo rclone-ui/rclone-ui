@@ -11,7 +11,7 @@ import {
 import { Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getConfigPath } from '../../lib/rclone/common'
 import { usePersistedStore } from '../../lib/store'
 
@@ -25,7 +25,7 @@ export default function ConfigEditDrawer({
     isOpen: boolean
 }) {
     const configFiles = usePersistedStore((state) => state.configFiles)
-    const initialConfig = useMemo(() => configFiles.find((c) => c.id === id), [configFiles, id])
+    const initialConfig = configFiles.find((c) => c.id === id)
 
     const [configLabel, setConfigLabel] = useState<string | null>(null)
     const [configPass, setConfigPass] = useState<string | null>(null)
@@ -35,72 +35,81 @@ export default function ConfigEditDrawer({
     const [isPasswordCommand, setIsPasswordCommand] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
-    const isEncrypted = useMemo(() => {
-        return configContent?.includes('RCLONE_ENCRYPT_V0:')
-    }, [configContent])
+    const isEncrypted = configContent?.includes('RCLONE_ENCRYPT_V0:')
 
-    const handleUpdate = useCallback(
-        async ({
-            label,
-            pass,
-            content,
-            passCommand,
-            isPasswordCommand,
-            isEncrypted,
-        }: {
-            label?: string
-            pass?: string
-            content?: string
-            passCommand?: string
-            isPasswordCommand?: boolean
-            isEncrypted?: boolean
-        }) => {
-            if (!id) return
+    async function handleUpdate({
+        label,
+        pass,
+        content,
+        passCommand,
+        isPasswordCommand,
+        isEncrypted,
+    }: {
+        label?: string
+        pass?: string
+        content?: string
+        passCommand?: string
+        isPasswordCommand?: boolean
+        isEncrypted?: boolean
+    }) {
+        if (!id) return
 
-            try {
-                if (!label) {
-                    throw new Error('Label is required')
-                }
+        if (!label) {
+            await message('Label is required', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                if (!content) {
-                    throw new Error('Content is required')
-                }
+        if (!content) {
+            await message('Content is required', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                if (isEncrypted && isPasswordCommand && !passCommand) {
-                    throw new Error('Password command is required for encrypted configs')
-                }
+        if (isEncrypted && isPasswordCommand && !passCommand) {
+            await message('Password command is required for encrypted configs', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                setIsSaving(true)
+        setIsSaving(true)
 
-                const configPath = await getConfigPath({ id: id, validate: true })
-                await writeTextFile(configPath, content)
+        const savedPass = isPasswordCommand ? undefined : pass
+        const savedPassCommand = isPasswordCommand ? passCommand : undefined
 
-                usePersistedStore.getState().updateConfigFile(id, {
-                    label,
-                    pass: isPasswordCommand ? undefined : pass,
-                    passCommand: isPasswordCommand ? passCommand : undefined,
-                    isEncrypted: isEncrypted,
-                })
+        try {
+            const configPath = await getConfigPath({ id: id, validate: true })
+            await writeTextFile(configPath, content)
 
-                onClose()
-            } catch (error) {
-                console.error('[handleUpdate] failed to save config', error)
-                await message(
-                    error instanceof Error ? error.message : 'An unknown error occurred',
-                    {
-                        title: 'Failed to save config',
-                        kind: 'error',
-                        okLabel: 'OK',
-                    }
-                )
-            } finally {
-                setIsSaving(false)
-            }
-        },
-        [id, onClose]
-    )
+            usePersistedStore.getState().updateConfigFile(id, {
+                label,
+                pass: savedPass,
+                passCommand: savedPassCommand,
+                isEncrypted: isEncrypted,
+            })
 
-    const initializeConfig = useCallback(async () => {
+            onClose()
+        } catch (error) {
+            console.error('[handleUpdate] failed to save config', error)
+            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+        }
+        setIsSaving(false)
+    }
+
+    async function initializeConfig() {
         if (!initialConfig) {
             return
         }
@@ -112,7 +121,7 @@ export default function ConfigEditDrawer({
         setConfigPass(initialConfig.pass || null)
         setConfigPassCommand(initialConfig.passCommand || null)
         setIsPasswordCommand(initialConfig.passCommand !== null)
-    }, [initialConfig])
+    }
 
     useEffect(() => {
         if (isOpen && configContent === null && configLabel === null) {
@@ -126,7 +135,8 @@ export default function ConfigEditDrawer({
             setConfigPassCommand(null)
             setIsPasswordCommand(false)
         }
-    }, [isOpen, initializeConfig, configLabel, configContent])
+        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
+    }, [isOpen, configLabel, initializeConfig, configContent])
 
     if (!id) {
         return null

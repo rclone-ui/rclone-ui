@@ -12,7 +12,7 @@ import {
     PlayIcon,
     WrenchIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
 import { isRemotePath } from '../../lib/fs'
@@ -143,7 +143,7 @@ export default function Move() {
         }
     }, [moveOptionsJson, filterOptionsJson, configOptionsJson])
 
-    const handleStartMove = useCallback(async () => {
+    async function handleStartMove() {
         setIsLoading(true)
 
         if (!sources || sources.length === 0 || !dest) {
@@ -151,12 +151,13 @@ export default function Move() {
                 title: 'Error',
                 kind: 'error',
             })
+            setIsLoading(false)
             return
         }
 
-        try {
-            // check local paths exists
-            for (const source of sources) {
+        // check local paths exists
+        for (const source of sources) {
+            try {
                 if (!isRemotePath(source)) {
                     const sourceExists = await exists(source)
                     if (sourceExists) {
@@ -169,8 +170,8 @@ export default function Move() {
                     setIsLoading(false)
                     return
                 }
-            }
-        } catch {}
+            } catch {}
+        }
 
         if (!isRemotePath(dest)) {
             const destExists = await exists(dest)
@@ -198,9 +199,15 @@ export default function Move() {
             filterOptions &&
             ('IncludeRule' in filterOptions || 'IncludeFrom' in filterOptions)
         ) {
-            throw new Error(
-                'Include rules are not supported when the input is one or multiple files'
+            await message(
+                'Include rules are not supported when the input is one or multiple files',
+                {
+                    title: 'Error',
+                    kind: 'error',
+                }
             )
+            setIsLoading(false)
+            return
         }
 
         const mergedConfig = {
@@ -247,16 +254,16 @@ export default function Move() {
         const failedPaths: Record<string, string> = {}
 
         for (const source of sources) {
-            try {
-                const customFilterOptions = isFolder
-                    ? filterOptions
-                    : {
-                          ...filterOptions,
-                          IncludeRule: [source.split('/').pop()!],
-                      }
+            const customFilterOptions = isFolder
+                ? filterOptions
+                : {
+                      ...filterOptions,
+                      IncludeRule: [source.split('/').pop()!],
+                  }
+            const customSource = isFolder ? source : source.split('/').slice(0, -1).join('/')
 
+            try {
                 // Use parent folder path if the input is a file
-                const customSource = isFolder ? source : source.split('/').slice(0, -1).join('/')
 
                 const jobId = await startMove({
                     srcFs: customSource,
@@ -336,33 +343,24 @@ export default function Move() {
         }
 
         setIsLoading(false)
-    }, [
-        sources,
-        dest,
-        moveOptions,
-        filterOptions,
-        cronExpression,
-        createEmptySrcDirs,
-        deleteEmptyDstDirs,
-        configOptions,
-    ])
+    }
 
-    const buttonText = useMemo(() => {
+    const buttonText = (() => {
         if (isLoading) return 'STARTING...'
         if (!sources || sources.length === 0) return 'Please select a source path'
         if (!dest) return 'Please select a destination path'
         if (sources[0] === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
         return 'START MOVE'
-    }, [isLoading, jsonError, sources, dest])
+    })()
 
-    const buttonIcon = useMemo(() => {
+    const buttonIcon = (() => {
         if (isLoading) return
         if (!sources || sources.length === 0 || !dest || sources[0] === dest)
             return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
         return <PlayIcon className="w-5 h-5" />
-    }, [isLoading, jsonError, sources, dest])
+    })()
 
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">

@@ -36,7 +36,11 @@ export default function RemoteEditDrawer({
                 setConfig(remoteInfo)
                 // Find the current backend based on the type
                 const backend = backends.find((b) => b.Name === remoteInfo.type)
-                setCurrentBackend(backend || null)
+                if (backend) {
+                    setCurrentBackend(backend)
+                } else {
+                    setCurrentBackend(null)
+                }
             } catch (error) {
                 console.error('Failed to load remote config:', error)
             }
@@ -122,34 +126,34 @@ export default function RemoteEditDrawer({
         e.preventDefault()
         setIsSaving(true)
 
+        const formData = new FormData(e.currentTarget)
+        const data: Record<string, string | boolean> = {}
+        const changedValues: Record<string, string | boolean> = {}
+
+        // First collect all form values
+        for (const [key, value] of formData.entries()) {
+            if (
+                e.currentTarget[key] instanceof HTMLInputElement &&
+                e.currentTarget[key].type === 'checkbox'
+            ) {
+                data[key] = (e.currentTarget[key] as HTMLInputElement).checked
+            } else {
+                data[key] = value.toString()
+            }
+        }
+
+        // Compare with original config and only include changed values
+        for (const [key, value] of Object.entries(data)) {
+            // if the value is empty and the key is not in the config, skip it
+            if (!config?.[key] && value.toString().trim() === '') {
+                continue
+            }
+            if (config[key] !== value) {
+                changedValues[key] = value
+            }
+        }
+
         try {
-            const formData = new FormData(e.currentTarget)
-            const data: Record<string, string | boolean> = {}
-            const changedValues: Record<string, string | boolean> = {}
-
-            // First collect all form values
-            for (const [key, value] of formData.entries()) {
-                if (
-                    e.currentTarget[key] instanceof HTMLInputElement &&
-                    e.currentTarget[key].type === 'checkbox'
-                ) {
-                    data[key] = (e.currentTarget[key] as HTMLInputElement).checked
-                } else {
-                    data[key] = value.toString()
-                }
-            }
-
-            // Compare with original config and only include changed values
-            for (const [key, value] of Object.entries(data)) {
-                // if the value is empty and the key is not in the config, skip it
-                if (!config?.[key] && value.toString().trim() === '') {
-                    continue
-                }
-                if (config[key] !== value) {
-                    changedValues[key] = value
-                }
-            }
-
             // Only update if there are changes
             if (Object.keys(changedValues).length > 0) {
                 await updateRemote(remoteName, changedValues)
@@ -164,9 +168,8 @@ export default function RemoteEditDrawer({
                 title: 'Could not update remote',
                 kind: 'error',
             })
-        } finally {
-            setIsSaving(false)
         }
+        setIsSaving(false)
     }
 
     return (

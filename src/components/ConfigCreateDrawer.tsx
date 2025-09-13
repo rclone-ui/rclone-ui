@@ -13,7 +13,7 @@ import { sep } from '@tauri-apps/api/path'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import { mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { UploadIcon } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { getConfigPath } from '../../lib/rclone/common'
 import { usePersistedStore } from '../../lib/store'
 import type { ConfigFile } from '../../types/config'
@@ -33,77 +33,86 @@ export default function ConfigCreateDrawer({
     const [isPasswordCommand, setIsPasswordCommand] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
 
-    const isEncrypted = useMemo(() => {
-        return configContent?.includes('RCLONE_ENCRYPT_V0:')
-    }, [configContent])
+    const isEncrypted = configContent?.includes('RCLONE_ENCRYPT_V0:')
 
-    const handleCreate = useCallback(
-        async ({
-            label,
-            pass,
-            passCommand,
-            content,
-            isPasswordCommand,
-            isEncrypted,
-        }: {
-            label?: string
-            pass?: string
-            passCommand?: string
-            content: string | null
-            isPasswordCommand: boolean
-            isEncrypted: boolean
-        }) => {
-            try {
-                if (!label) {
-                    throw new Error('Label is required')
-                }
+    async function handleCreate({
+        label,
+        pass,
+        passCommand,
+        content,
+        isPasswordCommand,
+        isEncrypted,
+    }: {
+        label?: string
+        pass?: string
+        passCommand?: string
+        content: string | null
+        isPasswordCommand: boolean
+        isEncrypted: boolean
+    }) {
+        if (!label) {
+            await message('Label is required', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                if (!content) {
-                    throw new Error('Content is required')
-                }
+        if (!content) {
+            await message('Content is required', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                if (isEncrypted && isPasswordCommand && !passCommand) {
-                    throw new Error('Password command is required for encrypted configs')
-                }
+        if (isEncrypted && isPasswordCommand && !passCommand) {
+            await message('Password command is required for encrypted configs', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+            return
+        }
 
-                setIsSaving(true)
+        setIsSaving(true)
 
-                const generatedId = crypto.randomUUID()
+        const savedPass = isPasswordCommand ? undefined : pass
+        const savedPassCommand = isPasswordCommand ? passCommand : undefined
 
-                const configPath = await getConfigPath({ id: generatedId, validate: false })
+        try {
+            const generatedId = crypto.randomUUID()
 
-                await mkdir(configPath.replace(sep() + 'rclone.conf', ''), {
-                    recursive: true,
-                })
-                await writeTextFile(configPath, content)
-                console.log('[handleCreate] saved config to', configPath)
+            const configPath = await getConfigPath({ id: generatedId, validate: false })
 
-                usePersistedStore.getState().addConfigFile({
-                    id: generatedId,
-                    label,
-                    pass: isPasswordCommand ? undefined : pass,
-                    passCommand: isPasswordCommand ? passCommand : undefined,
-                    isEncrypted: isEncrypted,
-                    sync: undefined,
-                })
+            await mkdir(configPath.replace(sep() + 'rclone.conf', ''), {
+                recursive: true,
+            })
+            await writeTextFile(configPath, content)
+            console.log('[handleCreate] saved config to', configPath)
 
-                onClose()
-            } catch (error) {
-                console.error('[handleCreate] failed to save config', error)
-                await message(
-                    error instanceof Error ? error.message : 'An unknown error occurred',
-                    {
-                        title: 'Failed to save config',
-                        kind: 'error',
-                        okLabel: 'OK',
-                    }
-                )
-            } finally {
-                setIsSaving(false)
-            }
-        },
-        [onClose]
-    )
+            usePersistedStore.getState().addConfigFile({
+                id: generatedId,
+                label,
+                pass: savedPass,
+                passCommand: savedPassCommand,
+                isEncrypted: isEncrypted,
+                sync: undefined,
+            })
+
+            onClose()
+        } catch (error) {
+            console.error('[handleCreate] failed to save config', error)
+            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
+                title: 'Failed to save config',
+                kind: 'error',
+                okLabel: 'OK',
+            })
+        }
+        setIsSaving(false)
+    }
 
     return (
         <Drawer

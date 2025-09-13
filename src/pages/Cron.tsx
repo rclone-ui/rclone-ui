@@ -5,7 +5,7 @@ import CronExpressionParser from 'cron-parser'
 import cronstrue from 'cronstrue'
 import { formatDistance } from 'date-fns'
 import { AlertCircleIcon, Clock7Icon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { buildReadablePath } from '../../lib/format'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
@@ -63,15 +63,17 @@ function TaskCard({ task }: { task: ScheduledTask }) {
     const removeScheduledTask = usePersistedStore((state) => state.removeScheduledTask)
     const updateScheduledTask = usePersistedStore((state) => state.updateScheduledTask)
 
-    const nextRun = useMemo(() => {
-        const parsed = CronExpressionParser.parse(task.cron)
-        if (!parsed.hasNext()) {
-            return null
-        }
-        return parsed.next().toDate()
-    }, [task.cron])
+    const parsed = CronExpressionParser.parse(task.cron)
+    const nextRun = parsed.hasNext() ? parsed.next().toDate() : null
 
-    const lastRunLabel = useMemo(() => {
+    const nextRunLabel = nextRun
+        ? (() => {
+              const distance = formatDistance(nextRun, new Date(), { addSuffix: true })
+              return distance.charAt(0).toUpperCase() + distance.slice(1)
+          })()
+        : 'Never'
+
+    const lastRunLabel = (() => {
         if (task.isRunning) {
             return 'Running now'
         }
@@ -82,19 +84,7 @@ function TaskCard({ task }: { task: ScheduledTask }) {
             return distance.charAt(0).toUpperCase() + distance.slice(1)
         }
         return 'Never'
-    }, [task.isRunning, task.lastRun])
-
-    const nextRunLabel = useMemo(() => {
-        if (!nextRun) {
-            return 'Never'
-        }
-
-        const distance = formatDistance(nextRun, new Date(), {
-            addSuffix: true,
-        })
-
-        return distance.charAt(0).toUpperCase() + distance.slice(1)
-    }, [nextRun])
+    })()
 
     return (
         <Card

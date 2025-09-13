@@ -13,7 +13,7 @@ import {
     WavesLadderIcon,
     WrenchIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
     getConfigFlags,
     getCopyFlags,
@@ -83,7 +83,7 @@ export default function RemoteDefaultsDrawer({
         setVfsOptionsJson(JSON.stringify(remoteConfig?.vfsDefaults, null, 2) || '{}')
     }, [remoteConfigList, remoteName])
 
-    const handleSubmit = useCallback(async () => {
+    async function handleSubmit() {
         if (!config) {
             console.log('No config')
             return
@@ -99,30 +99,40 @@ export default function RemoteDefaultsDrawer({
 
         try {
             const configOptions = JSON.parse(configOptionsJson)
-            newConfig.configDefaults =
-                Object.keys(configOptions).length > 0 ? configOptions : undefined
+            // Extract conditional logic outside try/catch for React Compiler compatibility
+            if (Object.keys(configOptions).length > 0) {
+                newConfig.configDefaults = configOptions
+            }
 
             step = 'Copy'
             const copyOptions = JSON.parse(copyOptionsJson)
-            newConfig.copyDefaults = Object.keys(copyOptions).length > 0 ? copyOptions : undefined
+            if (Object.keys(copyOptions).length > 0) {
+                newConfig.copyDefaults = copyOptions
+            }
 
             step = 'Mount'
             const mountOptions = JSON.parse(mountOptionsJson)
-            newConfig.mountDefaults =
-                Object.keys(mountOptions).length > 0 ? mountOptions : undefined
+            if (Object.keys(mountOptions).length > 0) {
+                newConfig.mountDefaults = mountOptions
+            }
 
             step = 'Sync'
             const syncOptions = JSON.parse(syncOptionsJson)
-            newConfig.syncDefaults = Object.keys(syncOptions).length > 0 ? syncOptions : undefined
+            if (Object.keys(syncOptions).length > 0) {
+                newConfig.syncDefaults = syncOptions
+            }
 
             step = 'Filter'
             const filterOptions = JSON.parse(filterOptionsJson)
-            newConfig.filterDefaults =
-                Object.keys(filterOptions).length > 0 ? filterOptions : undefined
+            if (Object.keys(filterOptions).length > 0) {
+                newConfig.filterDefaults = filterOptions
+            }
 
             step = 'VFS'
             const vfsOptions = JSON.parse(vfsOptionsJson)
-            newConfig.vfsDefaults = Object.keys(vfsOptions).length > 0 ? vfsOptions : undefined
+            if (Object.keys(vfsOptions).length > 0) {
+                newConfig.vfsDefaults = vfsOptions
+            }
         } catch {
             await message(`Could not update remote, error parsing ${step} options`, {
                 title: 'Invalid JSON',
@@ -142,20 +152,9 @@ export default function RemoteDefaultsDrawer({
                 title: 'Could not update remote',
                 kind: 'error',
             })
-        } finally {
-            setIsSaving(false)
         }
-    }, [
-        config,
-        copyOptionsJson,
-        filterOptionsJson,
-        syncOptionsJson,
-        vfsOptionsJson,
-        mountOptionsJson,
-        configOptionsJson,
-        remoteName,
-        mergeRemoteConfig,
-    ])
+        setIsSaving(false)
+    }
 
     return (
         <Drawer
@@ -547,6 +546,7 @@ export default function RemoteDefaultsDrawer({
                                         globalOptions={
                                             globalOptions['main' as keyof typeof globalOptions]
                                         }
+                                        rows={15}
                                         getAvailableOptions={getCopyFlags}
                                     />
                                 </AccordionItem>

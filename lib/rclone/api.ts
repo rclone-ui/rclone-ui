@@ -777,3 +777,29 @@ export async function getConfigFlags() {
 
     return copyFlags
 }
+
+export async function getSftpFlags() {
+    console.log('[getSftpFlags]')
+
+    const r = await fetch('http://localhost:5572/options/info', {
+        method: 'POST',
+        headers: getAuthHeader(),
+    }).then((res) => res.json() as Promise<any>)
+
+    const sftpFlags = r.sftp
+
+    return sftpFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
+}
+
+export async function getFtpFlags() {
+    console.log('[getFtpFlags]')
+
+    const r = await fetch('http://localhost:5572/options/info', {
+        method: 'POST',
+        headers: getAuthHeader(),
+    }).then((res) => res.json() as Promise<any>)
+
+    const ftpFlags = r.ftp
+
+    return ftpFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
+}

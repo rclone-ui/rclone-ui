@@ -9,7 +9,7 @@ import {
     PlayIcon,
     WrenchIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
 import {
@@ -115,7 +115,7 @@ export default function Delete() {
         }
     }, [filterOptionsJson, configOptionsJson])
 
-    const handleStartDelete = useCallback(async () => {
+    async function handleStartDelete() {
         setIsLoading(true)
 
         if (!sourceFs) {
@@ -123,6 +123,7 @@ export default function Delete() {
                 title: 'Error',
                 kind: 'error',
             })
+            setIsLoading(false)
             return
         }
 
@@ -163,30 +164,30 @@ export default function Delete() {
                 title: 'Success',
                 okLabel: 'OK',
             })
+            setIsLoading(false)
         } catch (error) {
             await message(`Failed to start delete job, ${error}`, {
                 title: 'Error',
                 kind: 'error',
                 okLabel: 'OK',
             })
-        } finally {
             setIsLoading(false)
         }
-    }, [sourceFs, filterOptions, rmDirs, cronExpression, configOptions])
+    }
 
-    const buttonText = useMemo(() => {
+    const buttonText = (() => {
         if (isLoading) return 'STARTING...'
         if (!sourceFs || sourceFs.length === 0) return 'Please select a source path'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
         return 'START DELETE'
-    }, [isLoading, jsonError, sourceFs])
+    })()
 
-    const buttonIcon = useMemo(() => {
+    const buttonIcon = (() => {
         if (isLoading) return
         if (!sourceFs || sourceFs.length === 0) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
         return <PlayIcon className="w-5 h-5" />
-    }, [isLoading, jsonError, sourceFs])
+    })()
 
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">

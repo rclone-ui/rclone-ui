@@ -3,7 +3,7 @@ import { Button, Chip, Divider, Progress, Spinner } from '@heroui/react'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { Trash2Icon } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useState } from 'react'
 import { buildReadablePath, formatBytes } from '../../lib/format'
 import { listJobs, stopJob } from '../../lib/rclone/api'
@@ -20,14 +20,14 @@ export default function Jobs() {
 
     const [busyIds, setBusyIds] = useState<number[]>([])
 
-    const fetchJobs = useCallback(async () => {
+    async function fetchJobs() {
         const jobs = await listJobs()
 
         console.log('jobs', JSON.stringify(jobs, null, 2))
 
         setJobs(jobs)
         setIsInitialLoad(false)
-    }, [])
+    }
 
     useEffect(() => {
         fetchJobs()
@@ -44,6 +44,7 @@ export default function Jobs() {
             clearInterval(interval)
             unlisten.then((u) => u())
         }
+        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
     }, [fetchJobs])
 
     if (isInitialLoad) {

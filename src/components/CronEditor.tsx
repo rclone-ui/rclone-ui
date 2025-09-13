@@ -2,7 +2,7 @@ import { Button, Input, Select, SelectItem } from '@heroui/react'
 import cronstrue from 'cronstrue'
 import { ClockIcon, XIcon } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface CronEditorProps {
     expression: string | null
@@ -21,12 +21,9 @@ const DEFAULT_OPTIONS = ['*', '*/5', '*/10', '*/15', '*/30']
 export default function CronEditor({ expression, onChange }: CronEditorProps) {
     const [cronExpression, setCronExpression] = useState(expression)
 
-    const [minute, hour, dayOfMonth, month, dayOfWeek] = useMemo(
-        () => (cronExpression || '* * * * *').split(' '),
-        [cronExpression]
-    )
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = (cronExpression || '* * * * *').split(' ')
 
-    const readableDescription = useMemo(() => {
+    const readableDescription = (() => {
         if (!cronExpression) return 'This task is not scheduled'
         let description: string
         try {
@@ -37,19 +34,16 @@ export default function CronEditor({ expression, onChange }: CronEditorProps) {
             description = 'Invalid cron expression'
         }
         return description
-    }, [cronExpression])
+    })()
 
-    const handleFieldChange = useCallback(
-        (field: string, value: string) => {
-            const parts = (cronExpression || '* * * * *').split(' ')
-            const index = ['minute', 'hour', 'dayOfMonth', 'month', 'dayOfWeek'].indexOf(field)
-            if (index !== -1) {
-                parts[index] = value
-                setCronExpression(parts.join(' '))
-            }
-        },
-        [cronExpression]
-    )
+    function handleFieldChange(field: string, value: string) {
+        const parts = (cronExpression || '* * * * *').split(' ')
+        const index = ['minute', 'hour', 'dayOfMonth', 'month', 'dayOfWeek'].indexOf(field)
+        if (index !== -1) {
+            parts[index] = value
+            setCronExpression(parts.join(' '))
+        }
+    }
 
     useEffect(() => {
         onChange(cronExpression)

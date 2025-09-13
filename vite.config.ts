@@ -5,7 +5,26 @@ const host = process.env.TAURI_DEV_HOST
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
-    plugins: [react()],
+    plugins: [
+        react({
+            babel: {
+                plugins: [
+                    [
+                        'babel-plugin-react-compiler',
+                        {
+                            target: '18',
+                            panicThreshold: 'all_errors',
+                            logger: {
+                                logEvent(filename, event) {
+                                    console.log(`[Compiler] ${event.kind}: ${filename}`)
+                                },
+                            },
+                        },
+                    ],
+                ],
+            },
+        }),
+    ],
 
     esbuild: {
         supported: {

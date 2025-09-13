@@ -1,6 +1,6 @@
 import { Chip, Textarea, Tooltip } from '@heroui/react'
 import { LockKeyholeIcon, LockOpenIcon, XIcon } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { replaceSmartQuotes } from '../../lib/format'
 
 export default function OptionsSection({
@@ -43,12 +43,9 @@ export default function OptionsSection({
         }
     }, [optionsJson])
 
-    const isOptionAdded = useCallback(
-        (option: string) => {
-            return options[option] !== undefined
-        },
-        [options]
-    )
+    function isOptionAdded(option: string) {
+        return options[option] !== undefined
+    }
 
     return (
         <div className="flex flex-row gap-2">
