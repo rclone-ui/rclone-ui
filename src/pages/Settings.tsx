@@ -1,4 +1,5 @@
 import {
+    Avatar,
     Button,
     Card,
     CardBody,
@@ -14,6 +15,7 @@ import {
     Tab,
     Tabs,
     Textarea,
+    Tooltip,
     cn,
 } from '@heroui/react'
 import * as Sentry from '@sentry/browser'
@@ -49,6 +51,7 @@ import {
     ServerIcon,
     Trash2Icon,
 } from 'lucide-react'
+import type React from 'react'
 import { type DetailedHTMLProps, type HTMLAttributes, useEffect, useRef, useState } from 'react'
 import { revokeMachineLicense, validateLicense } from '../../lib/license'
 import {
@@ -150,7 +153,8 @@ function Settings() {
                 className="flex-shrink-0 w-40 h-screen px-2 py-4 border-r border-neutral-700"
                 classNames={{
                     tabList: 'w-full gap-3',
-                    tab: 'h-14',
+                    tab: 'h-14 justify-start',
+                    tabContent: 'pl-4',
                 }}
                 size="lg"
                 defaultSelectedKey="general"
@@ -160,7 +164,7 @@ function Settings() {
                 <Tab
                     key="general"
                     title={
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                             <CogIcon className="w-5 h-5" />
                             <span>General</span>
                         </div>
@@ -173,7 +177,7 @@ function Settings() {
                 <Tab
                     key="remotes"
                     title={
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                             <ServerIcon className="w-5 h-5" />
                             <span>Remotes</span>
                         </div>
@@ -187,7 +191,7 @@ function Settings() {
                 <Tab
                     key="config"
                     title={
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                             <CodeIcon className="w-5 h-5" />
                             <span>Config</span>
                         </div>
@@ -200,7 +204,7 @@ function Settings() {
                 <Tab
                     key="license"
                     title={
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                             <MedalIcon className="w-5 h-5" />
                             <span>License</span>
                         </div>
@@ -213,7 +217,7 @@ function Settings() {
                 <Tab
                     key="about"
                     title={
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                             <InfoIcon className="w-5 h-5" />
                             <span>About</span>
                         </div>
@@ -226,7 +230,7 @@ function Settings() {
                 {/* <Tab
                     key="hosts"
                     title={
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-2">
                             <SwatchBookIcon className="w-5 h-5" />
                             <span>Hosts</span>
                         </div>
@@ -366,9 +370,7 @@ function GeneralSection() {
     }, [disabledActions])
 
     return (
-        <div className="flex flex-col gap-10">
-            <BaseHeader title="General" />
-
+        <BaseSection header={{ title: 'General' }}>
             <div className="flex flex-row justify-center w-full gap-8 px-8">
                 <div className="flex flex-col items-end flex-1 gap-2 bg-transparent-500">
                     <h3 className="font-medium">Password</h3>
@@ -566,7 +568,7 @@ function GeneralSection() {
                     </Button>
                 </div>
             </div>
-        </div>
+        </BaseSection>
     )
 }
 
@@ -602,10 +604,29 @@ function LicenseSection() {
     }, [])
 
     return (
-        <div className="flex flex-col gap-8">
-            <BaseHeader title="License" />
-
-            <div className="flex flex-row justify-center w-full gap-2 px-8">
+        <BaseSection
+            header={{
+                title: 'License',
+                endContent: licenseValid ? (
+                    <p className="text-large">❤️‍🔥</p>
+                ) : (
+                    <Tooltip
+                        className="max-w-[200px]"
+                        content="Why? To unlock extra features not available in rclone, and turbo-charge development ♥️"
+                    >
+                        <Button
+                            isIconOnly={true}
+                            variant="light"
+                            color="primary"
+                            data-focus-visible="false"
+                        >
+                            <InfoIcon className="w-5 h-5" />
+                        </Button>
+                    </Tooltip>
+                ),
+            }}
+        >
+            <div className="flex flex-row justify-center w-full gap-2 px-8 -mt-2">
                 <Input
                     placeholder="Enter license key"
                     value={licenseKeyInput}
@@ -734,7 +755,7 @@ function LicenseSection() {
                     publishable-key="pk_live_51QmUqyE0hPdsH0naBICHzb0j5O5eTKyYnY72nOaS6aT99y3EBeCOyeihI2xX05D6cczifqPsX6vHhor8ozSblXPl00LqNwMxBE"
                 />
             </div>
-        </div>
+        </BaseSection>
     )
 }
 
@@ -767,10 +788,10 @@ function RemotesSection() {
     }
 
     return (
-        <div className="flex flex-col gap-4">
-            <BaseHeader
-                title="Remotes"
-                endContent={
+        <BaseSection
+            header={{
+                title: 'Remotes',
+                endContent: (
                     <Button
                         onPress={async () => {
                             if (!licenseValid && remotes.length >= 4) {
@@ -794,9 +815,10 @@ function RemotesSection() {
                     >
                         <PlusIcon className="w-4 h-4" />
                     </Button>
-                }
-            />
-            <div className="flex flex-col gap-2 p-4">
+                ),
+            }}
+        >
+            <div className="flex flex-col gap-2.5 px-4 pb-10">
                 {remotes.map((remote) => (
                     <RemoteCard
                         key={remote}
@@ -861,7 +883,7 @@ function RemotesSection() {
                     remoteName={pickedRemote}
                 />
             )}
-        </div>
+        </BaseSection>
     )
 }
 
@@ -897,12 +919,12 @@ function RemoteCard({
             key={remote}
             shadow="sm"
             isBlurred={true}
-            className="border-none bg-background/60 dark:bg-default-100/60"
+            className="h-20 border-none bg-background/60 dark:bg-content2/90"
             isPressable={true}
             onPress={onConfigPress}
         >
             <CardBody>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between h-full">
                     <div className="flex items-center gap-4">
                         <img src={imageUrl} className="object-contain w-10 h-10" alt={remote} />
                         <p className="text-large">{remote}</p>
@@ -922,7 +944,7 @@ function RemoteCard({
                             onPress={onConfigPress}
                             // isIconOnly={true}
                             // color="primary"
-                            variant="faded"
+                            variant="bordered"
                             data-focus-visible="false"
                         >
                             {/* <PencilIcon className="w-4 h-4" /> */}
@@ -992,10 +1014,10 @@ function ConfigSection() {
     }
 
     return (
-        <div className="flex flex-col gap-4">
-            <BaseHeader
-                title="Config"
-                endContent={
+        <BaseSection
+            header={{
+                title: 'Config',
+                endContent: (
                     <Dropdown>
                         <DropdownTrigger>
                             <Button variant="faded" color="primary" data-focus-visible="false">
@@ -1010,7 +1032,7 @@ function ConfigSection() {
                                     } else {
                                         if (!licenseValid) {
                                             await message(
-                                                'Community version does not support syncing configs.',
+                                                'Community version does not support syncing configs.\n\nIf you do not wish to update it outside of Rclone UI, you can simply import.',
                                                 {
                                                     title: 'Missing license',
                                                     kind: 'error',
@@ -1040,14 +1062,16 @@ function ConfigSection() {
                             </DropdownItem>
                         </DropdownMenu>
                     </Dropdown>
-                }
-            />
-            <div className="flex flex-col gap-2 p-4">
-                {configFiles.map((configFile) => (
-                    <Button
+                ),
+            }}
+        >
+            <div className="flex flex-col gap-2.5 px-4">
+                {configFiles.map((configFile, configFileIndex) => (
+                    <Card
                         key={configFile.id}
-                        className="flex flex-row justify-start w-full gap-2"
-                        color={configFile.id === activeConfigFile?.id ? 'primary' : 'default'}
+                        isPressable={true}
+                        className={`h-24 gap-2 bg-content2 ${configFile.id === activeConfigFile?.id ? 'border-2 border-primary' : ''}`}
+                        // color={configFile.id === activeConfigFile?.id ? 'primary' : 'default'}
                         onPress={() => {
                             if (configFile.id === activeConfigFile?.id) {
                                 return
@@ -1075,96 +1099,123 @@ function ConfigSection() {
                             }, 100)
                         }}
                     >
-                        <p>{configFile.label}</p>
-                        <div className="flex-1" />
-                        <div className="flex flex-row gap-2">
-                            <Button
-                                isIconOnly={true}
-                                variant="light"
-                                size="sm"
-                                onPress={() => {
-                                    setFocusedConfigId(configFile.id!)
-                                    setIsEditDrawerOpen(true)
-                                }}
-                                isDisabled={
-                                    configFile.id === 'default' ||
-                                    configFile.id === activeConfigFile?.id ||
-                                    Boolean(configFile.sync)
-                                }
-                            >
-                                <PencilIcon className="w-4 h-4" />
-                            </Button>
-                            <Button
-                                isIconOnly={true}
-                                variant="light"
-                                size="sm"
-                                onPress={() => {
-                                    setTimeout(async () => {
-                                        const confirmed = await ask(
-                                            `Are you sure you want to delete config ${configFile.label}?`,
-                                            {
-                                                title: 'Delete Config',
-                                                kind: 'warning',
-                                                okLabel: 'Delete',
-                                                cancelLabel: 'Cancel',
+                        <CardBody className="flex flex-row items-center justify-start w-full gap-2.5">
+                            <Avatar
+                                fallback={`#${configFileIndex + 1}`}
+                                size="lg"
+                                color={'default'}
+                            />
+                            <div className="flex flex-col gap-1">
+                                <p className="text-large">{configFile.label}</p>
+                                <div className="flex flex-row gap-2">
+                                    {configFile.id === activeConfigFile?.id && (
+                                        <Chip color="primary" size="sm">
+                                            ACTIVE
+                                        </Chip>
+                                    )}
+                                    {!!configFile.sync && <Chip size="sm">SYNCED</Chip>}
+                                    {configFile.isEncrypted && (
+                                        <Chip color="success" size="sm">
+                                            ENCRYPTED
+                                        </Chip>
+                                    )}
+                                    {!configFile.isEncrypted && (
+                                        <Chip color="warning" size="sm">
+                                            UNENCRYPTED
+                                        </Chip>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex-1" />
+                            <div className="flex flex-row items-center gap-2">
+                                <Button
+                                    isIconOnly={true}
+                                    variant="light"
+                                    size="lg"
+                                    onPress={() => {
+                                        setFocusedConfigId(configFile.id!)
+                                        setIsEditDrawerOpen(true)
+                                    }}
+                                    isDisabled={
+                                        configFile.id === 'default' ||
+                                        configFile.id === activeConfigFile?.id ||
+                                        Boolean(configFile.sync)
+                                    }
+                                >
+                                    <PencilIcon className="w-5 h-5" />
+                                </Button>
+                                <Button
+                                    isIconOnly={true}
+                                    variant="light"
+                                    size="lg"
+                                    onPress={() => {
+                                        setTimeout(async () => {
+                                            const confirmed = await ask(
+                                                `Are you sure you want to delete config ${configFile.label}?`,
+                                                {
+                                                    title: 'Delete Config',
+                                                    kind: 'warning',
+                                                    okLabel: 'Delete',
+                                                    cancelLabel: 'Cancel',
+                                                }
+                                            )
+
+                                            if (!confirmed) {
+                                                return
                                             }
-                                        )
 
-                                        if (!confirmed) {
-                                            return
-                                        }
+                                            if (configFile.id === 'default') {
+                                                await message('Default config cannot be deleted', {
+                                                    title: 'Error',
+                                                    kind: 'warning',
+                                                    okLabel: 'OK',
+                                                })
+                                                return
+                                            }
 
-                                        if (configFile.id === 'default') {
-                                            await message('Default config cannot be deleted', {
-                                                title: 'Error',
-                                                kind: 'warning',
-                                                okLabel: 'OK',
-                                            })
-                                            return
-                                        }
+                                            if (!configFile.sync) {
+                                                const path = await getConfigPath({
+                                                    id: configFile.id!,
+                                                    validate: true,
+                                                })
 
-                                        if (!configFile.sync) {
-                                            const path = await getConfigPath({
-                                                id: configFile.id!,
-                                                validate: true,
-                                            })
+                                                await remove(path.replace('rclone.conf', ''), {
+                                                    recursive: true,
+                                                })
+                                            }
 
-                                            await remove(path.replace('rclone.conf', ''), {
-                                                recursive: true,
-                                            })
-                                        }
+                                            if (activeConfigFile?.id === configFile.id) {
+                                                usePersistedStore
+                                                    .getState()
+                                                    .setActiveConfigFile('default')
+                                            }
 
-                                        if (activeConfigFile?.id === configFile.id) {
                                             usePersistedStore
                                                 .getState()
-                                                .setActiveConfigFile('default')
-                                        }
-
-                                        usePersistedStore
-                                            .getState()
-                                            .removeConfigFile(configFile.id!)
-                                    }, 100)
-                                }}
-                                isDisabled={configFile.id === 'default'}
-                            >
-                                <Trash2Icon className="w-4 h-4" />
-                            </Button>
-                            <Button
-                                isIconOnly={true}
-                                variant="light"
-                                size="sm"
-                                onPress={() => {
-                                    exportConfig({
-                                        id: configFile.id!,
-                                        label: configFile.label,
-                                    })
-                                }}
-                                isLoading={isExportingId === configFile.id}
-                            >
-                                <DownloadIcon className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    </Button>
+                                                .removeConfigFile(configFile.id!)
+                                        }, 100)
+                                    }}
+                                    isDisabled={configFile.id === 'default'}
+                                >
+                                    <Trash2Icon className="w-5 h-5" />
+                                </Button>
+                                <Button
+                                    isIconOnly={true}
+                                    variant="light"
+                                    size="lg"
+                                    onPress={() => {
+                                        exportConfig({
+                                            id: configFile.id!,
+                                            label: configFile.label,
+                                        })
+                                    }}
+                                    isLoading={isExportingId === configFile.id}
+                                >
+                                    <DownloadIcon className="w-5 h-5" />
+                                </Button>
+                            </div>
+                        </CardBody>
+                    </Card>
                 ))}
             </div>
 
@@ -1190,7 +1241,7 @@ function ConfigSection() {
                     setIsSyncDrawerOpen(false)
                 }}
             />
-        </div>
+        </BaseSection>
     )
 }
 
@@ -1273,76 +1324,62 @@ function AboutSection() {
     }, [fetchLogs, info, last30Lines.length])
 
     return (
-        <div className="flex flex-col gap-5">
-            <BaseHeader title="About" />
-
+        <BaseSection header={{ title: 'About' }} className="-mt-2">
             {!info && <Spinner size="lg" color="secondary" className="py-20" />}
 
             {info && (
-                <div className="flex flex-row justify-center w-full gap-2.5 px-4">
-                    <Button
-                        fullWidth={true}
-                        color="primary"
-                        onPress={async () => {
-                            // if (!info || !info.dirs.appLog) {
-                            //     await message('No logs folder found', {
-                            //         title: 'Error',
-                            //         kind: 'warning',
-                            //         okLabel: 'OK',
-                            //     })
-                            //     return
-                            // }
-                            // await writeText(last30Lines.join('\n'))
-                            // await message('Open the file in a text editor to copy the full log', {
-                            //     title: 'Copied last 30 lines',
-                            //     kind: 'info',
-                            // })
-                            await openUrl('https://github.com/rclone-ui/rclone-ui/issues/18')
-                        }}
-                    >
-                        Request Feature
-                    </Button>
-                    <Button
-                        fullWidth={true}
-                        color="secondary"
-                        onPress={async () => {
-                            if (!info || !info.dirs.appLog) {
-                                await message('No logs folder found', {
-                                    title: 'Error',
-                                    kind: 'warning',
-                                    okLabel: 'OK',
-                                })
-                                return
-                            }
-                            await revealItemInDir(info.dirs.appLog + '/Rclone UI.log')
-                        }}
-                    >
-                        Open Logs Folder
-                    </Button>
+                <div className="flex flex-col px-4 gap-2.5">
+                    <div className="flex flex-row justify-center w-full gap-2.5">
+                        <Button
+                            fullWidth={true}
+                            color="primary"
+                            onPress={async () => {
+                                await openUrl('https://github.com/rclone-ui/rclone-ui/issues/18')
+                            }}
+                        >
+                            Request Feature
+                        </Button>
+                        <Button
+                            fullWidth={true}
+                            color="secondary"
+                            onPress={async () => {
+                                if (!info || !info.dirs.appLog) {
+                                    await message('No logs folder found', {
+                                        title: 'Error',
+                                        kind: 'warning',
+                                        okLabel: 'OK',
+                                    })
+                                    return
+                                }
+                                await revealItemInDir(info.dirs.appLog + '/Rclone UI.log')
+                            }}
+                        >
+                            Open Logs Folder
+                        </Button>
 
-                    <Button
-                        fullWidth={true}
-                        color="default"
-                        onPress={async () => {
-                            await writeText(JSON.stringify(info, null, 2))
-                        }}
-                    >
-                        Copy Debug Info
-                    </Button>
-                    <Button
-                        fullWidth={true}
-                        color="danger"
-                        onPress={async () => {
-                            if (!info || !info.dirs.appLog) {
-                                await message('No logs folder found', {
-                                    title: 'Error',
-                                    kind: 'warning',
-                                    okLabel: 'OK',
-                                })
-                                return
-                            }
+                        <Button
+                            fullWidth={true}
+                            color="default"
+                            onPress={async () => {
+                                await writeText(JSON.stringify(info, null, 2))
+                            }}
+                        >
+                            Copy Debug Info
+                        </Button>
+                        <Button
+                            fullWidth={true}
+                            color="danger"
+                            onPress={async () => {
+                                if (!info || !info.dirs.appLog) {
+                                    await message('No logs folder found', {
+                                        title: 'Error',
+                                        kind: 'warning',
+                                        okLabel: 'OK',
+                                    })
+                                    return
+                                }
 
-                            const body = `ENTER YOUR DESCRIPTION OF THE ISSUE HERE
+                                const body = `ENTER YOUR DESCRIPTION OF THE ISSUE HERE
 
 							
 Debug Info:
@@ -1355,20 +1392,17 @@ Logs (last 30 lines):
 ${last30Lines.join('\n')}
 \`\`\`
 `
-                            openUrl(
-                                `https://github.com/rclone-ui/rclone-ui/issues/new?body=${encodeURIComponent(
-                                    body
-                                )}`
-                            )
-                        }}
-                    >
-                        Open Github Issue
-                    </Button>
-                </div>
-            )}
+                                openUrl(
+                                    `https://github.com/rclone-ui/rclone-ui/issues/new?body=${encodeURIComponent(
+                                        body
+                                    )}`
+                                )
+                            }}
+                        >
+                            Open Github Issue
+                        </Button>
+                    </div>
 
-            {info && (
-                <div className="flex flex-row justify-center w-full gap-8 px-4 pb-10">
                     <Textarea
                         value={JSON.stringify(info, null, 2)}
                         size="lg"
@@ -1378,9 +1412,23 @@ ${last30Lines.join('\n')}
                         disableAutosize={false}
                         isReadOnly={false}
                         variant="faded"
+                        className="pb-10"
                     />
                 </div>
             )}
+        </BaseSection>
+    )
+}
+
+function BaseSection({
+    children,
+    header,
+    className,
+}: { children: React.ReactNode; header: Parameters<typeof BaseHeader>[0]; className?: string }) {
+    return (
+        <div className="flex flex-col gap-8">
+            <BaseHeader {...header} />
+            <div className={cn('flex flex-col gap-10', className)}>{children}</div>
         </div>
     )
 }
