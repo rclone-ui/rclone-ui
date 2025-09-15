@@ -20,6 +20,7 @@ import {
     startMove,
     startSync,
 } from './lib/rclone/api'
+import { compareVersions } from './lib/rclone/common'
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
@@ -148,11 +149,16 @@ async function startRclone() {
         ])
     } catch (error) {
         Sentry.captureException(error)
-        await message(error.message || 'Failed to start rclone, please try again later.', {
-            title: 'Error',
-            kind: 'error',
-            okLabel: 'Exit',
-        })
+        await message(
+            error instanceof Error
+                ? error.message
+                : 'Failed to start rclone, please try again later.',
+            {
+                title: 'Error',
+                kind: 'error',
+                okLabel: 'Exit',
+            }
+        )
         return await exit(0)
     }
 
@@ -434,31 +440,6 @@ async function handleTask(task: ScheduledTask) {
         })
     } finally {
     }
-}
-
-function compareVersions(version1: string, version2: string): number {
-    const parseVersion = (version: string) => {
-        const parts = version.split('.').map((num) => Number.parseInt(num, 10))
-        return {
-            major: parts[0] || 0,
-            minor: parts[1] || 0,
-            patch: parts[2] || 0,
-        }
-    }
-
-    const v1 = parseVersion(version1)
-    const v2 = parseVersion(version2)
-
-    if (v1.major !== v2.major) {
-        return v1.major > v2.major ? 1 : -1
-    }
-    if (v1.minor !== v2.minor) {
-        return v1.minor > v2.minor ? 1 : -1
-    }
-    if (v1.patch !== v2.patch) {
-        return v1.patch > v2.patch ? 1 : -1
-    }
-    return 0
 }
 
 async function checkVersion() {

@@ -153,3 +153,64 @@ export function parseRcloneOptions(options: Record<string, string | number | boo
 
     return options
 }
+
+export function compareVersions(version1: string, version2: string): number {
+    const parseVersion = (version: string) => {
+        const parts = version.split('.').map((num) => Number.parseInt(num, 10))
+        return {
+            major: parts[0] || 0,
+            minor: parts[1] || 0,
+            patch: parts[2] || 0,
+        }
+    }
+
+    const v1 = parseVersion(version1)
+    const v2 = parseVersion(version2)
+
+    if (v1.major !== v2.major) {
+        return v1.major > v2.major ? 1 : -1
+    }
+    if (v1.minor !== v2.minor) {
+        return v1.minor > v2.minor ? 1 : -1
+    }
+    if (v1.patch !== v2.patch) {
+        return v1.patch > v2.patch ? 1 : -1
+    }
+    return 0
+}
+
+const YOURS_VERSION_REGEX = /yours:\s+([^\s]+)/
+const LATEST_VERSION_REGEX = /latest:\s+([^\s]+)/
+export function shouldUpdateRclone(output: string) {
+    if (!output.includes('yours')) return false
+
+    // parse the output text to extract versions
+    const yoursMatch = output.match(YOURS_VERSION_REGEX)
+    const latestMatch = output.match(LATEST_VERSION_REGEX)
+
+    if (!yoursMatch || !latestMatch) {
+        console.warn('[shouldUpdateRclone] could not parse version output:', output)
+        return false
+    }
+
+    const currentVersion = yoursMatch[1]
+    const latestVersion = latestMatch[1]
+
+    if (!currentVersion || !latestVersion) {
+        console.warn('[shouldUpdateRclone] could not get versions')
+        return false
+    }
+
+    console.log('[shouldUpdateRclone] current version:', currentVersion)
+    console.log('[shouldUpdateRclone] latest version:', latestVersion)
+
+    // Compare versions using the existing compareVersions function
+    const versionComparison = compareVersions(currentVersion, latestVersion)
+    if (versionComparison < 0) {
+        console.log('[shouldUpdateRclone] internal rclone needs update')
+        return true
+    }
+
+    console.log('[shouldUpdateRclone] internal rclone is up to date')
+    return false
+}

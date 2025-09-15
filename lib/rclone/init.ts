@@ -16,7 +16,10 @@ import {
     getDefaultPath,
     isInternalRcloneInstalled,
     isSystemRcloneInstalled,
+    shouldUpdateRclone,
 } from './common'
+
+const RCLONE_CONF_REGEX = /\/rclone\.conf$/
 
 export async function initRclone(args: string[]) {
     console.log('[initRclone]')
@@ -34,16 +37,80 @@ export async function initRclone(args: string[]) {
         })
         const success = await provisionRclone()
         if (!success) {
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            await exit(0)
+            useStore.setState({ startupStatus: 'fatal' })
             return
         }
+        useStore.setState({ startupStatus: 'initialized' })
         internal = true
     }
 
-    const state = usePersistedStore.getState()
-    let configFiles = state.configFiles || []
-    let activeConfigFile = state.activeConfigFile
+
+    let needsUpdate = false
+
+    if (system) {
+        console.log('[initRclone] checking system rclone version')
+        const checkInstance = Command.create('rclone-system', ['selfupdate', '--check'])
+        const checkResult = await checkInstance.execute()
+        const output = checkResult.stdout.trim()
+        needsUpdate = shouldUpdateRclone(output)
+    }
+    if (internal) {
+        console.log('[initRclone] checking internal rclone version')
+        const checkInstance = Command.create('rclone-internal', ['selfupdate', '--check'])
+        const checkResult = await checkInstance.execute()
+        const output = checkResult.stdout.trim()
+        needsUpdate = shouldUpdateRclone(output)
+    }
+
+    if (needsUpdate) {
+        console.log('[initRclone] needs update')
+
+        useStore.setState({ startupStatus: 'updating' })
+
+        await openSmallWindow({
+            name: 'Startup',
+            url: '/startup',
+        })
+
+        try {
+            if (system) {
+                console.log('[initRclone] updating system rclone')
+                const code = (await invoke('update_system_rclone')) as number
+                console.log('[initRclone] update_rclone code', code)
+                if (code !== 0) {
+                    console.log(
+                        '[initRclone] system rclone update failed or was cancelled by user, code:',
+                        code
+                    )
+                    useStore.setState({ startupStatus: 'error' })
+                } else {
+                    useStore.setState({ startupStatus: 'updated' })
+                }
+            }
+            if (internal) {
+                console.log('[initRclone] updating internal rclone')
+                const instance = Command.create('rclone-internal', ['selfupdate'])
+                const updateResult = await instance.execute()
+                console.log('[initRclone] updateResult', JSON.stringify(updateResult, null, 2))
+                if (updateResult.code !== 0) {
+                    console.log(
+                        '[initRclone] internal rclone update failed, code:',
+                        updateResult.code
+                    )
+                    useStore.setState({ startupStatus: 'error' })
+                } else {
+                    useStore.setState({ startupStatus: 'updated' })
+                }
+            }
+        } catch (error) {
+            console.error('[initRclone] failed to update rclone', error)
+            useStore.setState({ startupStatus: 'error' })
+        }
+    }
+
+    const persistedState = usePersistedStore.getState()
+    let configFiles = persistedState.configFiles || []
+    let activeConfigFile = persistedState.activeConfigFile
     const defaultPath = await getDefaultPath(system ? 'system' : 'internal')
 
     console.log('[initRclone] defaultPath', defaultPath)
@@ -79,7 +146,7 @@ export async function initRclone(args: string[]) {
     let configFolderPath = activeConfigFile.sync
         ? activeConfigFile.sync
         : (await getConfigPath({ id: activeConfigFile.id!, validate: true })).replace(
-              /\/rclone\.conf$/,
+              RCLONE_CONF_REGEX,
               ''
           )
 
@@ -94,7 +161,7 @@ export async function initRclone(args: string[]) {
             })
             activeConfigFile = configFiles[0]
             configFolderPath = (await getConfigPath({ id: 'default', validate: true })).replace(
-                /\/rclone\.conf$/,
+                RCLONE_CONF_REGEX,
                 ''
             )
             usePersistedStore.setState({ activeConfigFile: configFiles[0] })

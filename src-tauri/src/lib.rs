@@ -323,6 +323,112 @@ async fn prompt_password(title: String, message: String) -> Result<Option<String
     }
 }
 
+
+#[tauri::command]
+async fn update_system_rclone() -> Result<i32, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command as SysCommand;
+
+        fn quote_posix(value: &str) -> String {
+            let escaped = value.replace("'", "'\\''");
+            format!("'{}'", escaped)
+        }
+
+        let mut cmdline = String::from("PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH; ");
+        cmdline.push_str(&quote_posix("rclone"));
+        cmdline.push(' ');
+        cmdline.push_str(&quote_posix("selfupdate"));
+
+        // Escape for embedding inside an AppleScript string literal
+        let applescript_cmd = cmdline.replace('\\', "\\\\").replace('"', "\\\"");
+        let prompt = "Rclone UI needs permission to run rclone selfupdate.";
+        let script = format!(
+            "do shell script \"{}\" with administrator privileges with prompt \"{}\"",
+            applescript_cmd,
+            prompt.replace('"', "\\\"")
+        );
+
+        let status = SysCommand::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .status()
+            .map_err(|e| e.to_string())?;
+        return Ok(status.code().unwrap_or(0));
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::process::Command as SysCommand;
+
+        let path_env = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin";
+
+        // Try PolicyKit first (graphical auth prompt on most desktops)
+        let mut pkexec_args: Vec<String> = Vec::new();
+        pkexec_args.push("--description".to_string());
+        pkexec_args.push("Rclone UI needs to run rclone selfupdate".to_string());
+        pkexec_args.push("env".to_string());
+        pkexec_args.push(path_env.to_string());
+        pkexec_args.push("rclone".to_string());
+        pkexec_args.push("selfupdate".to_string());
+
+        match SysCommand::new("pkexec").args(&pkexec_args).status() {
+            Ok(status) => return Ok(status.code().unwrap_or(0)),
+            Err(_e) => {
+                // Fallback to sudo with custom prompt (works if the user has NOPASSWD or cached credentials)
+                let mut sudo_env = std::collections::HashMap::new();
+                sudo_env.insert("SUDO_PROMPT", "Rclone UI needs permission to run rclone selfupdate. Please enter your password: ");
+                
+                let mut sudo_args: Vec<String> = Vec::new();
+                sudo_args.push("-n".to_string());
+                sudo_args.push("env".to_string());
+                sudo_args.push(path_env.to_string());
+                sudo_args.push("rclone".to_string());
+                sudo_args.push("selfupdate".to_string());
+
+                let status = SysCommand::new("sudo")
+                    .envs(&sudo_env)
+                    .args(&sudo_args)
+                    .status()
+                    .map_err(|e| e.to_string())?;
+                return Ok(status.code().unwrap_or(0));
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command as SysCommand;
+
+        fn quote_ps(value: &str) -> String {
+            // PowerShell single-quote escaping: ' -> ''
+            format!("'{}'", value.replace('\'', "''"))
+        }
+
+        let file_path = quote_ps("rclone");
+        let arg_list = String::from("@('selfupdate')");
+
+        let ps_script = format!(
+            "$p = Start-Process -Verb RunAs -WindowStyle Hidden -PassThru -FilePath {file} -ArgumentList {args}; \n\
+            $p.WaitForExit();\n\
+            exit $p.ExitCode",
+            file = file_path,
+            args = arg_list
+        );
+
+        let status = SysCommand::new("powershell")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps_script])
+            .status()
+            .map_err(|e| e.to_string())?;
+        return Ok(status.code().unwrap_or(0));
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        Err("Unsupported platform".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
 	let client = sentry::init((
@@ -360,7 +466,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, prompt_password, stop_pid])
+        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, prompt_password, stop_pid, update_system_rclone])
         .setup(|_app| Ok(()))
         // .setup(|app| {
         //     if cfg!(debug_assertions) {

@@ -1,9 +1,11 @@
 import { Button, Divider } from '@heroui/react'
 
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { exit } from '@tauri-apps/plugin-process'
 import { useEffect, useState } from 'react'
 import { useStore } from '../../lib/store'
 
-const GREETINGS = [
+const GREET = [
     'Hello',
     'こんにちは',
     'Salut',
@@ -18,19 +20,45 @@ const GREETINGS = [
     'مرحباً',
 ]
 
+const WAIT = [
+    'Just a moment',
+    '少々お待ちください',
+    'Un moment',
+    'Chwileczkę',
+    'Ett ögonblick',
+    'Juste un instant',
+    'Só um momento',
+    'Un attimo',
+    '请稍等一下',
+    'Einen Moment, bitte',
+    'Bir saniye lütfen',
+    'لحظة من فضلك',
+]
+
 export default function Startup() {
-    const [greetingIndex, setGreetingIndex] = useState(0)
+    const [titleIndex, setTitleIndex] = useState(0)
 
     const startupStatus = useStore((state) => state.startupStatus)
 
-    const isInitialized = startupStatus === 'initialized'
+    const isError = startupStatus === 'error' || startupStatus === 'fatal'
 
     useEffect(() => {
-        const intervalId = setInterval(() => {
-            setGreetingIndex((previousIndex) => (previousIndex + 1) % GREETINGS.length)
-        }, 2500)
-        return () => clearInterval(intervalId)
-    }, [])
+        let intervalId: NodeJS.Timeout | null = null
+        if (startupStatus === 'initializing') {
+            intervalId = setInterval(() => {
+                setTitleIndex((previousIndex) => (previousIndex + 1) % GREET.length)
+            }, 2500)
+        } else if (startupStatus === 'updating') {
+            intervalId = setInterval(() => {
+                setTitleIndex((previousIndex) => (previousIndex + 1) % WAIT.length)
+            }, 2500)
+        }
+        return () => {
+            if (intervalId) {
+                clearInterval(intervalId)
+            }
+        }
+    }, [startupStatus])
 
     return (
         <div className="flex flex-col h-screen rounded-lg">
@@ -40,36 +68,82 @@ export default function Startup() {
 
             <div className="flex flex-col w-full h-full justify-evenly">
                 <div className="flex flex-col items-center w-full gap-8 overflow-visible">
-                    {isInitialized && (
+                    {isError && (
+                        <p className="ml-2 text-2xl">
+                            Could not complete the operation, please try again later.
+                        </p>
+                    )}
+                    {startupStatus === 'initialized' && (
                         <p className="ml-2 text-2xl">
                             Rclone has initialized, you can find it in the tray menu!
                         </p>
                     )}
-                    {!isInitialized && (
+                    {startupStatus === 'updated' && (
+                        <p className="ml-2 text-2xl">
+                            Rclone has updated, you can find it in the tray menu!
+                        </p>
+                    )}
+                    {startupStatus === 'initializing' && (
                         <p className="ml-2 text-3xl">
                             <span
-                                key={greetingIndex}
+                                key={titleIndex}
                                 className="inline-block align-middle animate-fade-in-up"
                             >
-                                {GREETINGS[greetingIndex]}
+                                {GREET[titleIndex]}
+                            </span>{' '}
+                            <span className="inline-block align-middle">👋</span>
+                        </p>
+                    )}
+                    {startupStatus === 'updating' && (
+                        <p className="ml-2 text-3xl">
+                            <span
+                                key={titleIndex}
+                                className="inline-block align-middle animate-fade-in-up"
+                            >
+                                {WAIT[titleIndex]}
                             </span>{' '}
                             <span className="inline-block align-middle">👋</span>
                         </p>
                     )}
                 </div>
                 <div className="flex flex-col items-center w-full bg-red-500/0">
-                    {isInitialized ? (
+                    {(startupStatus === 'initialized' || startupStatus === 'updated') && (
                         <Button
                             className="w-full max-w-md py-8 text-large"
                             variant="shadow"
                             color="primary"
                             size="lg"
-                            onPress={() => {}}
+                            onPress={async () => {
+                                await getCurrentWindow().hide()
+                                await getCurrentWindow().destroy()
+                            }}
                         >
                             START
                         </Button>
-                    ) : (
+                    )}
+                    {isError && (
+                        <Button
+                            className="w-full max-w-md py-8 text-large"
+                            variant="shadow"
+                            color="primary"
+                            size="lg"
+                            onPress={async () => {
+                                if (startupStatus === 'error') {
+                                    await getCurrentWindow().hide()
+                                    await getCurrentWindow().destroy()
+                                } else {
+                                    await exit(0)
+                                }
+                            }}
+                        >
+                            {startupStatus === 'error' ? 'OK' : 'QUIT'}
+                        </Button>
+                    )}
+                    {startupStatus === 'initializing' && (
                         <p className="uppercase text-small animate-pulse">Rclone is initalizing</p>
+                    )}
+                    {startupStatus === 'updating' && (
+                        <p className="uppercase text-small animate-pulse">Rclone is updating</p>
                     )}
                 </div>
             </div>

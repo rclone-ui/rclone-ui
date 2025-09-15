@@ -41,7 +41,14 @@ interface State {
     addRemote: (remote: string) => void
     removeRemote: (remote: string) => void
 
-    startupStatus: null | 'initializing' | 'initialized'
+    startupStatus:
+        | null
+        | 'initializing'
+        | 'initialized'
+        | 'updating'
+        | 'updated'
+        | 'error'
+        | 'fatal'
 }
 
 interface PersistedState {

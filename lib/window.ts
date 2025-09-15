@@ -136,7 +136,7 @@ export async function openSmallWindow({
         width: 0,
         resizable: false,
         visibleOnAllWorkspaces: false,
-        alwaysOnTop: true,
+        alwaysOnTop: false,
         visible: false,
         focus: true,
         title: name,
