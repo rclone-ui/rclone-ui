@@ -75,6 +75,13 @@ interface PersistedState {
         )[]
     ) => void
 
+    proxy:
+        | {
+              url: string
+              ignoredHosts: string[]
+          }
+        | undefined
+
     settingsPass: string | undefined
     setSettingsPass: (pass: string | undefined) => void
 
@@ -179,6 +186,8 @@ export const usePersistedStore = create<PersistedState>()(
                     | 'tray-delete'
                 )[]
             ) => set((_) => ({ disabledActions: actions })),
+
+            proxy: undefined,
 
             settingsPass: undefined,
             setSettingsPass: (pass: string | undefined) => set((_) => ({ settingsPass: pass })),

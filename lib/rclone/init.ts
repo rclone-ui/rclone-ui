@@ -219,6 +219,15 @@ export async function initRclone(args: string[]) {
         env: {},
     }
 
+    if (persistedState.proxy) {
+        extraParams.env.http_proxy = persistedState.proxy.url
+        extraParams.env.https_proxy = persistedState.proxy.url
+        extraParams.env.HTTP_PROXY = persistedState.proxy.url
+        extraParams.env.HTTPS_PROXY = persistedState.proxy.url
+        extraParams.env.no_proxy = persistedState.proxy.ignoredHosts.join(',')
+        extraParams.env.NO_PROXY = persistedState.proxy.ignoredHosts.join(',')
+    }
+
     if (activeConfigFile.isEncrypted) {
         extraParams.env.RCLONE_ASK_PASSWORD = 'false'
         if (activeConfigFile.passCommand) {

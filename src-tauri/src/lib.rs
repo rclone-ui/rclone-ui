@@ -323,6 +323,61 @@ async fn prompt_password(title: String, message: String) -> Result<Option<String
     }
 }
 
+#[tauri::command]
+async fn test_proxy_connection(proxy_url: String) -> Result<String, String> {
+    use std::time::Duration;
+
+    // Validate
+    let proxy_url = proxy_url.trim();
+    if proxy_url.is_empty() {
+        return Err("Proxy URL cannot be empty".to_string());
+    }
+
+    // Build client with proxy
+    let proxy = reqwest::Proxy::all(proxy_url)
+        .map_err(|e| format!("Invalid proxy URL: {}", e))?;
+    let client = reqwest::Client::builder()
+        .proxy(proxy)
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    // Multiple fallback endpoints
+    let candidates = [
+        "https://httpbin.org/ip",
+        "https://www.cloudflare.com/cdn-cgi/trace",
+        "https://ifconfig.me/ip",
+        "https://1.1.1.1/cdn-cgi/trace",
+    ];
+
+    let mut last_error: Option<String> = None;
+    for url in candidates.iter() {
+        match client.get(*url).send().await {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    match resp.text().await {
+                        Ok(body) => {
+                            return Ok(format!("Connected via proxy. Endpoint: {}. Snippet: {}", url, body.chars().take(200).collect::<String>()))
+                        }
+                        Err(e) => {
+                            last_error = Some(format!("Failed to read response from {}: {}", url, e));
+                            continue;
+                        }
+                    }
+                } else {
+                    last_error = Some(format!("{} responded with status {}", url, resp.status()));
+                    continue;
+                }
+            }
+            Err(e) => {
+                last_error = Some(format!("Request to {} failed: {}", url, e));
+                continue;
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| "All proxy tests failed".to_string()))
+}
 
 #[tauri::command]
 async fn update_system_rclone() -> Result<i32, String> {
