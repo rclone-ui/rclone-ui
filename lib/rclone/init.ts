@@ -9,7 +9,8 @@ import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { Command } from '@tauri-apps/plugin-shell'
-import { usePersistedStore } from '../store'
+import { usePersistedStore, useStore } from '../store'
+import { openSmallWindow } from '../window'
 import {
     getConfigPath,
     getDefaultPath,
@@ -25,6 +26,12 @@ export async function initRclone(args: string[]) {
 
     // rclone not available, let's download it
     if (!system && !internal) {
+        usePersistedStore.setState({ isFirstOpen: false })
+        useStore.setState({ startupStatus: 'initializing' })
+        await openSmallWindow({
+            name: 'Startup',
+            url: '/startup',
+        })
         const success = await provisionRclone()
         if (!success) {
             await new Promise((resolve) => setTimeout(resolve, 1000))

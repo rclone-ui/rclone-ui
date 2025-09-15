@@ -27,7 +27,7 @@ export async function openFullWindow({
     name: string
     url: string
 }) {
-    console.log('[openFullWindow]')
+    console.log('[openFullWindow] ', name, url)
 
     const w = new WebviewWindow(name, {
         height: 0,
@@ -41,6 +41,8 @@ export async function openFullWindow({
         decorations: true,
         url: url,
         theme: 'dark',
+        // @ts-expect-error
+        backgroundThrottling: 'disabled',
     })
 
     let monitor = await currentMonitor()
@@ -57,8 +59,7 @@ export async function openFullWindow({
     }
 
     if (platform() === 'windows') {
-        // windows merges the space for the taskbar
-        // subtract from the height to have it show
+        // subtract from the height to correct for the taskbar
         size.height -= 100
     }
 
@@ -81,7 +82,7 @@ export async function openWindow({
     width?: number
     height?: number
 }) {
-    console.log('[openWindow]')
+    console.log('[openWindow] ', name, url)
 
     const isFirstWindow = useStore.getState().firstWindow
 
@@ -98,12 +99,13 @@ export async function openWindow({
         decorations: false,
         url: url,
         theme: 'dark',
-        // parent: 'main',
+        // @ts-expect-error
+        backgroundThrottling: 'disabled',
     })
 
     await getMainTray().then((t) => t?.setVisible(false))
     await getLoadingTray().then((t) => t?.setVisible(true))
-    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 1000 : 150))
+    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 900 : 150))
     await getLoadingTray().then((t) => t?.setVisible(false))
     await getMainTray().then((t) => t?.setVisible(true))
 
@@ -111,6 +113,45 @@ export async function openWindow({
     await w.setSize(new LogicalSize(width, height))
     await w.center()
     await w.setDecorations(true)
+    await w.show()
+
+    useStore.setState({ firstWindow: false })
+
+    return w
+}
+
+export async function openSmallWindow({
+    name,
+    url,
+}: {
+    name: string
+    url: string
+}) {
+    console.log('[openSmallWindow] ', name, url)
+
+    const isFirstWindow = useStore.getState().firstWindow
+
+    const w = new WebviewWindow(name, {
+        height: 0,
+        width: 0,
+        resizable: false,
+        visibleOnAllWorkspaces: false,
+        alwaysOnTop: true,
+        visible: false,
+        focus: true,
+        title: name,
+        decorations: false,
+        url: url,
+        theme: 'dark',
+        closable: false,
+        // @ts-expect-error
+        backgroundThrottling: 'disabled',
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 900 : 150))
+
+    await w.setSize(new LogicalSize(800, 500))
+    await w.center()
     await w.show()
 
     useStore.setState({ firstWindow: false })

@@ -12,6 +12,7 @@ import Jobs from './pages/Jobs'
 import Mount from './pages/Mount'
 import Move from './pages/Move'
 import Settings from './pages/Settings'
+import Startup from './pages/Startup'
 import Sync from './pages/Sync'
 import Test from './pages/Test'
 
@@ -38,6 +39,10 @@ const router = createBrowserRouter([
     {
         path: '/',
         element: <Home />,
+    },
+    {
+        path: '/startup',
+        element: <Startup />,
     },
     {
         path: '/settings',

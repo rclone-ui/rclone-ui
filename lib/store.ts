@@ -40,6 +40,8 @@ interface State {
     setRemotes: (remotes: string[]) => void
     addRemote: (remote: string) => void
     removeRemote: (remote: string) => void
+
+    startupStatus: null | 'initializing' | 'initialized'
 }
 
 interface PersistedState {
@@ -136,6 +138,8 @@ export const useStore = create<State>()(
                 set((state) => ({ remotes: [...state.remotes, remote] })),
             removeRemote: (remote: string) =>
                 set((state) => ({ remotes: state.remotes.filter((r) => r !== remote) })),
+
+            startupStatus: null,
         }),
         { name: 'shared-store' }
     )

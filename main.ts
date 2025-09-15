@@ -23,6 +23,7 @@ import {
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
 import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
+import { openSmallWindow } from './lib/window'
 import type { ScheduledTask } from './types/task'
 
 try {
@@ -73,13 +74,12 @@ async function validateInstance() {
     const isOnline = navigator.onLine
 
     if (!isOnline && platform() !== 'linux') {
-        await ask(
+        await message(
             'You are not connected to the internet. Please check your connection and try again.',
             {
                 title: 'Error',
                 kind: 'error',
                 okLabel: 'Exit',
-                cancelLabel: '',
             }
         )
         return await exit(0)
@@ -148,11 +148,10 @@ async function startRclone() {
         ])
     } catch (error) {
         Sentry.captureException(error)
-        await ask(error.message || 'Failed to start rclone, please try again later.', {
+        await message(error.message || 'Failed to start rclone, please try again later.', {
             title: 'Error',
             kind: 'error',
             okLabel: 'Exit',
-            cancelLabel: '',
         })
         return await exit(0)
     }
@@ -282,10 +281,10 @@ async function startupMounts() {
 async function onboardUser() {
     const firstOpen = usePersistedStore.getState().isFirstOpen
     if (firstOpen) {
-        await message('Rclone has initialized, you can now find it in the tray menu!', {
-            title: 'Welcome to Rclone UI',
-            kind: 'info',
-            okLabel: 'Got it',
+        useStore.setState({ startupStatus: 'initialized' })
+        await openSmallWindow({
+            name: 'Startup',
+            url: '/startup',
         })
         usePersistedStore.setState({ isFirstOpen: false })
     }

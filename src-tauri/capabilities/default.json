@@ -13,9 +13,8 @@
         "Jobs",
         "Cron",
         "Browse",
-        "Test",
-        "Test2",
-        "Test3"
+        "Startup",
+        "Test"
     ],
     "permissions": [
         "core:default",

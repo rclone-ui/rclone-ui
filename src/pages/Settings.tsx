@@ -4,6 +4,7 @@ import {
     CardBody,
     Checkbox,
     Chip,
+    Divider,
     Dropdown,
     DropdownItem,
     DropdownMenu,
@@ -50,7 +51,12 @@ import {
 } from 'lucide-react'
 import { type DetailedHTMLProps, type HTMLAttributes, useEffect, useRef, useState } from 'react'
 import { revokeMachineLicense, validateLicense } from '../../lib/license'
-import { deleteRemote, getVersion as getCliVersion, getVersion } from '../../lib/rclone/api'
+import {
+    deleteRemote,
+    getVersion as getCliVersion,
+    getRemote,
+    getVersion,
+} from '../../lib/rclone/api'
 import { getConfigPath, getDefaultPaths } from '../../lib/rclone/common'
 import { usePersistedStore, useStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
@@ -339,7 +345,7 @@ function GeneralSection() {
             title: 'Update',
             kind: 'info',
             okLabel: 'Restart',
-            cancelLabel: '',
+            cancelLabel: 'Later',
         })
 
         if (!answer) {
@@ -599,133 +605,123 @@ function LicenseSection() {
         <div className="flex flex-col gap-8">
             <BaseHeader title="License" />
 
-            <div className="flex flex-row justify-center w-full gap-8 px-8">
-                <div className="flex flex-col items-end w-2/6 gap-2 bg-transparent-500">
-                    <h3 className="font-medium">Activate</h3>
-                </div>
+            <div className="flex flex-row justify-center w-full gap-2 px-8">
+                <Input
+                    placeholder="Enter license key"
+                    value={licenseKeyInput}
+                    onChange={(e) => setLicenseKeyInput(e.target.value)}
+                    size="lg"
+                    isDisabled={!isLicenseEditable || isActivating}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    endContent={licenseValid && <CheckIcon className="w-5 h-5 text-green-500" />}
+                    data-focus-visible="false"
+                    fullWidth={true}
+                />
 
-                <div className="flex flex-col w-4/6 gap-2 bg-transparent-500">
-                    <Input
-                        placeholder="Enter license key"
-                        value={licenseKeyInput}
-                        onChange={(e) => setLicenseKeyInput(e.target.value)}
+                {!licenseValid && (
+                    <Button
+                        isLoading={isActivating}
                         size="lg"
-                        isDisabled={!isLicenseEditable || isActivating}
-                        autoCapitalize="none"
-                        autoComplete="off"
-                        autoCorrect="off"
-                        spellCheck="false"
-                        endContent={
-                            licenseValid && <CheckIcon className="w-5 h-5 text-green-500" />
-                        }
+                        onPress={async () => {
+                            if (!licenseKeyInput) {
+                                await message('Please enter a license key', {
+                                    title: 'Error',
+                                    kind: 'error',
+                                })
+                                return
+                            }
+                            setIsActivating(true)
+                            try {
+                                await validateLicense(licenseKeyInput)
+                            } catch (e) {
+                                if (e instanceof Error) {
+                                    await message(e.message, {
+                                        title: 'Error',
+                                        kind: 'error',
+                                        okLabel: 'Ok',
+                                    })
+                                    return
+                                }
+
+                                await message('An error occurred. Please try again.', {
+                                    title: 'Error',
+                                    kind: 'error',
+                                    okLabel: 'Ok',
+                                })
+                            }
+                            setIsActivating(false)
+
+                            await message('Your license has been successfully activated.', {
+                                title: 'Congrats!',
+                                kind: 'info',
+                            })
+                        }}
                         data-focus-visible="false"
-                    />
+                    >
+                        Activate
+                    </Button>
+                )}
+                {licenseValid && (
+                    <Button
+                        isLoading={isRevoking}
+                        color="danger"
+                        variant="ghost"
+                        onPress={async () => {
+                            // usePersistedStore.setState({
+                            //     licenseKey: undefined,
+                            //     licenseValid: false,
+                            // })
+                            // return
 
-                    {!licenseValid && (
-                        <Button
-                            fullWidth={true}
-                            isLoading={isActivating}
-                            onPress={async () => {
-                                if (!licenseKeyInput) {
-                                    await message('Please enter a license key', {
-                                        title: 'Error',
-                                        kind: 'error',
-                                    })
-                                    return
+                            const answer = await ask(
+                                'Are you sure you want to deactivate your license? You can always activate it again later.',
+                                {
+                                    title: 'Deactivate License',
+                                    kind: 'warning',
                                 }
-                                setIsActivating(true)
-                                try {
-                                    await validateLicense(licenseKeyInput)
-                                } catch (e) {
-                                    if (e instanceof Error) {
-                                        await ask(e.message, {
-                                            title: 'Error',
-                                            kind: 'error',
-                                            okLabel: 'Ok',
-                                            cancelLabel: '',
-                                        })
-                                        return
-                                    }
+                            )
 
-                                    await ask('An error occurred. Please try again.', {
-                                        title: 'Error',
-                                        kind: 'error',
-                                        okLabel: 'Ok',
-                                        cancelLabel: '',
-                                    })
-                                }
-                                setIsActivating(false)
+                            if (!answer) {
+                                return
+                            }
 
-                                await message('Your license has been successfully activated.', {
-                                    title: 'Congrats!',
-                                    kind: 'info',
-                                })
-                            }}
-                            data-focus-visible="false"
-                        >
-                            Activate
-                        </Button>
-                    )}
-                    {licenseValid && (
-                        <Button
-                            fullWidth={true}
-                            isLoading={isRevoking}
-                            color="danger"
-                            variant="ghost"
-                            onPress={async () => {
-                                // usePersistedStore.setState({
-                                //     licenseKey: undefined,
-                                //     licenseValid: false,
-                                // })
-                                // return
-
-                                const answer = await ask(
-                                    'Are you sure you want to deactivate your license? You can always activate it again later.',
-                                    {
-                                        title: 'Deactivate License',
-                                        kind: 'warning',
-                                    }
-                                )
-
-                                if (!answer) {
-                                    return
-                                }
-
-                                setIsRevoking(true)
-                                try {
-                                    await revokeMachineLicense(licenseKeyInput)
-                                } catch (e) {
-                                    if (e instanceof Error) {
-                                        await ask(e.message, {
-                                            title: 'Error',
-                                            kind: 'error',
-                                            okLabel: 'Ok',
-                                            cancelLabel: '',
-                                        })
-                                        return
-                                    }
-
-                                    await ask('An error occurred. Please try again.', {
+                            setIsRevoking(true)
+                            try {
+                                await revokeMachineLicense(licenseKeyInput)
+                            } catch (e) {
+                                if (e instanceof Error) {
+                                    await message(e.message, {
                                         title: 'Error',
                                         kind: 'error',
                                         okLabel: 'Ok',
-                                        cancelLabel: '',
                                     })
+                                    return
                                 }
-                                setIsRevoking(false)
 
-                                await message('Your license has been successfully deactivated.', {
-                                    title: 'License deactivated',
-                                    kind: 'info',
+                                await message('An error occurred. Please try again.', {
+                                    title: 'Error',
+                                    kind: 'error',
+                                    okLabel: 'Ok',
                                 })
-                            }}
-                            data-focus-visible="false"
-                        >
-                            Deactivate
-                        </Button>
-                    )}
-                </div>
+                            }
+                            setIsRevoking(false)
+
+                            await message('Your license has been successfully deactivated.', {
+                                title: 'License deactivated',
+                                kind: 'info',
+                            })
+                        }}
+                        data-focus-visible="false"
+                    >
+                        Deactivate
+                    </Button>
+                )}
             </div>
+
+            <Divider />
 
             <div
                 className={cn(
@@ -777,9 +773,9 @@ function RemotesSection() {
                 endContent={
                     <Button
                         onPress={async () => {
-                            if (!licenseValid && remotes.length >= 3) {
+                            if (!licenseValid && remotes.length >= 4) {
                                 await message(
-                                    'Community version does not support adding more than 3 remotes.',
+                                    'Community version does not support adding more than 4 remotes.',
                                     {
                                         title: 'Missing license',
                                         kind: 'error',
@@ -802,69 +798,32 @@ function RemotesSection() {
             />
             <div className="flex flex-col gap-2 p-4">
                 {remotes.map((remote) => (
-                    <Card
+                    <RemoteCard
                         key={remote}
-                        shadow="sm"
-                        isBlurred={true}
-                        className="border-none bg-background/60 dark:bg-default-100/60"
-                    >
-                        <CardBody>
-                            <div className="flex items-center justify-between">
-                                <span>{remote}</span>
-                                <div className="flex flex-row items-center gap-2">
-                                    <Button
-                                        onPress={() => {
-                                            setPickedRemote(remote)
-                                            setDefaultsDrawerOpen(true)
-                                        }}
-                                        // isIconOnly={true}
-                                        color="primary"
-                                        variant="flat"
-                                        data-focus-visible="false"
-                                    >
-                                        {/* <CableIcon className="w-4 h-4" /> */}
-                                        Edit Defaults
-                                    </Button>
-                                    <Button
-                                        onPress={() => {
-                                            setPickedRemote(remote)
-                                            setEditingDrawerOpen(true)
-                                        }}
-                                        // isIconOnly={true}
-                                        // color="primary"
-                                        variant="faded"
-                                        data-focus-visible="false"
-                                    >
-                                        {/* <PencilIcon className="w-4 h-4" /> */}
-                                        Config
-                                    </Button>
-                                    <Button
-                                        isIconOnly={true}
-                                        color="danger"
-                                        variant="light"
-                                        size="sm"
-                                        onPress={async () => {
-                                            const confirmation = await ask(
-                                                `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
-                                                { title: `Removing ${remote}`, kind: 'warning' }
-                                            )
+                        remote={remote}
+                        onDefaultsPress={() => {
+                            setPickedRemote(remote)
+                            setDefaultsDrawerOpen(true)
+                        }}
+                        onConfigPress={() => {
+                            setPickedRemote(remote)
+                            setEditingDrawerOpen(true)
+                        }}
+                        onDeletePress={async () => {
+                            const confirmation = await ask(
+                                `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
+                                { title: `Removing ${remote}`, kind: 'warning' }
+                            )
 
-                                            if (!confirmation) {
-                                                return
-                                            }
+                            if (!confirmation) {
+                                return
+                            }
 
-                                            await deleteRemote(remote)
-                                            removeRemote(remote)
-                                            await triggerTrayRebuild()
-                                        }}
-                                        data-focus-visible="false"
-                                    >
-                                        <Trash2Icon className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardBody>
-                    </Card>
+                            await deleteRemote(remote)
+                            removeRemote(remote)
+                            await triggerTrayRebuild()
+                        }}
+                    />
                 ))}
             </div>
 
@@ -903,6 +862,86 @@ function RemotesSection() {
                 />
             )}
         </div>
+    )
+}
+
+function RemoteCard({
+    remote,
+    onDefaultsPress,
+    onConfigPress,
+    onDeletePress,
+}: {
+    remote: string
+    onDefaultsPress: () => void
+    onConfigPress: () => void
+    onDeletePress: () => void
+}) {
+    const [type, setType] = useState<string | null>(null)
+
+    const imageUrl = type ? `/icons/${type}.png` : undefined
+
+    useEffect(() => {
+        const loadRemoteConfig = async () => {
+            try {
+                const remoteInfo = await getRemote(remote)
+                setType(remoteInfo.type)
+            } catch (error) {
+                console.error('[RemoteCard] Failed to load remote config:', error)
+            }
+        }
+        loadRemoteConfig()
+    }, [remote])
+
+    return (
+        <Card
+            key={remote}
+            shadow="sm"
+            isBlurred={true}
+            className="border-none bg-background/60 dark:bg-default-100/60"
+            isPressable={true}
+            onPress={onConfigPress}
+        >
+            <CardBody>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <img src={imageUrl} className="object-contain w-10 h-10" alt={remote} />
+                        <p className="text-large">{remote}</p>
+                    </div>
+                    <div className="flex flex-row items-center gap-2">
+                        <Button
+                            onPress={onDefaultsPress}
+                            // isIconOnly={true}
+                            color="primary"
+                            variant="flat"
+                            data-focus-visible="false"
+                        >
+                            {/* <CableIcon className="w-4 h-4" /> */}
+                            Edit Defaults
+                        </Button>
+                        <Button
+                            onPress={onConfigPress}
+                            // isIconOnly={true}
+                            // color="primary"
+                            variant="faded"
+                            data-focus-visible="false"
+                        >
+                            {/* <PencilIcon className="w-4 h-4" /> */}
+                            Config
+                        </Button>
+                        <Button
+                            isIconOnly={true}
+                            color="danger"
+                            variant="light"
+                            size="sm"
+                            onPress={onDeletePress}
+                            data-focus-visible="false"
+                        >
+                            <Trash2Icon className="w-4 h-4" />
+                        </Button>
+                    </div>
+                </div>
+            </CardBody>
+        </Card>
     )
 }
 
@@ -1076,11 +1115,10 @@ function ConfigSection() {
                                         }
 
                                         if (configFile.id === 'default') {
-                                            await ask('Default config cannot be deleted', {
+                                            await message('Default config cannot be deleted', {
                                                 title: 'Error',
                                                 kind: 'warning',
                                                 okLabel: 'OK',
-                                                cancelLabel: '',
                                             })
                                             return
                                         }

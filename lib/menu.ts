@@ -188,11 +188,10 @@ async function parseRemotes(remotes: string[]) {
                         })
                     } catch (error) {
                         Sentry.captureException(error)
-                        await ask('Could not open browse window. Please try again.', {
+                        await message('Could not open browse window. Please try again.', {
                             title: 'Error',
                             kind: 'error',
                             okLabel: 'OK',
-                            cancelLabel: '',
                         })
                     }
                 },

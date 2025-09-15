@@ -19,6 +19,7 @@ const SUPPORTED_BACKENDS = [
     'box',
     'webdav',
     'onedrive',
+    'http',
 ]
 
 function getAuthHeader() {
