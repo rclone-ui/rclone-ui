@@ -100,7 +100,10 @@ export async function getRemote(remote: string) {
         method: 'POST',
         headers: getAuthHeader(),
     }).then(
-        (res) => res.json() as Promise<{ type: string } & Record<string, string | number | boolean>>
+        (res) =>
+            res.json() as Promise<
+                { type: string; provider?: string } & Record<string, string | number | boolean>
+            >
     )
 
     // console.log(JSON.stringify(r, null, 2))
@@ -137,6 +140,8 @@ export async function createRemote(
     options.set('name', name)
     options.set('type', type)
     options.set('parameters', JSON.stringify(parameters))
+
+    console.log('[createRemote] params', options.toString())
 
     await fetch(`http://localhost:5572/config/create?${options.toString()}`, {
         method: 'POST',

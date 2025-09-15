@@ -92,7 +92,19 @@ export default function RemoteEditDrawer({
                             description={option.Help.split('\n').slice(1).join('\n')}
                         >
                             {(item) => (
-                                <AutocompleteItem key={item.Value} textValue={item.Value}>
+                                <AutocompleteItem
+                                    key={item.Value}
+                                    textValue={item.Value}
+                                    startContent={
+                                        option.Name === 'provider' && (
+                                            <img
+                                                src={`/icons/providers/${item.Value}.png`}
+                                                className="object-contain w-4 h-4"
+                                                alt={item.Value}
+                                            />
+                                        )
+                                    }
+                                >
                                     {item.Help || item.Value}
                                 </AutocompleteItem>
                             )}
@@ -208,7 +220,7 @@ export default function RemoteEditDrawer({
                                             key={backend.Name}
                                             startContent={
                                                 <img
-                                                    src={`/icons/${backend.Prefix}.png`}
+                                                    src={`/icons/backends/${backend.Prefix}.png`}
                                                     className="object-contain w-8 h-8"
                                                     alt={backend.Name}
                                                 />
@@ -216,7 +228,10 @@ export default function RemoteEditDrawer({
                                         >
                                             {backend.Description.includes('Compliant')
                                                 ? `${backend.Description.split('Compliant')[0]} Compliant`
-                                                : backend.Description || backend.Name}
+                                                : backend.Description?.replace(
+                                                      ' (this is not Google Drive)',
+                                                      ''
+                                                  ) || backend.Name}
                                         </SelectItem>
                                     ))}
                                 </Select>

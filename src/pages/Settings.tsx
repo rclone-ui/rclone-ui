@@ -652,7 +652,7 @@ function LicenseSection() {
                     autoComplete="off"
                     autoCorrect="off"
                     spellCheck="false"
-                    endContent={licenseValid && <CheckIcon className="w-5 h-5 text-green-500" />}
+                    endContent={licenseValid && <CheckIcon className="w-5 h-5 text-success" />}
                     data-focus-visible="false"
                     fullWidth={true}
                 />
@@ -705,6 +705,7 @@ function LicenseSection() {
                         isLoading={isRevoking}
                         color="danger"
                         variant="ghost"
+                        size="lg"
                         onPress={async () => {
                             // usePersistedStore.setState({
                             //     licenseKey: undefined,
@@ -914,14 +915,18 @@ function RemoteCard({
     onDeletePress: () => void
 }) {
     const [type, setType] = useState<string | null>(null)
+    const [provider, setProvider] = useState<string | null>(null)
 
-    const imageUrl = type ? `/icons/${type}.png` : undefined
+    const imageUrl = provider ? `/icons/providers/${provider}.png` : `/icons/backends/${type}.png`
 
     useEffect(() => {
         const loadRemoteConfig = async () => {
             try {
                 const remoteInfo = await getRemote(remote)
                 setType(remoteInfo.type)
+                if (remoteInfo.provider) {
+                    setProvider(remoteInfo.provider)
+                }
             } catch (error) {
                 console.error('[RemoteCard] Failed to load remote config:', error)
             }
