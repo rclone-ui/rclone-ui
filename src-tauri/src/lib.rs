@@ -521,7 +521,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, prompt_password, stop_pid, update_system_rclone])
+        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, prompt_password, stop_pid, update_system_rclone, test_proxy_connection])
         .setup(|_app| Ok(()))
         // .setup(|app| {
         //     if cfg!(debug_assertions) {
