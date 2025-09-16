@@ -275,10 +275,12 @@ export default function Mount() {
                     switchable={false}
                     sourceOptions={{
                         label: 'Remote Path',
-                        showPicker: false,
+                        showPicker: true,
                         placeholder: 'Root path inside the remote',
                         showSuggestions: true,
                         clearable: true,
+                        allowedKeys: ['REMOTES', 'FAVORITES'],
+                        showFiles: false,
                     }}
                     destOptions={{
                         label: 'Mount Point',
@@ -286,6 +288,8 @@ export default function Mount() {
                         placeholder: 'The local path to mount the remote to',
                         showSuggestions: false,
                         clearable: false,
+                        allowedKeys: ['LOCAL_FS'],
+                        showFiles: false,
                     }}
                 />
 
