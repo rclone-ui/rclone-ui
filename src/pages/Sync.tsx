@@ -157,7 +157,7 @@ export default function Sync() {
             })
 
             // dummy delay to avoid waiting when opening the Jobs page
-            await new Promise((resolve) => setTimeout(resolve, 1500))
+            await new Promise((resolve) => setTimeout(resolve, 1000))
 
             setIsStarted(true)
         } catch (err) {
@@ -268,6 +268,25 @@ export default function Sync() {
                     setSourcePath={setSource}
                     destPath={dest}
                     setDestPath={setDest}
+                    sourceOptions={{
+                        label: 'Source',
+                        showPicker: true,
+                        placeholder:
+                            'Enter a remote:/path or local path, or tap to select a folder',
+                        showSuggestions: true,
+                        clearable: true,
+                        showFiles: true,
+                        allowedKeys: ['LOCAL_FS', 'REMOTES', 'FAVORITES'],
+                    }}
+                    destOptions={{
+                        label: 'Destination',
+                        showPicker: true,
+                        placeholder: 'Enter a remote:/path or local path',
+                        showSuggestions: true,
+                        clearable: true,
+                        showFiles: false,
+                        allowedKeys: ['LOCAL_FS', 'REMOTES', 'FAVORITES'],
+                    }}
                 />
 
                 <Accordion>
