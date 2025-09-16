@@ -1,6 +1,6 @@
 import { Accordion, AccordionItem, Avatar, Button, Switch } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
-import { exists, readDir } from '@tauri-apps/plugin-fs'
+import { exists } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import cronstrue from 'cronstrue'
 import {
@@ -185,27 +185,15 @@ export default function Move() {
             }
         }
 
-        let isFolder = true
-
-        try {
-            await readDir(sources[0])
-        } catch {
-            console.log('not a folder')
-            isFolder = false
-        }
-
         if (
-            !isFolder &&
+            sources.length > 1 &&
             filterOptions &&
             ('IncludeRule' in filterOptions || 'IncludeFrom' in filterOptions)
         ) {
-            await message(
-                'Include rules are not supported when the input is one or multiple files',
-                {
-                    title: 'Error',
-                    kind: 'error',
-                }
-            )
+            await message('Include rules are not supported with multiple sources', {
+                title: 'Error',
+                kind: 'error',
+            })
             setIsLoading(false)
             return
         }
@@ -254,20 +242,30 @@ export default function Move() {
         const failedPaths: Record<string, string> = {}
 
         for (const source of sources) {
+            const isFolder = source.endsWith('/')
             const customFilterOptions = isFolder
                 ? filterOptions
                 : {
                       ...filterOptions,
                       IncludeRule: [source.split('/').pop()!],
                   }
+            console.log('[Move] customFilterOptions for', source, customFilterOptions)
+            // Use parent folder path if the input is a file
             const customSource = isFolder ? source : source.split('/').slice(0, -1).join('/')
+            console.log('[Move] customSource for', source, customSource)
+
+            const destination =
+                isFolder && sources.length > 1
+                    ? `${dest}/${source.split('/').filter(Boolean).pop()!}`
+                    : dest
+            console.log('[Move] destination for', source, destination)
 
             try {
                 // Use parent folder path if the input is a file
 
                 const jobId = await startMove({
                     srcFs: customSource,
-                    dstFs: dest,
+                    dstFs: destination,
                     createEmptySrcDirs,
                     deleteEmptyDstDirs,
                     _config: mergedConfig,
@@ -317,7 +315,7 @@ export default function Move() {
         console.log('failedPaths', failedPaths)
 
         // dummy delay to avoid waiting when opening the Jobs page
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await new Promise((resolve) => setTimeout(resolve, 1000))
 
         if (sources.length !== Object.keys(failedPaths).length) {
             setIsStarted(true)
