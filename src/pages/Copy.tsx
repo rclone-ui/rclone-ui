@@ -61,8 +61,6 @@ export default function Copy() {
 
     const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
 
-    const [pathSelectorOpen, setPathSelectorOpen] = useState(true)
-
     // const [backends, setBackends] = useState<Backend[]>([])
     // useEffect(() => {
     //     getBackends().then((b) => {
