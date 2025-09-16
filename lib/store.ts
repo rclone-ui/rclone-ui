@@ -82,6 +82,8 @@ interface PersistedState {
           }
         | undefined
 
+    favoritePaths: { remote: string; path: string; added: number }[]
+
     settingsPass: string | undefined
     setSettingsPass: (pass: string | undefined) => void
 
@@ -187,6 +189,8 @@ export const usePersistedStore = create<PersistedState>()(
                 )[]
             ) => set((_) => ({ disabledActions: actions })),
 
+            favoritePaths: [],
+
             proxy: undefined,
 
             settingsPass: undefined,
@@ -214,6 +218,7 @@ export const usePersistedStore = create<PersistedState>()(
                 const configId = state.activeConfigFile?.id
 
                 if (!configId) {
+                    console.error('No active config file for scheduled task')
                     throw new Error('No active config file')
                 }
 

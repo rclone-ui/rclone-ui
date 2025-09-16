@@ -1,9 +1,6 @@
 import { Autocomplete, Tooltip } from '@heroui/react'
 import { AutocompleteItem, Button } from '@heroui/react'
-import { cn } from '@heroui/react'
-import * as Sentry from '@sentry/browser'
 import { sep } from '@tauri-apps/api/path'
-import { open } from '@tauri-apps/plugin-dialog'
 import { readDir } from '@tauri-apps/plugin-fs'
 import { ArrowDownUp, FolderOpen, XIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -11,7 +8,7 @@ import { useDebounce } from 'use-debounce'
 import { isRemotePath } from '../../lib/fs'
 import { listPath } from '../../lib/rclone/api'
 import { useStore } from '../../lib/store'
-import { lockWindows, unlockWindows } from '../../lib/window'
+import PathSelector from './PathSelector'
 
 export function PathFinder({
     sourcePath = '',
@@ -25,6 +22,8 @@ export function PathFinder({
         placeholder: 'Enter a remote:/path or local path, or tap to select a folder',
         showSuggestions: true,
         clearable: true,
+        showFiles: true,
+        allowedKeys: ['LOCAL_FS', 'REMOTES', 'FAVORITES'],
     },
     destOptions = {
         label: 'Destination',
@@ -32,6 +31,8 @@ export function PathFinder({
         placeholder: 'Enter a remote:/path or local path',
         showSuggestions: true,
         clearable: true,
+        showFiles: true,
+        allowedKeys: ['LOCAL_FS', 'REMOTES', 'FAVORITES'],
     },
 }: {
     sourcePath?: string
@@ -45,6 +46,8 @@ export function PathFinder({
         showPicker: boolean
         showSuggestions: boolean
         clearable: boolean
+        allowedKeys?: ('LOCAL_FS' | 'FAVORITES' | 'REMOTES')[]
+        showFiles?: boolean
     }
     destOptions?: {
         label: string
@@ -52,6 +55,8 @@ export function PathFinder({
         showPicker: boolean
         showSuggestions: boolean
         clearable: boolean
+        allowedKeys?: ('LOCAL_FS' | 'FAVORITES' | 'REMOTES')[]
+        showFiles?: boolean
     }
 }) {
     const handleSwap = () => {
@@ -70,6 +75,8 @@ export function PathFinder({
                 showSuggestions={sourceOptions.showSuggestions}
                 clearable={sourceOptions.clearable}
                 showPicker={sourceOptions.showPicker}
+                allowedKeys={sourceOptions.allowedKeys}
+                showFiles={sourceOptions.showFiles}
             />
 
             {switchable && (
@@ -95,6 +102,8 @@ export function PathFinder({
                 showSuggestions={destOptions.showSuggestions}
                 clearable={destOptions.clearable}
                 showPicker={destOptions.showPicker}
+                allowedKeys={destOptions.allowedKeys}
+                showFiles={destOptions.showFiles}
             />
         </div>
     )
@@ -202,6 +211,7 @@ export function MultiPathFinder({
                 placeholder={destOptions.placeholder}
                 showSuggestions={destOptions.showSuggestions}
                 clearable={destOptions.clearable}
+                showFiles={false}
             />
         </div>
     )
@@ -215,6 +225,8 @@ export function PathField({
     showSuggestions = true,
     clearable = true,
     showPicker = true,
+    allowedKeys,
+    showFiles = true,
 }: {
     path: string
     setPath: (path: string) => void
@@ -223,6 +235,8 @@ export function PathField({
     showSuggestions?: boolean
     clearable?: boolean
     showPicker?: boolean
+    allowedKeys?: ('LOCAL_FS' | 'FAVORITES' | 'REMOTES')[]
+    showFiles?: boolean
 }) {
     const remotes = useStore((state) => state.remotes)
 
@@ -239,6 +253,7 @@ export function PathField({
     >([])
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const [error, setError] = useState<string | null>(null)
+    const [isOpen, setIsOpen] = useState<boolean>(false)
 
     const visibleSuggestions = showSuggestions ? suggestions : []
 
@@ -329,26 +344,6 @@ export function PathField({
         setIsLoading(false)
     }
 
-    async function handleBrowse() {
-        try {
-            await lockWindows()
-            const selected = await open({
-                directory: true,
-                multiple: false,
-                defaultPath: path,
-                title: 'Select a folder',
-            })
-            await unlockWindows()
-            if (selected) {
-                setPath(selected as string)
-            }
-        } catch (err) {
-            Sentry.captureException(err)
-            console.error('Failed to open folder picker:', err)
-            setError('Failed to open folder picker')
-        }
-    }
-
     useEffect(() => {
         let cancelTimeout: ReturnType<typeof setTimeout> | null = null
         if (!showSuggestions) {
@@ -415,7 +410,9 @@ export function PathField({
             </div>
             {showPicker && (
                 <Button
-                    onPress={handleBrowse}
+                    onPress={() => {
+                        setIsOpen(true)
+                    }}
                     type="button"
                     isIconOnly={true}
                     size="lg"
@@ -425,6 +422,26 @@ export function PathField({
                     <FolderOpen className="w-6 h-6" />
                 </Button>
             )}
+
+            <PathSelector
+                onClose={() => {
+                    setIsOpen(false)
+                }}
+                onSelect={(items) => {
+                    console.log('[Copy] items', items)
+                    setIsOpen(false)
+                    const item = items[0]
+                    if (!item) {
+                        return
+                    }
+                    item.type === 'folder' && !item.path.endsWith('/') ? `${item.path}/` : item.path
+                    setPath(item.path)
+                }}
+                isOpen={isOpen}
+                allowedKeys={allowedKeys}
+                allowFiles={showFiles}
+                allowMultiple={false}
+            />
         </div>
     )
 }
@@ -463,6 +480,7 @@ export function MultiPathField({
     >([])
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const [error, setError] = useState<string | null>(null)
+    const [isOpen, setIsOpen] = useState<boolean>(false)
 
     async function fetchSuggestions(path: string) {
         setIsLoading(true)
@@ -551,32 +569,6 @@ export function MultiPathField({
         setIsLoading(false)
     }
 
-    async function handleBrowse(type: 'file' | 'folder') {
-        const defaultPath = paths?.[0]
-        const title = type === 'file' ? 'Select one or more files' : 'Select a folder'
-        try {
-            await lockWindows()
-            const selected = await open({
-                directory: type === 'folder',
-                multiple: type === 'file',
-                defaultPath: defaultPath,
-                title: title,
-            })
-            await unlockWindows()
-            if (selected) {
-                if (typeof selected === 'string') {
-                    setPaths([selected])
-                } else {
-                    setPaths(selected)
-                }
-            }
-        } catch (err) {
-            Sentry.captureException(err)
-            console.error('Failed to open folder picker:', err)
-            setError('Failed to open folder picker')
-        }
-    }
-
     const visibleSuggestions = showSuggestions ? suggestions : []
 
     useEffect(() => {
@@ -623,7 +615,7 @@ export function MultiPathField({
         <div className="flex gap-2">
             <div className="flex-1">
                 {isMultiple ? (
-                    <div className="flex flex-col h-16 gap-0.5 p-2 overflow-y-auto bg-default-100 rounded-medium">
+                    <div className="flex flex-col h-16 gap-0.5 p-2.5 overflow-y-auto bg-default-100 rounded-medium">
                         {paths.map((path, index) => (
                             <p key={index} className="text-xs text-foreground-600">
                                 {index + 1}. {path}
@@ -668,63 +660,44 @@ export function MultiPathField({
                 )}
             </div>
             {showPicker && (
-                <div className="relative w-20 group h-18">
-                    <Button
-                        onPress={() => {
-                            if (isMultiple) {
-                                setPaths([])
-                            }
-                        }}
-                        type="button"
-                        isIconOnly={true}
-                        size="lg"
-                        className={cn(
-                            'absolute top-0 bottom-0 w-20 group-hover:hidden h-18',
-                            isMultiple && 'group-hover:absolute'
-                        )}
-                        data-focus-visible="false"
-                    >
-                        {isMultiple ? (
-                            <XIcon className="w-6 h-6" />
-                        ) : (
-                            <FolderOpen className="w-6 h-6" />
-                        )}
-                    </Button>
-                    <div
-                        className={cn(
-                            'absolute top-0 bottom-0 flex-col justify-between hidden w-20 group-hover:flex h-18',
-                            isMultiple && 'group-hover:hidden'
-                        )}
-                    >
-                        <Button
-                            onPress={() => {
-                                handleBrowse('file')
-                            }}
-                            type="button"
-                            size="sm"
-                            className="h-7"
-                            data-focus-visible="false"
-                            radius="lg"
-                            variant="flat"
-                        >
-                            Files
-                        </Button>
-                        <Button
-                            onPress={() => {
-                                handleBrowse('folder')
-                            }}
-                            type="button"
-                            size="sm"
-                            className="h-7"
-                            data-focus-visible="false"
-                            radius="lg"
-                            variant="flat"
-                        >
-                            Folder
-                        </Button>
-                    </div>
-                </div>
+                <Button
+                    onPress={() => {
+                        if (isMultiple) {
+                            setPaths([])
+                            return
+                        }
+                        setIsOpen(true)
+                    }}
+                    isIconOnly={true}
+                    size="lg"
+                    className="w-20 h-18"
+                    data-focus-visible="false"
+                >
+                    {isMultiple ? (
+                        <XIcon className="w-6 h-6" />
+                    ) : (
+                        <FolderOpen className="w-6 h-6" />
+                    )}
+                </Button>
             )}
+
+            <PathSelector
+                onClose={() => {
+                    setIsOpen(false)
+                }}
+                onSelect={(items) => {
+                    console.log('[Copy] items', items)
+                    setIsOpen(false)
+                    setPaths(
+                        items.map((item) =>
+                            item.type === 'folder' && !item.path.endsWith('/')
+                                ? `${item.path}/`
+                                : item.path
+                        )
+                    )
+                }}
+                isOpen={isOpen}
+            />
         </div>
     )
 }
