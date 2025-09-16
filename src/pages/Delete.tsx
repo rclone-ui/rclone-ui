@@ -198,7 +198,7 @@ export default function Delete() {
                     path={sourceFs || ''}
                     setPath={setSourceFs}
                     label="Path"
-                    placeholder="Enter a remote:/path"
+                    placeholder="Enter a remote:/path to delete"
                     showPicker={false}
                 />
 
