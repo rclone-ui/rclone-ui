@@ -1,7 +1,6 @@
 import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
-import { exists, readDir } from '@tauri-apps/plugin-fs'
-import { fetch } from '@tauri-apps/plugin-http'
+import { exists } from '@tauri-apps/plugin-fs'
 import cronstrue from 'cronstrue'
 import {
     AlertOctagonIcon,
@@ -61,6 +60,8 @@ export default function Copy() {
     const [cronExpression, setCronExpression] = useState<string | null>(null)
 
     const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
+
+    const [pathSelectorOpen, setPathSelectorOpen] = useState(true)
 
     // const [backends, setBackends] = useState<Backend[]>([])
     // useEffect(() => {
@@ -191,7 +192,7 @@ export default function Copy() {
                     if (sourceExists) {
                         continue
                     }
-                    await message(`Source path does not exist, ${source} is missing`, {
+                    await message(`Source does not exist, ${source} is missing`, {
                         title: 'Error',
                         kind: 'error',
                     })
@@ -213,27 +214,15 @@ export default function Copy() {
             }
         }
 
-        let isFolder = true
-
-        try {
-            await readDir(sources[0])
-        } catch {
-            console.log('not a folder')
-            isFolder = false
-        }
-
         if (
-            !isFolder &&
+            sources.length > 1 &&
             filterOptions &&
             ('IncludeRule' in filterOptions || 'IncludeFrom' in filterOptions)
         ) {
-            await message(
-                'Include rules are not supported when the input is one or multiple files',
-                {
-                    title: 'Error',
-                    kind: 'error',
-                }
-            )
+            await message('Include rules are not supported with multiple sources', {
+                title: 'Error',
+                kind: 'error',
+            })
             setIsLoading(false)
             return
         }
@@ -280,20 +269,29 @@ export default function Copy() {
         const failedPaths: Record<string, string> = {}
 
         for (const source of sources) {
+            const isFolder = source.endsWith('/')
             const customFilterOptions = isFolder
                 ? filterOptions
                 : {
                       ...filterOptions,
                       IncludeRule: [source.split('/').pop()!],
                   }
-
+            console.log('[Copy] customFilterOptions for', source, customFilterOptions)
             // Use parent folder path if the input is a file
             const customSource = isFolder ? source : source.split('/').slice(0, -1).join('/')
+            console.log('[Copy] customSource for', source, customSource)
+
+            const destination =
+                isFolder && sources.length > 1
+                    ? `${dest}/${source.split('/').filter(Boolean).pop()!}`
+                    : dest
+            console.log('[Copy] destination for', source, destination)
 
             try {
+                // await new Promise((resolve) => setTimeout(resolve, 1000))
                 const jobId = await startCopy({
                     srcFs: customSource,
-                    dstFs: dest,
+                    dstFs: destination,
                     _config: mergedConfig,
                     _filter: customFilterOptions,
                 })
@@ -326,7 +324,7 @@ export default function Copy() {
                     failedPaths[source] = statusRes.error
                 }
             } catch (error) {
-                console.log('error', error)
+                console.log('[Copy] error', error)
                 console.error('Failed to start copy for path:', source, error)
                 if (!failedPaths[source]) {
                     if (error instanceof Error) {
@@ -338,10 +336,10 @@ export default function Copy() {
             }
         }
 
-        console.log('failedPaths', failedPaths)
+        console.log('[Copy] failedPaths', failedPaths)
 
         // dummy delay to avoid waiting when opening the Jobs page
-        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await new Promise((resolve) => setTimeout(resolve, 1000))
 
         if (sources.length !== Object.keys(failedPaths).length) {
             setIsStarted(true)
