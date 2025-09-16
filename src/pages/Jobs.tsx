@@ -1,5 +1,5 @@
 import { Card, CardBody, CardFooter, CardHeader } from '@heroui/react'
-import { Button, Chip, Divider, Progress, Spinner } from '@heroui/react'
+import { Button, Chip, Progress, Spinner } from '@heroui/react'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { Trash2Icon } from 'lucide-react'
@@ -69,10 +69,11 @@ export default function Jobs() {
                 <Card
                     key={job.id}
                     radius="none"
-                    shadow="sm"
+                    shadow="none"
                     style={{
                         flexShrink: 0,
                     }}
+                    className="border-b border-divider"
                 >
                     <CardHeader>
                         <div className="flex flex-row items-center justify-between w-full">
@@ -126,16 +127,17 @@ export default function Jobs() {
                 </Card>
             ))}
 
-            {jobs.inactive.length > 0 && jobs.active.length > 0 && <Divider className="h-1" />}
-
             {jobs.inactive.map((job) => (
                 <Card
                     key={job.id}
                     radius="none"
+                    shadow="none"
                     isDisabled={true}
                     style={{
                         flexShrink: 0,
                     }}
+                    isHoverable={true}
+                    className="border-b border-divider"
                 >
                     <CardHeader>
                         <Chip
