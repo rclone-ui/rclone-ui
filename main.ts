@@ -18,6 +18,7 @@ import {
     startCopy,
     startDelete,
     startMove,
+    startPurge,
     startSync,
 } from './lib/rclone/api'
 import { compareVersions } from './lib/rclone/common'
@@ -390,6 +391,7 @@ async function handleTask(task: ScheduledTask) {
             deleteEmptyDstDirs,
             fs,
             rmDirs,
+            remote,
         } = task.args
 
         switch (task.type) {
@@ -425,6 +427,14 @@ async function handleTask(task: ScheduledTask) {
                     dstFs,
                     _config,
                     _filter,
+                })
+                break
+            case 'purge':
+                await startPurge({
+                    fs,
+                    remote,
+                    _filter,
+                    _config,
                 })
                 break
             default:
