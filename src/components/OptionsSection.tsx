@@ -1,6 +1,6 @@
 import { Chip, Textarea, Tooltip } from '@heroui/react'
 import { LockKeyholeIcon, LockOpenIcon, XIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import { replaceSmartQuotes } from '../../lib/format'
 
 export default function OptionsSection({
@@ -8,7 +8,6 @@ export default function OptionsSection({
     setOptionsJson,
     globalOptions,
     getAvailableOptions,
-    rows = 14,
     isLocked,
     setIsLocked,
 }: {
@@ -16,7 +15,6 @@ export default function OptionsSection({
     setOptionsJson: (value: string) => void
     globalOptions: any[]
     getAvailableOptions: () => Promise<any>
-    rows?: number
     isLocked?: boolean
     setIsLocked?: (value: boolean) => void
 }) {
@@ -30,17 +28,23 @@ export default function OptionsSection({
             .then((flags) => {
                 return flags
             })
-            .then((flags) => setAvailableOptions(flags))
+            .then((flags) => {
+                startTransition(() => {
+                    setAvailableOptions(flags)
+                })
+            })
     }, [getAvailableOptions])
 
     useEffect(() => {
-        try {
-            const parsedOptions = JSON.parse(optionsJson)
-            setOptions(parsedOptions)
-            setIsJsonValid(true)
-        } catch {
-            setIsJsonValid(false)
-        }
+        startTransition(() => {
+            try {
+                const parsedOptions = JSON.parse(optionsJson)
+                setOptions(parsedOptions)
+                setIsJsonValid(true)
+            } catch {
+                setIsJsonValid(false)
+            }
+        })
     }, [optionsJson])
 
     function isOptionAdded(option: string) {
@@ -48,11 +52,15 @@ export default function OptionsSection({
     }
 
     return (
-        <div className="flex flex-row gap-2">
+        <div className="flex flex-row gap-2 h-[400px]">
             <Textarea
-                className="w-1/2"
+                // className="w-1/2 "
+                classNames={{
+                    'base': 'w-1/2',
+                    inputWrapper: '!h-full',
+                }}
                 label="Custom Options"
-                description="Tap on an option to add it to the config. Hover to see info."
+                description="Tap an option to add it. Scroll to see more. Hover to see details."
                 value={optionsJson}
                 onValueChange={(value) => {
                     console.log(value)
@@ -79,10 +87,8 @@ export default function OptionsSection({
                 spellCheck="false"
                 isInvalid={!isJsonValid}
                 errorMessage={isJsonValid ? '' : 'Invalid JSON'}
-                minRows={rows}
-                rows={rows}
-                maxRows={rows}
                 disableAutosize={true}
+                rows={14}
                 size="lg"
                 onClear={() => {
                     setOptionsJson('{}')
@@ -111,7 +117,7 @@ export default function OptionsSection({
                 data-focus-visible="false"
             />
 
-            <div className="flex flex-wrap w-1/2 gap-2">
+            <div className="flex flex-row flex-wrap items-start content-start justify-start w-1/2 overflow-y-auto gap-x-2.5 gap-y-3 rounded-medium">
                 {availableOptions.map((option) => {
                     const alreadyAdded = isOptionAdded(option.FieldName)
 
@@ -120,8 +126,10 @@ export default function OptionsSection({
                             key={option.FieldName}
                             delay={500}
                             content={
-                                <div className="flex flex-col w-full gap-1 max-w-52">
-                                    <p className="font-mono font-bold truncate ">{option.Name}</p>
+                                <div className="flex flex-col w-full gap-1 overflow-y-auto max-w-52 max-h-80 overscroll-y-none">
+                                    <p className="sticky top-0 font-mono font-bold truncate bg-foreground shrink-0">
+                                        {option.Name}
+                                    </p>
                                     <p>
                                         {
                                             availableOptions.find(
@@ -139,55 +147,56 @@ export default function OptionsSection({
                                 isDisabled={!isJsonValid}
                                 variant={alreadyAdded ? 'flat' : 'solid'}
                                 onClick={() => {
-                                    if (alreadyAdded) {
+                                    startTransition(() => {
+                                        if (alreadyAdded) {
+                                            const newOptions = {
+                                                ...options,
+                                            }
+                                            newOptions[option.FieldName] = undefined
+                                            setOptionsJson(JSON.stringify(newOptions, null, 2))
+
+                                            return
+                                        }
+
+                                        let value: string | number | boolean = ''
+
+                                        const defaultGlobalValue =
+                                            globalOptions[
+                                                option.FieldName as keyof typeof globalOptions
+                                            ]
+
+                                        if (
+                                            defaultGlobalValue !== null &&
+                                            defaultGlobalValue !== undefined
+                                        ) {
+                                            value = defaultGlobalValue
+                                        } else {
+                                            value = availableOptions.find(
+                                                (o) => o.FieldName === option.FieldName
+                                            )?.DefaultStr
+                                        }
+
+                                        const valueType =
+                                            availableOptions.find(
+                                                (o) => o.FieldName === option.FieldName
+                                            )?.Type || 'string'
+
+                                        if (valueType === 'bool') {
+                                            value = Boolean(value || false)
+                                        } else if (
+                                            valueType.includes('int') ||
+                                            valueType.includes('float')
+                                        ) {
+                                            value = Number(value || 0)
+                                        }
+
                                         const newOptions = {
                                             ...options,
+                                            [option.FieldName]: value,
                                         }
-                                        // delete newOptions[option.FieldName]
-                                        newOptions[option.FieldName] = undefined
+
                                         setOptionsJson(JSON.stringify(newOptions, null, 2))
-
-                                        return
-                                    }
-
-                                    let value: string | number | boolean = ''
-
-                                    const defaultGlobalValue =
-                                        globalOptions[
-                                            option.FieldName as keyof typeof globalOptions
-                                        ]
-
-                                    if (
-                                        defaultGlobalValue !== null &&
-                                        defaultGlobalValue !== undefined
-                                    ) {
-                                        value = defaultGlobalValue
-                                    } else {
-                                        value = availableOptions.find(
-                                            (o) => o.FieldName === option.FieldName
-                                        )?.DefaultStr
-                                    }
-
-                                    const valueType =
-                                        availableOptions.find(
-                                            (o) => o.FieldName === option.FieldName
-                                        )?.Type || 'string'
-
-                                    if (valueType === 'bool') {
-                                        value = Boolean(value || false)
-                                    } else if (
-                                        valueType.includes('int') ||
-                                        valueType.includes('float')
-                                    ) {
-                                        value = Number(value || 0)
-                                    }
-
-                                    const newOptions = {
-                                        ...options,
-                                        [option.FieldName]: value,
-                                    }
-
-                                    setOptionsJson(JSON.stringify(newOptions, null, 2))
+                                    })
                                 }}
                                 className="cursor-pointer"
                                 size="sm"
