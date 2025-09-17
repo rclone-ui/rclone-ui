@@ -310,7 +310,6 @@ export default function Mount() {
                                 currentGlobalOptions['mount' as keyof typeof currentGlobalOptions]
                             }
                             getAvailableOptions={getMountFlags}
-                            rows={7}
                             isLocked={mountOptionsLocked}
                             setIsLocked={setMountOptionsLocked}
                         />
@@ -331,7 +330,6 @@ export default function Mount() {
                                 currentGlobalOptions['vfs' as keyof typeof currentGlobalOptions]
                             }
                             getAvailableOptions={getVfsFlags}
-                            rows={10}
                             isLocked={vfsOptionsLocked}
                             setIsLocked={setVfsOptionsLocked}
                         />
@@ -352,7 +350,6 @@ export default function Mount() {
                             optionsJson={filterOptionsJson}
                             setOptionsJson={setFilterOptionsJson}
                             getAvailableOptions={getFilterFlags}
-                            rows={4}
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
                         />
@@ -373,7 +370,6 @@ export default function Mount() {
                             optionsJson={configOptionsJson}
                             setOptionsJson={setConfigOptionsJson}
                             getAvailableOptions={getConfigFlags}
-                            rows={10}
                             isLocked={configOptionsLocked}
                             setIsLocked={setConfigOptionsLocked}
                         />
