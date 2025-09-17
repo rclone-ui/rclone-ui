@@ -545,6 +545,7 @@ export async function startMove({
     deleteEmptyDstDirs,
     _config,
     _filter,
+    remoteOptions,
 }: {
     srcFs: string
     dstFs: string
@@ -552,6 +553,7 @@ export async function startMove({
     deleteEmptyDstDirs?: boolean // delete empty src directories if set
     _config?: Record<string, string | number | boolean | string[]>
     _filter?: Record<string, string | number | boolean | string[]>
+    remoteOptions?: Record<string, string | number | boolean | string[]>
 }) {
     console.log('[startMove]', srcFs, dstFs, createEmptySrcDirs, deleteEmptyDstDirs)
 
@@ -576,6 +578,12 @@ export async function startMove({
 
     if (_filter && Object.keys(_filter).length > 0) {
         params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    }
+
+    if (remoteOptions && Object.keys(remoteOptions).length > 0) {
+        for (const [key, value] of Object.entries(remoteOptions)) {
+            params.set(key, value.toString())
+        }
     }
 
     const r = await fetch(`http://localhost:5572/sync/move?${params.toString()}`, {
