@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/browser'
 import { invoke } from '@tauri-apps/api/core'
 import { BaseDirectory, appLocalDataDir, appLogDir, sep } from '@tauri-apps/api/path'
 import { tempDir } from '@tauri-apps/api/path'
-import { message } from '@tauri-apps/plugin-dialog'
+import { ask, message } from '@tauri-apps/plugin-dialog'
 import { copyFile, exists, mkdir, readTextFile, remove } from '@tauri-apps/plugin-fs'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
@@ -43,7 +43,6 @@ export async function initRclone(args: string[]) {
         useStore.setState({ startupStatus: 'initialized' })
         internal = true
     }
-
 
     let needsUpdate = false
 
@@ -220,6 +219,24 @@ export async function initRclone(args: string[]) {
     }
 
     if (persistedState.proxy) {
+        try {
+            await invoke<string>('test_proxy_connection', { proxy_url: persistedState.proxy.url })
+        } catch {
+            const continueAnyway = await ask(
+                'You have a proxy set, but it failed to connect. Do you want to continue anyway?',
+                {
+                    title: 'Error',
+                    kind: 'warning',
+                    okLabel: 'Continue',
+                    cancelLabel: 'Exit',
+                }
+            )
+
+            if (!continueAnyway) {
+                await exit(0)
+                return
+            }
+        }
         extraParams.env.http_proxy = persistedState.proxy.url
         extraParams.env.https_proxy = persistedState.proxy.url
         extraParams.env.HTTP_PROXY = persistedState.proxy.url
