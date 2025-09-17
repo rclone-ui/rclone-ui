@@ -19,6 +19,7 @@
         "build:wasm": "tauri build --target wasm32-unknown-unknown"
     },
     "dependencies": {
+        "@formkit/auto-animate": "^0.9.0",
         "@heroui/react": "^2.7.11",
         "@sentry/browser": "^10.8.0",
         "@tauri-apps/api": "~2.7.0",

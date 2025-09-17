@@ -1,9 +1,11 @@
-import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
+import { useAutoAnimate } from '@formkit/auto-animate/react'
+import { Accordion, AccordionItem, Avatar, Button, Divider, cn } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
 import cronstrue from 'cronstrue'
 import {
     AlertOctagonIcon,
+    ChevronDownIcon,
     ClockIcon,
     CopyIcon,
     FilterIcon,
@@ -11,7 +13,7 @@ import {
     PlayIcon,
     WrenchIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getRemoteName } from '../../lib/format'
 import { isRemotePath } from '../../lib/fs'
@@ -28,6 +30,7 @@ import { openWindow } from '../../lib/window'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { MultiPathFinder } from '../components/PathFinder'
+import RemoteOptionsSection from '../components/RemoteOptionsSection'
 
 export default function Copy() {
     const [searchParams] = useSearchParams()
@@ -39,7 +42,7 @@ export default function Copy() {
 
     const [isStarted, setIsStarted] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [jsonError, setJsonError] = useState<'copy' | 'filter' | 'config' | null>(null)
+    const [jsonError, setJsonError] = useState<'copy' | 'filter' | 'config' | 'remote' | null>(null)
 
     const [copyOptionsLocked, setCopyOptionsLocked] = useState(false)
     const [copyOptions, setCopyOptions] = useState<Record<string, string>>({})
@@ -53,26 +56,32 @@ export default function Copy() {
     const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
     const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
 
-    // const [remoteOptionsLocked, setRemoteOptionsLocked] = useState(false)
-    // const [remoteOptions, setRemoteOptions] = useState<Record<string, string>>({})
-    // const [remoteOptionsJson, setRemoteOptionsJson] = useState<string>('{}')
+    const [remoteOptionsLocked, setRemoteOptionsLocked] = useState(false)
+    const [remoteOptions, setRemoteOptions] = useState<Record<string, string>>({})
+    const [remoteOptionsJson, setRemoteOptionsJson] = useState<string>('{}')
 
     const [cronExpression, setCronExpression] = useState<string | null>(null)
 
     const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
 
-    // const [backends, setBackends] = useState<Backend[]>([])
-    // useEffect(() => {
-    //     getBackends().then((b) => {
-    //         setBackends(b)
-    //     })
-    // }, [])
+    const [showMore, setShowMore] = useState(false)
+    const [animationParent] = useAutoAnimate()
+
+    const selectedRemotes = (() => {
+        return [...(sources || []), dest].filter(Boolean) as string[]
+    })()
+
+    console.log('[Copy] selectedRemotes', selectedRemotes)
 
     // console.log('sources', sources)
     // console.log('dest', dest)
 
     useEffect(() => {
-        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
+        getCurrentGlobalFlags().then((flags) => {
+            startTransition(() => {
+                setCurrentGlobalOptions(flags)
+            })
+        })
     }, [])
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
@@ -137,22 +146,27 @@ export default function Copy() {
     }, [sources, dest])
 
     useEffect(() => {
-        let step: 'copy' | 'filter' | 'config' = 'copy'
-        try {
-            setCopyOptions(JSON.parse(copyOptionsJson))
+        startTransition(() => {
+            let step: 'copy' | 'filter' | 'config' | 'remote' = 'copy'
+            try {
+                setCopyOptions(JSON.parse(copyOptionsJson))
 
-            step = 'filter'
-            setFilterOptions(JSON.parse(filterOptionsJson))
+                step = 'filter'
+                setFilterOptions(JSON.parse(filterOptionsJson))
 
-            step = 'config'
-            setConfigOptions(JSON.parse(configOptionsJson))
+                step = 'config'
+                setConfigOptions(JSON.parse(configOptionsJson))
 
-            setJsonError(null)
-        } catch (error) {
-            setJsonError(step)
-            console.error(`Error parsing ${step} options:`, error)
-        }
-    }, [copyOptionsJson, filterOptionsJson, configOptionsJson])
+                step = 'remote'
+                setRemoteOptions(JSON.parse(remoteOptionsJson))
+
+                setJsonError(null)
+            } catch (error) {
+                setJsonError(step)
+                console.error(`Error parsing ${step} options:`, error)
+            }
+        })
+    }, [copyOptionsJson, filterOptionsJson, configOptionsJson, remoteOptionsJson])
 
     const buttonText = (() => {
         if (isLoading) return 'STARTING...'
@@ -292,6 +306,7 @@ export default function Copy() {
                     dstFs: destination,
                     _config: mergedConfig,
                     _filter: customFilterOptions,
+                    remoteOptions,
                 })
 
                 await new Promise((resolve) => setTimeout(resolve, 500))
@@ -339,11 +354,12 @@ export default function Copy() {
         // dummy delay to avoid waiting when opening the Jobs page
         await new Promise((resolve) => setTimeout(resolve, 1000))
 
-        if (sources.length !== Object.keys(failedPaths).length) {
+        const failedPathsKeys = Object.keys(failedPaths)
+        console.log('[Copy] failedPathsKeys', failedPathsKeys)
+
+        if (sources.length !== failedPathsKeys.length) {
             setIsStarted(true)
         }
-
-        const failedPathsKeys = Object.keys(failedPaths)
 
         if (failedPathsKeys.length > 0) {
             if (sources.length === failedPathsKeys.length) {
@@ -377,82 +393,147 @@ export default function Copy() {
                     setDestPath={setDest}
                 />
 
-                <Accordion>
-                    <AccordionItem
-                        key="copy"
-                        startContent={
-                            <Avatar color="primary" radius="lg" fallback={<CopyIcon />} />
-                        }
-                        indicator={<CopyIcon />}
-                        subtitle="Tap to toggle copy options for this operation"
-                        title="Copy"
-                    >
-                        <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                <div
+                    className={cn('flex flex-col pb-10', showMore && 'pb-0')}
+                    ref={animationParent}
+                >
+                    <Accordion>
+                        <AccordionItem
+                            key="copy"
+                            startContent={
+                                <Avatar color="primary" radius="lg" fallback={<CopyIcon />} />
                             }
-                            optionsJson={copyOptionsJson}
-                            setOptionsJson={setCopyOptionsJson}
-                            getAvailableOptions={getCopyFlags}
-                            rows={15}
-                            isLocked={copyOptionsLocked}
-                            setIsLocked={setCopyOptionsLocked}
-                        />
-                    </AccordionItem>
-                    <AccordionItem
-                        key="filters"
-                        startContent={
-                            <Avatar color="danger" radius="lg" fallback={<FilterIcon />} />
-                        }
-                        indicator={<FilterIcon />}
-                        subtitle="Tap to toggle filtering options for this operation"
-                        title="Filters"
-                    >
-                        <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
+                            indicator={<CopyIcon />}
+                            subtitle="Tap to toggle copy options for this operation"
+                            title="Copy"
+                        >
+                            <OptionsSection
+                                globalOptions={
+                                    currentGlobalOptions[
+                                        'main' as keyof typeof currentGlobalOptions
+                                    ]
+                                }
+                                optionsJson={copyOptionsJson}
+                                setOptionsJson={setCopyOptionsJson}
+                                getAvailableOptions={getCopyFlags}
+                                isLocked={copyOptionsLocked}
+                                setIsLocked={setCopyOptionsLocked}
+                            />
+                        </AccordionItem>
+                        <AccordionItem
+                            key="filters"
+                            startContent={
+                                <Avatar color="danger" radius="lg" fallback={<FilterIcon />} />
                             }
-                            optionsJson={filterOptionsJson}
-                            setOptionsJson={setFilterOptionsJson}
-                            getAvailableOptions={getFilterFlags}
-                            rows={4}
-                            isLocked={filterOptionsLocked}
-                            setIsLocked={setFilterOptionsLocked}
-                        />
-                    </AccordionItem>
-                    <AccordionItem
-                        key="config"
-                        startContent={
-                            <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
-                        }
-                        indicator={<WrenchIcon />}
-                        subtitle="Tap to toggle config options for this operation"
-                        title="Config"
-                    >
-                        <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
+                            indicator={<FilterIcon />}
+                            subtitle="Tap to toggle filtering options for this operation"
+                            title="Filters"
+                        >
+                            <OptionsSection
+                                globalOptions={
+                                    currentGlobalOptions[
+                                        'filter' as keyof typeof currentGlobalOptions
+                                    ]
+                                }
+                                optionsJson={filterOptionsJson}
+                                setOptionsJson={setFilterOptionsJson}
+                                getAvailableOptions={getFilterFlags}
+                                isLocked={filterOptionsLocked}
+                                setIsLocked={setFilterOptionsLocked}
+                            />
+                        </AccordionItem>
+                        <AccordionItem
+                            key="cron"
+                            startContent={
+                                <Avatar color="warning" radius="lg" fallback={<ClockIcon />} />
                             }
-                            optionsJson={configOptionsJson}
-                            setOptionsJson={setConfigOptionsJson}
-                            getAvailableOptions={getConfigFlags}
-                            rows={10}
-                            isLocked={configOptionsLocked}
-                            setIsLocked={setConfigOptionsLocked}
-                        />
-                    </AccordionItem>
-                    <AccordionItem
-                        key="cron"
-                        startContent={
-                            <Avatar color="warning" radius="lg" fallback={<ClockIcon />} />
-                        }
-                        indicator={<ClockIcon />}
-                        subtitle="Tap to toggle cron options for this operation"
-                        title="Cron"
-                    >
-                        <CronEditor expression={cronExpression} onChange={setCronExpression} />
-                    </AccordionItem>
-                </Accordion>
+                            indicator={<ClockIcon />}
+                            subtitle="Tap to toggle cron options for this operation"
+                            title="Cron"
+                        >
+                            <CronEditor expression={cronExpression} onChange={setCronExpression} />
+                        </AccordionItem>
+                    </Accordion>
+
+                    {showMore ? (
+                        <Divider />
+                    ) : (
+                        <div
+                            key="show-more-options"
+                            className="absolute flex flex-col items-center justify-center w-full gap-1 -bottom-8 group "
+                            onClick={() => {
+                                startTransition(() => {
+                                    setShowMore(true)
+                                })
+                                requestAnimationFrame(() => {
+                                    setTimeout(() => {
+                                        scrollTo({
+                                            top: document.body.scrollHeight,
+                                            behavior: 'smooth',
+                                        })
+                                    }, 400)
+                                })
+                            }}
+                        >
+                            <p className="text-small animate-show-more-title group-hover:text-foreground-500 text-foreground-400">
+                                Show more options
+                            </p>
+                            <ChevronDownIcon className="size-5 stroke-foreground-400 animate-show-more group-hover:stroke-foreground-500" />
+                        </div>
+                    )}
+
+                    {showMore ? (
+                        // @ts-expect-error
+                        <Accordion>
+                            <AccordionItem
+                                key="config"
+                                startContent={
+                                    <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                                }
+                                indicator={<WrenchIcon />}
+                                subtitle="Tap to toggle config options for this operation"
+                                title="Config"
+                            >
+                                <OptionsSection
+                                    globalOptions={
+                                        currentGlobalOptions[
+                                            'main' as keyof typeof currentGlobalOptions
+                                        ]
+                                    }
+                                    optionsJson={configOptionsJson}
+                                    setOptionsJson={setConfigOptionsJson}
+                                    getAvailableOptions={getConfigFlags}
+                                    isLocked={configOptionsLocked}
+                                    setIsLocked={setConfigOptionsLocked}
+                                />
+                            </AccordionItem>
+
+                            {selectedRemotes.length > 0 && (
+                                <AccordionItem
+                                    key={'remotes'}
+                                    startContent={
+                                        <Avatar
+                                            className="bg-fuchsia-500"
+                                            radius="lg"
+                                            fallback={<CopyIcon />}
+                                        />
+                                    }
+                                    indicator={<CopyIcon />}
+                                    subtitle="Tap to toggle remote options for this operation"
+                                    title={'Remotes'}
+                                >
+                                    <RemoteOptionsSection
+                                        selectedRemotes={selectedRemotes}
+                                        remoteOptionsJson={remoteOptionsJson}
+                                        setRemoteOptionsJson={setRemoteOptionsJson}
+                                        setRemoteOptionsLocked={setRemoteOptionsLocked}
+                                        remoteOptionsLocked={remoteOptionsLocked}
+                                    />
+                                </AccordionItem>
+                            )}
+                        </Accordion>
+                    ) : undefined}
+                </div>
             </div>
 
             <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
