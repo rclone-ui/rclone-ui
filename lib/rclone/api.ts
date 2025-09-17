@@ -689,6 +689,42 @@ export async function startDelete({
     }
 }
 
+export async function startPurge({
+    fs,
+    remote,
+    _filter,
+    _config,
+}: {
+    fs: string // a remote name string e.g. "drive:"
+    remote: string // a path within that remote e.g. "dir"
+    _filter?: Record<string, string | number | boolean | string[]>
+    _config?: Record<string, string | number | boolean | string[]>
+}) {
+    const params = new URLSearchParams()
+    params.set('fs', fs)
+    params.set('remote', remote)
+    params.set('_async', 'true')
+
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    }
+
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    }
+
+    const r = await fetch(`http://localhost:5572/operations/purge?${params.toString()}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+
+    console.log('[startPurge] operation started:', r)
+
+    if (!r.ok) {
+        throw new Error('Failed to start purge job')
+    }
+}
+
 /* FLAGS */
 export async function getCurrentGlobalFlags() {
     console.log('[getCurrentGlobalFlags]')

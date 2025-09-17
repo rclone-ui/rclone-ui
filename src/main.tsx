@@ -11,6 +11,7 @@ import Delete from './pages/Delete'
 import Jobs from './pages/Jobs'
 import Mount from './pages/Mount'
 import Move from './pages/Move'
+import Purge from './pages/Purge'
 import Settings from './pages/Settings'
 import Startup from './pages/Startup'
 import Sync from './pages/Sync'
@@ -63,6 +64,10 @@ const router = createBrowserRouter([
     {
         path: '/delete',
         element: <Delete />,
+    },
+    {
+        path: '/purge',
+        element: <Purge />,
     },
     {
         path: '/mount',

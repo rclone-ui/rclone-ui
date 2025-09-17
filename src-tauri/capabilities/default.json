@@ -8,6 +8,7 @@
         "Move",
         "Sync",
         "Mount",
+        "Purge",
         "Delete",
         "Settings",
         "Jobs",

@@ -424,6 +424,20 @@ export async function buildMenu() {
         menuItems.push(syncMenuItem)
     }
 
+    if (!persistedStoreState.disabledActions?.includes('tray-purge')) {
+        const purgeMenuItem = await MenuItem.new({
+            id: 'purge',
+            text: 'Purge',
+            action: async () => {
+                await openWindow({
+                    name: 'Purge',
+                    url: '/purge',
+                })
+            },
+        })
+        menuItems.push(purgeMenuItem)
+    }
+
     if (!persistedStoreState.disabledActions?.includes('tray-delete')) {
         const deleteMenuItem = await MenuItem.new({
             id: 'delete',
