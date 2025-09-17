@@ -10,7 +10,7 @@ import notify from './notify'
 import { cleanupRemote, deleteRemote, listMounts, mountRemote, unmountRemote } from './rclone/api'
 import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
-import { getLoadingTray, getMainTray, rebuildTrayMenu } from './tray'
+import { showDefaultTray, showLoadingTray } from './tray'
 import { lockWindows, openFullWindow, openWindow, unlockWindows } from './window'
 
 async function parseRemotes(remotes: string[]) {
@@ -38,9 +38,7 @@ async function parseRemotes(remotes: string[]) {
                 id: `mount-${remote}`,
                 text: 'Quick Mount',
                 action: async () => {
-                    await getMainTray().then((t) => t?.setVisible(false))
-
-                    await getLoadingTray().then((t) => t?.setVisible(true))
+                    await showLoadingTray()
 
                     try {
                         const needsPlugin = await needsMountPlugin()
@@ -153,8 +151,6 @@ async function parseRemotes(remotes: string[]) {
                                 }))
                             }
                         }
-
-                        await rebuildTrayMenu()
                     } catch (error) {
                         // await resetMainWindow()
                         Sentry.captureException(error)
@@ -164,8 +160,7 @@ async function parseRemotes(remotes: string[]) {
                         })
                     } finally {
                         await unlockWindows()
-                        await getLoadingTray().then((t) => t?.setVisible(false))
-                        await getMainTray().then((t) => t?.setVisible(true))
+                        await showDefaultTray()
                     }
                 },
             })
@@ -227,6 +222,7 @@ async function parseRemotes(remotes: string[]) {
                 id: `remove-${remote}`,
                 text: 'Remove',
                 action: async () => {
+                    await showLoadingTray()
                     const answer = await ask(
                         `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
                         { title: `Removing ${remote}`, kind: 'warning' }
@@ -237,7 +233,7 @@ async function parseRemotes(remotes: string[]) {
                     }
 
                     await deleteRemote(remote)
-                    // await rebuildTrayMenu()
+                    await showDefaultTray()
                 },
             })
             submenuItems.push(removeMenuItem)
@@ -261,8 +257,8 @@ async function parseRemotes(remotes: string[]) {
                 text: 'Unmount (' + currentMount.MountPoint.split('/').pop() + ')',
                 action: async () => {
                     try {
+                        await showLoadingTray()
                         await unmountRemote({ mountPoint: currentMount.MountPoint })
-                        await rebuildTrayMenu()
                         await message(
                             `Successfully unmounted ${remote} from ${currentMount.MountPoint.split('/').pop()}`,
                             {
@@ -276,6 +272,8 @@ async function parseRemotes(remotes: string[]) {
                             kind: 'error',
                             title: 'Unmount Error',
                         })
+                    } finally {
+                        await showDefaultTray()
                     }
                 },
             })

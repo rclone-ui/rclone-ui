@@ -8,7 +8,7 @@ import {
 } from '@tauri-apps/api/window'
 import { platform } from '@tauri-apps/plugin-os'
 import { useStore } from './store'
-import { getLoadingTray, getMainTray } from './tray'
+import { showDefaultTray, showLoadingTray } from './tray'
 
 export async function resetMainWindow() {
     const window = await getAllWindows().then((w) => w.find((w) => w.label === 'main'))
@@ -93,7 +93,6 @@ export async function openWindow({
         visibleOnAllWorkspaces: false,
         alwaysOnTop: true,
         visible: false,
-        // visible: platform() !== 'windows',
         focus: true,
         title: name,
         decorations: false,
@@ -103,11 +102,9 @@ export async function openWindow({
         backgroundThrottling: 'disabled',
     })
 
-    await getMainTray().then((t) => t?.setVisible(false))
-    await getLoadingTray().then((t) => t?.setVisible(true))
+    await showLoadingTray()
     await new Promise((resolve) => setTimeout(resolve, isFirstWindow ? 900 : 150))
-    await getLoadingTray().then((t) => t?.setVisible(false))
-    await getMainTray().then((t) => t?.setVisible(true))
+    await showDefaultTray()
 
     // await w.hide()
     await w.setSize(new LogicalSize(width, height))

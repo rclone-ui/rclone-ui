@@ -23,7 +23,7 @@ import {
 import { compareVersions } from './lib/rclone/common'
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
-import { initLoadingTray, initTray, rebuildTrayMenu } from './lib/tray'
+import { initTray, showDefaultTray, showLoadingTray } from './lib/tray'
 import { openSmallWindow } from './lib/window'
 import type { ScheduledTask } from './types/task'
 
@@ -531,18 +531,11 @@ getCurrentWindow().listen('rebuild-tray', async (e) => {
     // wait for store to be updated
     await new Promise((resolve) => setTimeout(resolve, 250))
 
-    await rebuildTrayMenu()
+    await showDefaultTray()
 })
 
-// function handleNetworkStatusChange() {
-//     console.log('Network status changed. Online:', navigator.onLine)
-//     // rebuildTrayMenu().catch(console.error)
-// }
-
-// window.addEventListener('online', handleNetworkStatusChange)
-// window.addEventListener('offline', handleNetworkStatusChange)
-
-initLoadingTray()
+initTray()
+    .then(() => showLoadingTray())
     .then(() => waitForHydration())
     .then(() => checkVersion())
     .then(() => validateInstance())
@@ -550,5 +543,5 @@ initLoadingTray()
     .then(() => onboardUser())
     .then(() => startupMounts())
     .then(() => resumeTasks())
-    .then(() => initTray())
+    .then(() => showDefaultTray())
     .catch(console.error)

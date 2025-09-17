@@ -10,72 +10,29 @@ import { platform } from '@tauri-apps/plugin-os'
 import { buildMenu } from './menu'
 import { resetMainWindow } from './window'
 
-export async function getMainTray() {
-    return await TrayIcon.getById('main-tray')
-}
-
-export async function getLoadingTray() {
-    return await TrayIcon.getById('loading-tray')
-}
-
 export async function triggerTrayRebuild() {
     return getAllWindows().then((windows) => {
         windows.find((w) => w.label === 'main')?.emit('rebuild-tray')
     })
 }
 
-export async function rebuildTrayMenu() {
-    console.log('[rebuildTrayMenu]')
+let interval: NodeJS.Timeout | null = null
 
-    const tray = await getMainTray()
-    if (!tray) {
-        console.error('[rebuildTrayMenu] tray not found')
-        return
-    }
-    const newMenu = await buildMenu()
-    await tray.setMenu(newMenu)
-
-    console.log('[rebuildTrayMenu] tray menu rebuilt')
+async function getTray() {
+    return await TrayIcon.getById('main-tray')
 }
 
-async function onTrayAction(event: TrayIconEvent) {
-    if (event.type === 'Click') {
-        console.log('[onTrayAction] tray clicked:', event)
-
-        await resetMainWindow()
-    }
-}
-
-// Initialize the tray
-export async function initTray(): Promise<void> {
-    try {
-        console.log('[initTray]')
-        const menu = await buildMenu()
-        console.log('[initTray] built menu')
-
-        await TrayIcon.getById('loading-tray').then((t) => t?.setVisible(false))
-        console.log('[initTray] set loading tray to false')
-
-        await TrayIcon.new({
-            id: 'main-tray',
-            icon: (await resolveResource('icons/favicon/icon.png'))!,
-            tooltip: 'Rclone',
-            menu,
-            menuOnLeftClick: true,
-            action: onTrayAction,
-        })
-    } catch (error) {
-        Sentry.captureException(error)
-        console.error('[initTray] failed to create tray')
-        console.error(error)
-    }
-}
-
-export async function initLoadingTray() {
-    console.log('[initLoadingTray]')
+export async function showLoadingTray() {
+    console.log('[showLoadingTray]')
 
     if (platform() === 'linux') {
-        console.log('[initLoadingTray] platform is linux, skipping')
+        console.log('[showLoadingTray] platform is linux, skipping')
+        return
+    }
+
+    const tray = await getTray()
+    if (!tray) {
+        console.error('[showLoadingTray] tray not found')
         return
     }
 
@@ -93,26 +50,70 @@ export async function initLoadingTray() {
     })
 
     const loadingMenu = await Menu.new({
-        id: 'main-menu',
+        id: 'loading-menu',
         items: [quitItem],
     })
 
-    const loadingTray = await TrayIcon.new({
-        id: 'loading-tray',
-        icon: globeIconPath,
-        menu: loadingMenu,
-    })
+    await tray.setMenu(loadingMenu)
+    await tray.setIcon(globeIconPath)
+    await tray.setTooltip('Loading...')
 
     let currentIcon = 1
 
-    setInterval(async () => {
+    interval = setInterval(async () => {
         if (currentIcon > 17) {
             currentIcon = 1
         }
         const globeIconPath = await resolveResource(
             `icons/favicon/frame_${currentIcon < 10 ? '0' : ''}${currentIcon}_delay-0.1s.png`
         )
-        await loadingTray?.setIcon(globeIconPath)
+        await tray?.setIcon(globeIconPath)
         currentIcon += 1
     }, 200)
+}
+
+export async function showDefaultTray() {
+    console.log('[showDefaultTray]')
+
+    const tray = await getTray()
+    if (!tray) {
+        console.error('[showDefaultTray] tray not found')
+        return
+    }
+
+    if (interval) {
+        clearInterval(interval)
+        interval = null
+    }
+
+    const newMenu = await buildMenu()
+    await tray.setMenu(newMenu)
+    await tray.setIcon(await resolveResource('icons/favicon/icon.png'))
+    await tray.setTooltip('Rclone')
+
+    console.log('[showDefaultTray] tray menu rebuilt')
+}
+
+export async function initTray() {
+    try {
+        console.log('[initTray]')
+
+        await TrayIcon.new({
+            id: 'main-tray',
+            icon: (await resolveResource('icons/favicon/icon.png'))!,
+            tooltip: 'Rclone',
+            menuOnLeftClick: true,
+            action: async (event: TrayIconEvent) => {
+                if (event.type === 'Click') {
+                    console.log('[onTrayAction] tray clicked:', event)
+
+                    await resetMainWindow()
+                }
+            },
+        })
+    } catch (error) {
+        Sentry.captureException(error)
+        console.error('[initTray] failed to create tray')
+        console.error(error)
+    }
 }
