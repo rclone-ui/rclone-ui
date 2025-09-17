@@ -2,7 +2,8 @@ import { Checkbox } from '@heroui/react'
 import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@heroui/react'
 import { Autocomplete, AutocompleteItem, Button, Input, Select, SelectItem } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { ChevronDown, ChevronUp, ExternalLinkIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getBackends, getRemote, updateRemote } from '../../lib/rclone/api'
 import type { Backend, BackendOption } from '../../types/rclone'
@@ -19,9 +20,20 @@ export default function RemoteEditDrawer({
     const [config, setConfig] = useState<any>({})
     const [isSaving, setIsSaving] = useState(false)
     const [currentBackend, setCurrentBackend] = useState<Backend | null>(null)
-    const [showAdvanced, setShowAdvanced] = useState(false)
+    const [showMoreOptions, setShowMoreOptions] = useState(false)
 
     const [backends, setBackends] = useState<Backend[]>([])
+
+    const currentBackendFields = currentBackend
+        ? (currentBackend.Options as BackendOption[]).filter((opt) => {
+              if (!opt.Provider) return true
+              if (opt.Provider.includes(config.provider) && !opt.Provider.startsWith('!'))
+                  return true
+              if (config.type === 's3' && config.provider === 'Other' && opt.Provider.includes('!'))
+                  return true
+              return false
+          }) || []
+        : []
 
     useEffect(() => {
         getBackends().then((b) => {
@@ -53,9 +65,9 @@ export default function RemoteEditDrawer({
         if (option.Hide !== 0) return null
 
         // For S3 type, only show fields that match the current provider or have no provider specified
-        if (config.type === 's3' && option.Provider && option.Provider !== config.provider) {
-            return null
-        }
+        // if (config.type === 's3' && option.Provider && option.Provider !== config.provider) {
+        //     return null
+        // }
 
         const fieldId = `field-${option.Name}`
         const fieldValue = config[option.Name] || option.DefaultStr
@@ -90,6 +102,7 @@ export default function RemoteEditDrawer({
                             labelPlacement="outside"
                             placeholder={option.Help.split('\n')[0]}
                             description={option.Help.split('\n').slice(1).join('\n')}
+                            isDisabled={option.Name === 'provider'}
                         >
                             {(item) => (
                                 <AutocompleteItem
@@ -105,7 +118,7 @@ export default function RemoteEditDrawer({
                                         )
                                     }
                                 >
-                                    {item.Help || item.Value}
+                                    {item.Value || 'No Value'} {item.Help && `— ${item.Help}`}
                                 </AutocompleteItem>
                             )}
                         </Autocomplete>
@@ -120,6 +133,34 @@ export default function RemoteEditDrawer({
                         labelPlacement="outside"
                         placeholder={option.Help.split('\n')[0]}
                         type={option.IsPassword ? 'password' : 'text'}
+                        classNames={
+                            config.type === 'drive' && option.Name === 'client_id'
+                                ? {
+                                      description: 'text-warning',
+                                      'inputWrapper': 'pr-0',
+                                  }
+                                : undefined
+                        }
+                        endContent={
+                            config.type === 'drive' &&
+                            option.Name === 'client_id' && (
+                                <Button
+                                    size="sm"
+                                    className="h-full gap-1 rounded-l-none"
+                                    color="warning"
+                                    endContent={
+                                        <ExternalLinkIcon className="mb-0.5 size-4 shrink-0" />
+                                    }
+                                    onPress={() => {
+                                        openUrl(
+                                            'https://rclone.org/drive/#making-your-own-client-id'
+                                        )
+                                    }}
+                                >
+                                    GUIDE
+                                </Button>
+                            )
+                        }
                         defaultValue={fieldValue}
                         autoComplete="off"
                         autoCapitalize="off"
@@ -236,75 +277,32 @@ export default function RemoteEditDrawer({
                                     ))}
                                 </Select>
 
-                                {/* Basic Options */}
-                                {currentBackend?.Options.filter((opt) => !opt.Advanced).map(
-                                    renderField
-                                )}
+                                {/* Normal Fields */}
+                                {currentBackendFields
+                                    .filter((opt) => !opt.Advanced)
+                                    .map(renderField)}
 
-                                {/* Advanced Options */}
-                                {currentBackend?.Options.some((opt) => opt.Advanced) && (
+                                {/* Advanced Fields */}
+                                {currentBackendFields.some((opt) => opt.Advanced) && (
                                     <div className="pt-4">
                                         <button
                                             type="button"
-                                            onClick={() => setShowAdvanced(!showAdvanced)}
+                                            onClick={() => setShowMoreOptions((prev) => !prev)}
                                             className="flex items-center space-x-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                                         >
-                                            {showAdvanced ? (
+                                            {showMoreOptions ? (
                                                 <ChevronUp className="w-4 h-4" />
                                             ) : (
                                                 <ChevronDown className="w-4 h-4" />
                                             )}
-                                            <span>Advanced Options</span>
+                                            <span>More Options</span>
                                         </button>
-                                        {config.type === 's3' && (
-                                            <>
-                                                <Input
-                                                    key={'region'}
-                                                    id={'field-region'}
-                                                    name={'region'}
-                                                    label={'region'}
-                                                    labelPlacement="outside"
-                                                    placeholder={
-                                                        'Region (optional, fill only if you have a custom region)'
-                                                    }
-                                                    type={'text'}
-                                                    value={config.region || ''}
-                                                    autoComplete="off"
-                                                    autoCapitalize="off"
-                                                    autoCorrect="off"
-                                                    spellCheck="false"
-                                                    onValueChange={(value) => {
-                                                        // console.log(value)
-                                                        setConfig({ ...config, region: value })
-                                                    }}
-                                                />
-                                                <Input
-                                                    key={'endpoint'}
-                                                    id={'field-endpoint'}
-                                                    name={'endpoint'}
-                                                    label={'endpoint'}
-                                                    labelPlacement="outside"
-                                                    placeholder={
-                                                        'Endpoint (optional, fill only if you have a custom endpoint)'
-                                                    }
-                                                    type={'text'}
-                                                    value={config.endpoint || ''}
-                                                    autoComplete="off"
-                                                    autoCapitalize="off"
-                                                    autoCorrect="off"
-                                                    spellCheck="false"
-                                                    onValueChange={(value) => {
-                                                        // console.log(value)
-                                                        setConfig({ ...config, endpoint: value })
-                                                    }}
-                                                />
-                                            </>
-                                        )}
-                                        {showAdvanced && (
+
+                                        {showMoreOptions && (
                                             <div className="flex flex-col gap-4 pt-4 mt-4">
-                                                {currentBackend.Options.filter(
-                                                    (opt) => opt.Advanced
-                                                ).map(renderField)}
+                                                {currentBackendFields
+                                                    .filter((opt) => opt.Advanced)
+                                                    .map(renderField)}
                                             </div>
                                         )}
                                     </div>

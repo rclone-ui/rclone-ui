@@ -11,7 +11,7 @@ import {
 } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { ChevronDown, ChevronUp, RefreshCcwIcon } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLinkIcon, RefreshCcwIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createRemote } from '../../lib/rclone/api'
 import { getBackends } from '../../lib/rclone/api'
@@ -32,11 +32,14 @@ export default function RemoteCreateDrawer({
     const currentBackend = config.type ? backends.find((b) => b.Name === config.type) : null
 
     const currentBackendFields = currentBackend
-        ? (currentBackend.Options as BackendOption[]).filter(
-              (opt) =>
-                  !opt.Provider ||
-                  (opt.Provider.includes(config.provider) && !opt.Provider.startsWith('!'))
-          ) || []
+        ? (currentBackend.Options as BackendOption[]).filter((opt) => {
+              if (!opt.Provider) return true
+              if (opt.Provider.includes(config.provider) && !opt.Provider.startsWith('!'))
+                  return true
+              if (config.type === 's3' && config.provider === 'Other' && opt.Provider.includes('!'))
+                  return true
+              return false
+          }) || []
         : []
 
     function handleTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -51,9 +54,9 @@ export default function RemoteCreateDrawer({
         if (option.Hide !== 0) return null
 
         // For S3 type, only show fields that match the current provider or have no provider specified
-        if (config.type === 's3' && option.Provider && option.Provider !== config.provider) {
-            return null
-        }
+        // if (config.type === 's3' && option.Provider && option.Provider !== config.provider) {
+        //     return null
+        // }
 
         const fieldId = `field-${option.Name}`
         const fieldValue = config[option.Name] || option.DefaultStr
@@ -111,7 +114,7 @@ export default function RemoteCreateDrawer({
                                         )
                                     }
                                 >
-                                    {item.Help || item.Value}
+                                    {item.Value || 'No Value'} {item.Help && `— ${item.Help}`}
                                 </AutocompleteItem>
                             )}
                         </Autocomplete>
@@ -130,7 +133,8 @@ export default function RemoteCreateDrawer({
                         classNames={
                             config.type === 'drive' && option.Name === 'client_id'
                                 ? {
-                                      description: 'text-danger',
+                                      description: 'text-warning',
+                                      'inputWrapper': 'pr-0',
                                   }
                                 : undefined
                         }
@@ -139,14 +143,18 @@ export default function RemoteCreateDrawer({
                             option.Name === 'client_id' && (
                                 <Button
                                     size="sm"
-                                    variant="light"
+                                    className="h-full gap-1 rounded-l-none"
+                                    color="warning"
+                                    endContent={
+                                        <ExternalLinkIcon className="mb-0.5 size-4 shrink-0" />
+                                    }
                                     onPress={() => {
                                         openUrl(
                                             'https://rclone.org/drive/#making-your-own-client-id'
                                         )
                                     }}
                                 >
-                                    Open Guide
+                                    GUIDE
                                 </Button>
                             )
                         }
@@ -239,7 +247,7 @@ export default function RemoteCreateDrawer({
                                 Reset
                             </Button>
                         </DrawerHeader>
-                        <DrawerBody>
+                        <DrawerBody id="create-form-body">
                             <form
                                 className="flex flex-col gap-4"
                                 onSubmit={handleSubmit}
@@ -303,7 +311,7 @@ export default function RemoteCreateDrawer({
                                     <div className="pt-4">
                                         <button
                                             type="button"
-                                            onClick={() => setShowMoreOptions(!showMoreOptions)}
+                                            onClick={() => setShowMoreOptions((prev) => !prev)}
                                             className="flex items-center space-x-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                                         >
                                             {showMoreOptions ? (
@@ -313,50 +321,7 @@ export default function RemoteCreateDrawer({
                                             )}
                                             <span>More Options</span>
                                         </button>
-                                        {config.type === 's3' && (
-                                            <>
-                                                <Input
-                                                    key={'region'}
-                                                    id={'field-region'}
-                                                    name={'region'}
-                                                    label={'region'}
-                                                    labelPlacement="outside"
-                                                    placeholder={
-                                                        'Region (optional, fill only if you have a custom region)'
-                                                    }
-                                                    type={'text'}
-                                                    value={config.region || ''}
-                                                    autoComplete="off"
-                                                    autoCapitalize="off"
-                                                    autoCorrect="off"
-                                                    spellCheck="false"
-                                                    onValueChange={(value) => {
-                                                        // console.log(value)
-                                                        setConfig({ ...config, region: value })
-                                                    }}
-                                                />
-                                                <Input
-                                                    key={'endpoint'}
-                                                    id={'field-endpoint'}
-                                                    name={'endpoint'}
-                                                    label={'endpoint'}
-                                                    labelPlacement="outside"
-                                                    placeholder={
-                                                        'Endpoint (optional, fill only if you have a custom endpoint)'
-                                                    }
-                                                    type={'text'}
-                                                    value={config.endpoint || ''}
-                                                    autoComplete="off"
-                                                    autoCapitalize="off"
-                                                    autoCorrect="off"
-                                                    spellCheck="false"
-                                                    onValueChange={(value) => {
-                                                        // console.log(value)
-                                                        setConfig({ ...config, endpoint: value })
-                                                    }}
-                                                />
-                                            </>
-                                        )}
+
                                         {showMoreOptions && (
                                             <div className="flex flex-col gap-4 pt-4 mt-4">
                                                 {currentBackendFields
