@@ -383,6 +383,18 @@ export default function Mount() {
                         <Button
                             fullWidth={true}
                             size="lg"
+                            onPress={async () => {
+                                await getCurrentWindow().hide()
+                                await getCurrentWindow().destroy()
+                            }}
+                            data-focus-visible="false"
+                        >
+                            Close
+                        </Button>
+
+                        <Button
+                            fullWidth={true}
+                            size="lg"
                             onPress={() => {
                                 setDest(undefined)
                                 setIsMounted(false)

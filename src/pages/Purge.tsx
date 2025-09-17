@@ -210,7 +210,7 @@ export default function Purge() {
                     label="Path"
                     placeholder="Enter a remote:/path to purge"
                     showPicker={true}
-                    allowedKeys={['REMOTES']}
+                    allowedKeys={['REMOTES', 'FAVORITES']}
                     showFiles={false}
                 />
 

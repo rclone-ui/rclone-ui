@@ -1,4 +1,5 @@
-import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
+import { useAutoAnimate } from '@formkit/auto-animate/react'
+import { Accordion, AccordionItem, Alert, Avatar, Button } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import cronstrue from 'cronstrue'
 import {
@@ -16,6 +17,7 @@ import {
     getConfigFlags,
     getCurrentGlobalFlags,
     getFilterFlags,
+    getRemote,
     startDelete,
 } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
@@ -23,6 +25,17 @@ import { usePersistedStore } from '../../lib/store'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
+
+const SUPPORTS_PURGE = [
+    'box',
+    'dropbox',
+    'gcs',
+    'drive',
+    'azureblob',
+    'onedrive',
+    'protondrive',
+    'webdav',
+]
 
 export default function Delete() {
     const [searchParams] = useSearchParams()
@@ -49,11 +62,14 @@ export default function Delete() {
 
     const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
 
+    const [supportsPurge, setSupportsPurge] = useState(false)
+    const [animationParent] = useAutoAnimate()
+
+    const sourceRemoteName = getRemoteName(sourceFs)
+
     // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
         const storeData = usePersistedStore.getState()
-
-        const sourceRemote = getRemoteName(sourceFs?.[0])
 
         let mergedFilterDefaults = {}
         let mergedConfigDefaults = {}
@@ -85,7 +101,7 @@ export default function Delete() {
         }
 
         // Only merge defaults for remote paths
-        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
+        if (sourceRemoteName) mergeRemoteDefaults(sourceRemoteName)
 
         if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
             setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
@@ -94,7 +110,14 @@ export default function Delete() {
         if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
             setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
         }
-    }, [sourceFs])
+    }, [sourceRemoteName])
+
+    useEffect(() => {
+        if (!sourceRemoteName) return
+        getRemote(sourceRemoteName).then((remote) =>
+            setSupportsPurge(SUPPORTS_PURGE.includes(remote.type))
+        )
+    }, [sourceRemoteName])
 
     useEffect(() => {
         getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
@@ -192,14 +215,19 @@ export default function Delete() {
     return (
         <div className="flex flex-col h-screen gap-10 pt-10">
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
+            <div
+                className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto"
+                ref={animationParent}
+            >
                 {/* Path Display */}
                 <PathField
                     path={sourceFs || ''}
                     setPath={setSourceFs}
                     label="Path"
                     placeholder="Enter a remote:/path to delete"
-                    showPicker={false}
+                    showPicker={true}
+                    allowedKeys={['REMOTES', 'FAVORITES']}
+                    showFiles={true}
                 />
 
                 {/* <div className="flex flex-col gap-2 pt-2 -mb-5">
@@ -207,6 +235,18 @@ export default function Delete() {
                         Delete empty source directories after delete
                     </Switch>
                 </div> */}
+
+                {supportsPurge && (
+                    <Alert
+                        color="primary"
+                        title="LET ME SHARE A TIP"
+                        variant="faded"
+                        className="min-h-none h-fit max-h-fit"
+                    >
+                        If you're deleting a entire folder, "{sourceRemoteName}" supports Purge
+                        which is more efficient!
+                    </Alert>
+                )}
 
                 <Accordion>
                     <AccordionItem
