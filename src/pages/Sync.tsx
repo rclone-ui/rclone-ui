@@ -7,11 +7,11 @@ import {
     AlertOctagonIcon,
     ChevronDownIcon,
     ClockIcon,
-    CopyIcon,
     FilterIcon,
     FolderSyncIcon,
     FoldersIcon,
     PlayIcon,
+    ServerIcon,
     WrenchIcon,
 } from 'lucide-react'
 import { startTransition, useEffect, useState } from 'react'
@@ -432,10 +432,10 @@ export default function Sync() {
                                         <Avatar
                                             className="bg-fuchsia-500"
                                             radius="lg"
-                                            fallback={<CopyIcon />}
+                                            fallback={<ServerIcon />}
                                         />
                                     }
-                                    indicator={<CopyIcon />}
+                                    indicator={<ServerIcon />}
                                     subtitle="Tap to toggle remote options for this operation"
                                     title={'Remotes'}
                                 >

@@ -225,7 +225,6 @@ export default function Delete() {
                             optionsJson={filterOptionsJson}
                             setOptionsJson={setFilterOptionsJson}
                             getAvailableOptions={getFilterFlags}
-                            rows={4}
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
                         />
@@ -246,7 +245,6 @@ export default function Delete() {
                             optionsJson={configOptionsJson}
                             setOptionsJson={setConfigOptionsJson}
                             getAvailableOptions={getConfigFlags}
-                            rows={10}
                             isLocked={configOptionsLocked}
                             setIsLocked={setConfigOptionsLocked}
                         />

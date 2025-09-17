@@ -453,7 +453,6 @@ export default function RemoteDefaultsDrawer({
                                                 globalOptions['mount' as keyof typeof globalOptions]
                                             }
                                             getAvailableOptions={getMountFlags}
-                                            rows={5}
                                         />
                                     </div>
                                 </AccordionItem>
@@ -478,7 +477,6 @@ export default function RemoteDefaultsDrawer({
                                             globalOptions['main' as keyof typeof globalOptions]
                                         }
                                         getAvailableOptions={getConfigFlags}
-                                        rows={10}
                                     />
                                 </AccordionItem>
                                 <AccordionItem
@@ -501,7 +499,6 @@ export default function RemoteDefaultsDrawer({
                                             globalOptions['vfs' as keyof typeof globalOptions]
                                         }
                                         getAvailableOptions={getVfsFlags}
-                                        rows={10}
                                     />
                                 </AccordionItem>
                                 <AccordionItem
@@ -524,7 +521,6 @@ export default function RemoteDefaultsDrawer({
                                             globalOptions['filter' as keyof typeof globalOptions]
                                         }
                                         getAvailableOptions={getFilterFlags}
-                                        rows={4}
                                     />
                                 </AccordionItem>
                                 <AccordionItem
@@ -546,7 +542,6 @@ export default function RemoteDefaultsDrawer({
                                         globalOptions={
                                             globalOptions['main' as keyof typeof globalOptions]
                                         }
-                                        rows={15}
                                         getAvailableOptions={getCopyFlags}
                                     />
                                 </AccordionItem>
@@ -571,7 +566,6 @@ export default function RemoteDefaultsDrawer({
                                             globalOptions['main' as keyof typeof globalOptions]
                                         }
                                         getAvailableOptions={getSyncFlags}
-                                        rows={20}
                                     />
                                 </AccordionItem>
                             </Accordion>
