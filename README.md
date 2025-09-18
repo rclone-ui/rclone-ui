@@ -1,31 +1,55 @@
-
-<h1 align="center" href="#">
-<img src="./icon.png" alt="Screenshot" width="420">
-<br>
-The cross platform GUI for Rclone
+<h1 align="center">
+  <a href="https://rcloneui.com">
+    <img src="./public/banner.png" alt="Rclone UI" width="100%">
+  </a>
+  <br>
+  <a href="https://rcloneui.com">
+    The cross-platform GUI for Rclone
+  </a>
 </h1>
 
-### A light, transparent layer on top of **[`rclone`](https://rclone.org/)** to manage your remotes & tasks in a more user-friendly way.
+<h3 align="center">
+  <strong>A light, transparent layer on top of <tt>rclone</tt> to manage your remotes &amp; tasks in a more user-friendly way.</strong>
+</h3>
 
-Free to use, open source, actively maintained and built with [Tauri](https://tauri.app/).
+<br />
+
+<p align="center">
+  <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
+    <img alt="Downloads" src="https://img.shields.io/badge/DOWNLOADS-blue?label=Tap%20to%20see" />
+  </a>
+ &nbsp;
+  <a href="https://github.com/rclone-ui/rclone-ui/releases/latest">
+    <img alt="release" src="https://github.com/rclone-ui/rclone-ui/actions/workflows/release.yml/badge.svg" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/rclone-ui/rclone-ui/stargazers">
+    <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/rclone-ui/rclone-ui" />
+  </a>
+</p>
 
 ## Features
 ### 🖥️ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)
-### ✅ Works with your existing rclone installation (or can install rclone for you)
-### 🔗 Add/Remove Remotes
-### ⚡️ Sync, Copy, Move, Delete, Mount, etc
-### ⭐️ Set default flags for each Remote separately, for each operation (Mount, Sync, Copy, etc)
+### ✅ Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
+### 🔗 Add/Edit/Remove Remotes
+### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount, etc
+### ⭐️ Save time by setting default flags for each Remote separately, for each operation (Mount, Sync, Copy, etc)
 ### 🎛️ Customize the flags (parameters) when running an operation, on a case by case basis
+### 📚 Embedded documentation for each flag, no need to google what everything does!
 ### 📂 File Browser
+### 📡 Proxy
+
+<img src=".github/rclone-1.png" alt="Rclone UI">
+
 ### ⏰ Scheduled Tasks (cron)
 ### 📊 Job Logs (visualize all background operations)
 ### 🚀 Start on boot (autostart) and Mount on start (automount)
 ### 🔒 Set a password for the Settings panel
 ### 👁️ Hide commands or Remotes from the tray menu
-### ⚙️ Import Configs (encrypted with pass or command)
+### ⚙️ Import/Export Configs (encrypted with pass or command)
 ### ✍️ Signed by Microsoft and Notarized on macOS
 
-<img src=".github/screenshot.png" style="border-radius: 10px; margin-top: -150px" alt="Screenshot">
+<img src=".github/rclone-2.png" alt="Rclone UI">
 
 ## Downloads
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
@@ -34,11 +58,8 @@ Free to use, open source, actively maintained and built with [Tauri](https://tau
 - **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
 
 ## Roadmap
-- [ ] File Commander
-- [ ] [`rclone serve`](https://rclone.org/commands/rclone_serve/)
-- [ ] [`rclone link`](https://rclone.org/commands/rclone_link/)
-- [ ] Mobile Client
 > Finalized items have been moved to the "Features" section.
+### [Check out the V3 discussion!](https://github.com/rclone-ui/rclone-ui/issues/37)
 
 ## 1 Star = 1 Instant Coffee
 <a href="https://www.star-history.com/#rclone-ui/rclone-ui&Timeline">
