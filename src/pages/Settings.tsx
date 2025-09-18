@@ -302,11 +302,13 @@ function GeneralSection() {
                     Sentry.captureException(e)
                     console.error(e)
                     setUpdateButtonText('Failed to check')
+                    setIsWorkingUpdate(false)
                     return
                 }
                 console.log('receivedUpdate', JSON.stringify(receivedUpdate, null, 2))
                 if (!receivedUpdate) {
                     setUpdateButtonText('Up to date')
+                    setIsWorkingUpdate(false)
                     return
                 }
                 console.log(
