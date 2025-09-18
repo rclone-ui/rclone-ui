@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { type StateStorage, createJSONStorage, persist } from 'zustand/middleware'
 import type { ConfigFile } from '../types/config'
 import type { ScheduledTask } from '../types/task'
+import type { Template } from '../types/template'
 
 // const { LazyStore } = window.__TAURI__.store
 const store = new LazyStore('store.json')
@@ -109,6 +110,8 @@ interface PersistedState {
     ) => void
     removeScheduledTask: (id: string) => void
     updateScheduledTask: (id: string, task: Partial<ScheduledTask>) => void
+
+    templates: Template[]
 
     configFiles: ConfigFile[]
     addConfigFile: (configFile: ConfigFile) => void
@@ -248,6 +251,8 @@ export const usePersistedStore = create<PersistedState>()(
                         t.id === id ? { ...t, ...task } : t
                     ),
                 })),
+
+            templates: [],
 
             configFiles: [],
             addConfigFile: (configFile: ConfigFile) =>
