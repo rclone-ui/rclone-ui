@@ -427,10 +427,10 @@ export async function provisionRclone() {
  */
 async function promptForConfigPassword(configLabel: string): Promise<string | null> {
     try {
-        const result = (await invoke('prompt_password', {
+        const result = await invoke<string | null>('prompt_password', {
             title: 'Rclone UI',
             message: `Please enter the password for the encrypted configuration "${configLabel}".`,
-        })) as string | null
+        })
 
         if (typeof result === 'string') {
             return result.trim()

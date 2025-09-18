@@ -182,144 +182,204 @@ fn get_uid() -> String {
 
 #[tauri::command]
 async fn prompt_password(title: String, message: String) -> Result<Option<String>, String> {
+    prompt_text(title, message, None, Some(true)).await
+}
+
+#[tauri::command]
+async fn prompt_text(
+    title: String,
+    message: String,
+    default: Option<String>,
+    sensitive: Option<bool>,
+) -> Result<Option<String>, String> {
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;
-        
-        let script = format!(
-            r#"display dialog "{}" with title "{}" default answer "" with hidden answer"#,
-            message.replace("\"", "\\\""),
-            title.replace("\"", "\\\"")
-        );
-        
+
+        let default_value = default.unwrap_or_default();
+        let is_sensitive = sensitive.unwrap_or(false);
+        let script = if is_sensitive {
+            format!(
+                r#"display dialog "{}" with title "{}" default answer "{}" with hidden answer"#,
+                message.replace("\"", "\\\""),
+                title.replace("\"", "\\\""),
+                default_value.replace("\"", "\\\""),
+            )
+        } else {
+            format!(
+                r#"display dialog "{}" with title "{}" default answer "{}""#,
+                message.replace("\"", "\\\""),
+                title.replace("\"", "\\\""),
+                default_value.replace("\"", "\\\""),
+            )
+        };
+
         let output = Command::new("osascript")
             .arg("-e")
             .arg(&script)
             .output()
             .map_err(|e| e.to_string())?;
-            
+
         if output.status.success() {
             let result = String::from_utf8_lossy(&output.stdout);
-            // Parse AppleScript result: "text returned:password, button returned:OK"
-            if let Some(password_part) = result.split("text returned:").nth(1) {
-                if let Some(password) = password_part.split(", button returned:").next() {
-                    return Ok(Some(password.to_string()));
+            // Parse AppleScript result: "text returned:VALUE, button returned:OK"
+            if let Some(text_part) = result.split("text returned:").nth(1) {
+                if let Some(value) = text_part.split(", button returned:").next() {
+                    return Ok(Some(value.to_string()));
                 }
             }
         }
-        
-        Ok(None)
+
+        return Ok(None);
     }
-    
+
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
-        
-        // Use PowerShell to create a credential dialog on Windows
+
+        let default_value = default.unwrap_or_default();
+        let is_sensitive = sensitive.unwrap_or(false);
+
+        // Use PowerShell to create a simple text input dialog
+        let ps_default = default_value.replace('\'', "''");
+        let ps_title = title.replace('\'', "''");
+        let ps_message = message.replace('\'', "''");
+        let ps_password_flag = if is_sensitive { "$true" } else { "$false" };
+
         let powershell_script = format!(
             r#"
             Add-Type -AssemblyName System.Windows.Forms
             Add-Type -AssemblyName System.Drawing
-            
+
             $form = New-Object System.Windows.Forms.Form
-            $form.Text = '{}'
-            $form.Size = New-Object System.Drawing.Size(350, 200)
+            $form.Text = '{title}'
+            $form.Size = New-Object System.Drawing.Size(350, 180)
             $form.StartPosition = 'CenterScreen'
             $form.FormBorderStyle = 'FixedDialog'
             $form.MaximizeBox = $false
             $form.MinimizeBox = $false
             $form.TopMost = $true
-            
+
             $label = New-Object System.Windows.Forms.Label
-            $label.Location = New-Object System.Drawing.Point(10, 20)
+            $label.Location = New-Object System.Drawing.Point(10, 15)
             $label.Size = New-Object System.Drawing.Size(320, 40)
-            $label.Text = '{}'
+            $label.Text = '{message}'
             $form.Controls.Add($label)
-            
+
             $textBox = New-Object System.Windows.Forms.TextBox
-            $textBox.Location = New-Object System.Drawing.Point(10, 70)
+            $textBox.Location = New-Object System.Drawing.Point(10, 60)
             $textBox.Size = New-Object System.Drawing.Size(320, 20)
-            $textBox.UseSystemPasswordChar = $true
+            $textBox.Text = '{default}'
+            $textBox.UseSystemPasswordChar = {password}
             $form.Controls.Add($textBox)
-            
+
             $okButton = New-Object System.Windows.Forms.Button
-            $okButton.Location = New-Object System.Drawing.Point(175, 110)
+            $okButton.Location = New-Object System.Drawing.Point(175, 100)
             $okButton.Size = New-Object System.Drawing.Size(75, 23)
             $okButton.Text = 'OK'
             $okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
             $form.AcceptButton = $okButton
             $form.Controls.Add($okButton)
-            
+
             $cancelButton = New-Object System.Windows.Forms.Button
-            $cancelButton.Location = New-Object System.Drawing.Point(255, 110)
+            $cancelButton.Location = New-Object System.Drawing.Point(255, 100)
             $cancelButton.Size = New-Object System.Drawing.Size(75, 23)
             $cancelButton.Text = 'Cancel'
             $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
             $form.CancelButton = $cancelButton
             $form.Controls.Add($cancelButton)
-            
+
             $form.Add_Shown({{$textBox.Select()}})
             $result = $form.ShowDialog()
-            
+
             if ($result -eq [System.Windows.Forms.DialogResult]::OK) {{
                 $textBox.Text
             }}
             "#,
-            title.replace("'", "''"),
-            message.replace("'", "''")
+            title = ps_title,
+            message = ps_message,
+            default = ps_default,
+            password = ps_password_flag
         );
-        
+
         let output = Command::new("powershell")
             .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &powershell_script])
             .output()
             .map_err(|e| e.to_string())?;
-            
+
         if output.status.success() {
             let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !result.is_empty() {
+            if !result.is_empty() || !default_value.is_empty() {
                 return Ok(Some(result));
             }
         }
-        
-        Ok(None)
+
+        return Ok(None);
     }
-    
+
     #[cfg(target_os = "linux")]
     {
-        // Try different methods for Linux
-        
-        // First try zenity (most common)
-        if let Ok(output) = std::process::Command::new("zenity")
-            .args(&["--password", "--title", &title, "--text", &message])
-            .output()
-        {
-            if output.status.success() {
-                let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !result.is_empty() {
+        let default_value = default.unwrap_or_default();
+        let is_sensitive = sensitive.unwrap_or(false);
+
+        if is_sensitive {
+            // Try zenity password dialog first
+            if let Ok(output) = std::process::Command::new("zenity")
+                .args(&["--password", "--title", &title, "--text", &message])
+                .output()
+            {
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !result.is_empty() {
+                        return Ok(Some(result));
+                    }
+                }
+            }
+
+            // Fallback to kdialog password
+            if let Ok(output) = std::process::Command::new("kdialog")
+                .args(&["--password", &message, "--title", &title])
+                .output()
+            {
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !result.is_empty() {
+                        return Ok(Some(result));
+                    }
+                }
+            }
+
+            return Err("No suitable password dialog found. Please install zenity or kdialog.".to_string());
+        } else {
+            // Try zenity text entry first
+            if let Ok(output) = std::process::Command::new("zenity")
+                .args(&["--entry", "--title", &title, "--text", &message, "--entry-text", &default_value])
+                .output()
+            {
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
                     return Ok(Some(result));
                 }
             }
-        }
-        
-        // Fallback to kdialog (KDE)
-        if let Ok(output) = std::process::Command::new("kdialog")
-            .args(&["--password", &message, "--title", &title])
-            .output()
-        {
-            if output.status.success() {
-                let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !result.is_empty() {
+
+            // Fallback to kdialog input box
+            if let Ok(output) = std::process::Command::new("kdialog")
+                .args(&["--inputbox", &message, &default_value, "--title", &title])
+                .output()
+            {
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
                     return Ok(Some(result));
                 }
             }
+
+            return Err("No suitable input dialog found. Please install zenity or kdialog.".to_string());
         }
-        
-        Err("No suitable password dialog found. Please install zenity or kdialog.".to_string())
     }
-    
+
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
-        Err("Password input not supported on this platform".to_string())
+        Err("Text input not supported on this platform".to_string())
     }
 }
 
@@ -521,7 +581,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, prompt_password, stop_pid, update_system_rclone, test_proxy_connection])
+        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection])
         .setup(|_app| Ok(()))
         // .setup(|app| {
         //     if cfg!(debug_assertions) {
