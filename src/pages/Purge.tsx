@@ -9,6 +9,7 @@ import {
     FoldersIcon,
     PlayIcon,
     WrenchIcon,
+    XIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -24,6 +25,7 @@ import { usePersistedStore } from '../../lib/store'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
+import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Purge() {
     const [searchParams] = useSearchParams()
@@ -185,6 +187,53 @@ export default function Purge() {
         }
     }
 
+    async function handleAddToTemplates(name: string) {
+        if (!!jsonError || !source) {
+            await message('Your config for this operation is incomplete or has errors.', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+        const templates = usePersistedStore.getState().templates
+
+        const mergedOptions = {
+            filterOptions,
+            configOptions,
+            source,
+        }
+
+        const newTemplates = [
+            ...templates,
+            {
+                id: Math.floor(Date.now() / 1000).toString(),
+                name,
+                operation: 'purge',
+                options: mergedOptions,
+            } as const,
+        ]
+
+        usePersistedStore.setState({ templates: newTemplates })
+    }
+
+    async function handleSelectTemplate(templateId: string) {
+        const template = usePersistedStore
+            .getState()
+            .templates.find((template) => template.id === templateId)
+
+        if (!template) {
+            await message('Template not found', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+
+        setFilterOptions(template.options.filterOptions)
+        setConfigOptions(template.options.configOptions)
+        setSource(template.options.source)
+    }
+
     const buttonText = (() => {
         if (isLoading) return 'STARTING...'
         if (!source) return 'Please select a source path'
@@ -196,7 +245,7 @@ export default function Purge() {
         if (isLoading) return
         if (!source) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5" />
+        return <PlayIcon className="w-5 h-5 fill-current" />
     })()
 
     return (
@@ -270,22 +319,16 @@ export default function Purge() {
             </div>
 
             <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+                <TemplatesDropdown
+                    operation="purge"
+                    onSelect={handleSelectTemplate}
+                    onAdd={handleAddToTemplates}
+                />
                 {isStarted ? (
                     <>
                         <Button
                             fullWidth={true}
-                            size="lg"
-                            onPress={async () => {
-                                await getCurrentWindow().hide()
-                                await getCurrentWindow().destroy()
-                            }}
-                            data-focus-visible="false"
-                        >
-                            Close
-                        </Button>
-
-                        <Button
-                            fullWidth={true}
+                            color="primary"
                             size="lg"
                             onPress={() => {
                                 setFilterOptionsJson('{}')
@@ -294,7 +337,19 @@ export default function Purge() {
                             }}
                             data-focus-visible="false"
                         >
-                            New Purge
+                            RESET
+                        </Button>
+
+                        <Button
+                            size="lg"
+                            isIconOnly={true}
+                            onPress={async () => {
+                                await getCurrentWindow().hide()
+                                await getCurrentWindow().destroy()
+                            }}
+                            data-focus-visible="false"
+                        >
+                            <XIcon />
                         </Button>
                     </>
                 ) : (
