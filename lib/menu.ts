@@ -200,6 +200,17 @@ async function parseRemotes(remotes: string[]) {
                 text: 'Cleanup',
                 action: async () => {
                     try {
+                        const confirmed = await ask(`Start cleanup on ${remote}?`, {
+                            title: `Cleaning up ${remote}`,
+                            kind: 'warning',
+                            okLabel: 'Start',
+                            cancelLabel: 'Cancel',
+                        })
+
+                        if (!confirmed) {
+                            return
+                        }
+
                         await cleanupRemote(remote)
                         await message(`Cleanup started for ${remote}`, {
                             title: 'Cleanup Started',
