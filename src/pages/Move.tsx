@@ -1,5 +1,6 @@
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { Accordion, AccordionItem, Avatar, Button, Divider, Switch, cn } from '@heroui/react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
@@ -14,6 +15,7 @@ import {
     PlayIcon,
     ServerIcon,
     WrenchIcon,
+    XIcon,
 } from 'lucide-react'
 import { startTransition, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -33,6 +35,7 @@ import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { MultiPathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Move() {
     const [searchParams] = useSearchParams()
@@ -274,17 +277,91 @@ export default function Move() {
 
         const failedPaths: Record<string, string> = {}
 
-        for (const source of sources) {
-            const isFolder = source.endsWith('/')
-            const customFilterOptions = isFolder
-                ? filterOptions
-                : {
-                      ...filterOptions,
-                      IncludeRule: [source.split('/').pop()!],
-                  }
+        // Group files by their parent folder to build a single IncludeRule per group
+        const folderSources = sources.filter((path) => path.endsWith('/'))
+        const fileSources = sources.filter((path) => !path.endsWith('/'))
+
+        const parentToFilesMap: Record<string, string[]> = {}
+        for (const fileSource of fileSources) {
+            const parentFolder = fileSource.split('/').slice(0, -1).join('/')
+            const fileName = fileSource.split('/').pop()!
+            if (!parentToFilesMap[parentFolder]) parentToFilesMap[parentFolder] = []
+            parentToFilesMap[parentFolder].push(fileName)
+        }
+
+        const fileGroups = Object.entries(parentToFilesMap)
+
+        // Start move for each file group (per parent folder)
+        for (const [parentFolder, fileNames] of fileGroups) {
+            const customFilterOptions = {
+                ...filterOptions,
+                IncludeRule: fileNames,
+            }
+            console.log('[Move] customFilterOptions for group', parentFolder, customFilterOptions)
+
+            const customSource = parentFolder
+            console.log('[Move] customSource for group', parentFolder, customSource)
+
+            const destination = dest
+            console.log('[Move] destination for group', parentFolder, destination)
+
+            try {
+                const jobId = await startMove({
+                    srcFs: customSource,
+                    dstFs: destination,
+                    createEmptySrcDirs,
+                    deleteEmptyDstDirs,
+                    _config: mergedConfig,
+                    _filter: customFilterOptions,
+                    remoteOptions,
+                })
+
+                await new Promise((resolve) => setTimeout(resolve, 500))
+
+                const statusRes = await fetch(`http://localhost:5572/job/status?jobid=${jobId}`, {
+                    method: 'POST',
+                })
+                    .then((res) => {
+                        return res.json() as Promise<{
+                            duration: number
+                            endTime?: string
+                            error?: string
+                            finished: boolean
+                            group: string
+                            id: number
+                            output?: Record<string, any>
+                            startTime: string
+                            success: boolean
+                        }>
+                    })
+                    .catch(() => {
+                        return { error: null }
+                    })
+
+                console.log('statusRes', JSON.stringify(statusRes, null, 2))
+
+                if (statusRes.error) {
+                    failedPaths[`[group] ${parentFolder}`] = statusRes.error
+                }
+            } catch (error) {
+                console.log('error', error)
+                console.error('Failed to start move for group:', parentFolder, error)
+                if (!failedPaths[`[group] ${parentFolder}`]) {
+                    if (error instanceof Error) {
+                        failedPaths[`[group] ${parentFolder}`] = error.message
+                    } else {
+                        failedPaths[`[group] ${parentFolder}`] = 'Unknown error'
+                    }
+                }
+            }
+        }
+
+        // Start move for each full folder source (preserve existing behavior)
+        for (const source of folderSources) {
+            const isFolder = true
+            const customFilterOptions = filterOptions
             console.log('[Move] customFilterOptions for', source, customFilterOptions)
-            // Use parent folder path if the input is a file
-            const customSource = isFolder ? source : source.split('/').slice(0, -1).join('/')
+            const customSource = source
             console.log('[Move] customSource for', source, customSource)
 
             const destination =
@@ -294,8 +371,6 @@ export default function Move() {
             console.log('[Move] destination for', source, destination)
 
             try {
-                // Use parent folder path if the input is a file
-
                 const jobId = await startMove({
                     srcFs: customSource,
                     dstFs: destination,
@@ -354,12 +429,23 @@ export default function Move() {
         const failedPathsKeys = Object.keys(failedPaths)
         console.log('[Move] failedPathsKeys', failedPathsKeys)
 
-        if (sources.length !== failedPathsKeys.length) {
+        const expectedJobsFinal = (() => {
+            const folderSourcesFinal = (sources || []).filter((path) => path.endsWith('/'))
+            const fileSourcesFinal = (sources || []).filter((path) => !path.endsWith('/'))
+            const parentToFilesMapFinal: Record<string, true> = {}
+            for (const fileSource of fileSourcesFinal) {
+                const parentFolder = fileSource.split('/').slice(0, -1).join('/')
+                parentToFilesMapFinal[parentFolder] = true
+            }
+            return folderSourcesFinal.length + Object.keys(parentToFilesMapFinal).length
+        })()
+
+        if (expectedJobsFinal !== failedPathsKeys.length) {
             setIsStarted(true)
         }
 
         if (failedPathsKeys.length > 0) {
-            if (sources.length === failedPathsKeys.length) {
+            if (expectedJobsFinal === failedPathsKeys.length) {
                 await message(`${failedPathsKeys[0]} ${failedPaths[failedPathsKeys[0]]}`, {
                     title: 'Failed to start move',
                     kind: 'error',
@@ -378,6 +464,59 @@ export default function Move() {
         setIsLoading(false)
     }
 
+    async function handleAddToTemplates(name: string) {
+        if (!!jsonError || !sources || sources.length === 0 || !dest || sources[0] === dest) {
+            await message('Your config for this operation is incomplete or has errors.', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+        const templates = usePersistedStore.getState().templates
+
+        const mergedOptions = {
+            moveOptions,
+            filterOptions,
+            configOptions,
+            remoteOptions,
+            sources,
+            dest,
+        }
+
+        const newTemplates = [
+            ...templates,
+            {
+                id: Math.floor(Date.now() / 1000).toString(),
+                name,
+                operation: 'move',
+                options: mergedOptions,
+            } as const,
+        ]
+
+        usePersistedStore.setState({ templates: newTemplates })
+    }
+
+    async function handleSelectTemplate(templateId: string) {
+        const template = usePersistedStore
+            .getState()
+            .templates.find((template) => template.id === templateId)
+
+        if (!template) {
+            await message('Template not found', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+
+        setMoveOptions(template.options.moveOptions)
+        setFilterOptions(template.options.filterOptions)
+        setConfigOptions(template.options.configOptions)
+        setRemoteOptions(template.options.remoteOptions)
+        setSources(template.options.sources)
+        setDest(template.options.dest)
+    }
+
     const buttonText = (() => {
         if (isLoading) return 'STARTING...'
         if (!sources || sources.length === 0) return 'Please select a source path'
@@ -392,7 +531,7 @@ export default function Move() {
         if (!sources || sources.length === 0 || !dest || sources[0] === dest)
             return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5" />
+        return <PlayIcon className="w-5 h-5 fill-current" />
     })()
 
     return (
@@ -568,10 +707,17 @@ export default function Move() {
             </div>
 
             <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+                <TemplatesDropdown
+                    operation="move"
+                    onSelect={handleSelectTemplate}
+                    onAdd={handleAddToTemplates}
+                />
+
                 {isStarted ? (
                     <>
                         <Button
                             fullWidth={true}
+                            color="primary"
                             size="lg"
                             onPress={() => {
                                 setMoveOptionsJson('{}')
@@ -582,19 +728,31 @@ export default function Move() {
                             }}
                             data-focus-visible="false"
                         >
-                            New Move
+                            RESET
                         </Button>
 
                         <Button
                             fullWidth={true}
                             size="lg"
-                            color="primary"
+                            color="secondary"
                             onPress={async () => {
                                 await openWindow({ name: 'Jobs', url: '/jobs' })
                             }}
                             data-focus-visible="false"
                         >
-                            Show Jobs
+                            JOBS
+                        </Button>
+
+                        <Button
+                            size="lg"
+                            isIconOnly={true}
+                            onPress={async () => {
+                                await getCurrentWindow().hide()
+                                await getCurrentWindow().destroy()
+                            }}
+                            data-focus-visible="false"
+                        >
+                            <XIcon />
                         </Button>
                     </>
                 ) : (
