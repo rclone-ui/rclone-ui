@@ -1,5 +1,6 @@
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { Accordion, AccordionItem, Alert, Avatar, Button } from '@heroui/react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import cronstrue from 'cronstrue'
 import {
@@ -9,6 +10,7 @@ import {
     FoldersIcon,
     PlayIcon,
     WrenchIcon,
+    XIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -25,6 +27,7 @@ import { usePersistedStore } from '../../lib/store'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
+import TemplatesDropdown from '../components/TemplatesDropdown'
 
 const SUPPORTS_PURGE = [
     'box',
@@ -198,6 +201,55 @@ export default function Delete() {
         }
     }
 
+    async function handleAddToTemplates(name: string) {
+        if (!!jsonError || !sourceFs) {
+            await message('Your config for this operation is incomplete or has errors.', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+        const templates = usePersistedStore.getState().templates
+
+        const mergedOptions = {
+            filterOptions,
+            configOptions,
+            sourceFs,
+            rmDirs,
+        }
+
+        const newTemplates = [
+            ...templates,
+            {
+                id: Math.floor(Date.now() / 1000).toString(),
+                name,
+                operation: 'delete',
+                options: mergedOptions,
+            } as const,
+        ]
+
+        usePersistedStore.setState({ templates: newTemplates })
+    }
+
+    async function handleSelectTemplate(templateId: string) {
+        const template = usePersistedStore
+            .getState()
+            .templates.find((template) => template.id === templateId)
+
+        if (!template) {
+            await message('Template not found', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+
+        setFilterOptions(template.options.filterOptions)
+        setConfigOptions(template.options.configOptions)
+        setSourceFs(template.options.sourceFs)
+        setRmDirs(template.options.rmDirs)
+    }
+
     const buttonText = (() => {
         if (isLoading) return 'STARTING...'
         if (!sourceFs || sourceFs.length === 0) return 'Please select a source path'
@@ -304,6 +356,11 @@ export default function Delete() {
             </div>
 
             <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+                <TemplatesDropdown
+                    operation="delete"
+                    onSelect={handleSelectTemplate}
+                    onAdd={handleAddToTemplates}
+                />
                 {isStarted ? (
                     <>
                         <Button
@@ -316,23 +373,20 @@ export default function Delete() {
                             }}
                             data-focus-visible="false"
                         >
-                            New Delete
+                            RESET
                         </Button>
 
-                        {/* <Button
-                            fullWidth={true}
+                        <Button
                             size="lg"
-                            color="primary"
+                            isIconOnly={true}
                             onPress={async () => {
-                                await openWindow({ name: 'Jobs', url: '/jobs' })
-                                // await getCurrentWindow().hide()
-
-                                // await getCurrentWindow().destroy()
+                                await getCurrentWindow().hide()
+                                await getCurrentWindow().destroy()
                             }}
                             data-focus-visible="false"
                         >
-                            Show Jobs
-                        </Button> */}
+                            <XIcon />
+                        </Button>
                     </>
                 ) : (
                     <Button
