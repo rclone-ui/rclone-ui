@@ -1,5 +1,6 @@
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { Accordion, AccordionItem, Avatar, Button, Divider, cn } from '@heroui/react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
 import cronstrue from 'cronstrue'
@@ -13,6 +14,7 @@ import {
     PlayIcon,
     ServerIcon,
     WrenchIcon,
+    XIcon,
 } from 'lucide-react'
 import { startTransition, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -32,6 +34,7 @@ import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { MultiPathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Copy() {
     const [searchParams] = useSearchParams()
@@ -281,17 +284,90 @@ export default function Copy() {
 
         const failedPaths: Record<string, string> = {}
 
-        for (const source of sources) {
-            const isFolder = source.endsWith('/')
-            const customFilterOptions = isFolder
-                ? filterOptions
-                : {
-                      ...filterOptions,
-                      IncludeRule: [source.split('/').pop()!],
-                  }
+        // Group files by their parent folder to build a single IncludeRule per group
+        const folderSources = sources.filter((path) => path.endsWith('/'))
+        const fileSources = sources.filter((path) => !path.endsWith('/'))
+
+        const parentToFilesMap: Record<string, string[]> = {}
+        for (const fileSource of fileSources) {
+            const parentFolder = fileSource.split('/').slice(0, -1).join('/')
+            const fileName = fileSource.split('/').pop()!
+            if (!parentToFilesMap[parentFolder]) parentToFilesMap[parentFolder] = []
+            parentToFilesMap[parentFolder].push(fileName)
+        }
+
+        const fileGroups = Object.entries(parentToFilesMap)
+
+        // Start copy for each file group (per parent folder)
+        for (const [parentFolder, fileNames] of fileGroups) {
+            const customFilterOptions = {
+                ...filterOptions,
+                IncludeRule: fileNames,
+            }
+            console.log('[Copy] customFilterOptions for group', parentFolder, customFilterOptions)
+
+            const customSource = parentFolder
+            console.log('[Copy] customSource for group', parentFolder, customSource)
+
+            const destination = dest
+            console.log('[Copy] destination for group', parentFolder, destination)
+
+            try {
+                // await new Promise((resolve) => setTimeout(resolve, 1000))
+                const jobId = await startCopy({
+                    srcFs: customSource,
+                    dstFs: destination,
+                    _config: mergedConfig,
+                    _filter: customFilterOptions,
+                    remoteOptions,
+                })
+
+                await new Promise((resolve) => setTimeout(resolve, 500))
+
+                const statusRes = await fetch(`http://localhost:5572/job/status?jobid=${jobId}`, {
+                    method: 'POST',
+                })
+                    .then((res) => {
+                        return res.json() as Promise<{
+                            duration: number
+                            endTime?: string
+                            error?: string
+                            finished: boolean
+                            group: string
+                            id: number
+                            output?: Record<string, any>
+                            startTime: string
+                            success: boolean
+                        }>
+                    })
+                    .catch(() => {
+                        return { error: null }
+                    })
+
+                console.log('statusRes', JSON.stringify(statusRes, null, 2))
+
+                if (statusRes.error) {
+                    failedPaths[`[group] ${parentFolder}`] = statusRes.error
+                }
+            } catch (error) {
+                console.log('[Copy] error', error)
+                console.error('Failed to start copy for group:', parentFolder, error)
+                if (!failedPaths[`[group] ${parentFolder}`]) {
+                    if (error instanceof Error) {
+                        failedPaths[`[group] ${parentFolder}`] = error.message
+                    } else {
+                        failedPaths[`[group] ${parentFolder}`] = 'Unknown error'
+                    }
+                }
+            }
+        }
+
+        // Start copy for each full folder source (preserve existing behavior)
+        for (const source of folderSources) {
+            const isFolder = true
+            const customFilterOptions = filterOptions
             console.log('[Copy] customFilterOptions for', source, customFilterOptions)
-            // Use parent folder path if the input is a file
-            const customSource = isFolder ? source : source.split('/').slice(0, -1).join('/')
+            const customSource = source
             console.log('[Copy] customSource for', source, customSource)
 
             const destination =
@@ -358,12 +434,24 @@ export default function Copy() {
         const failedPathsKeys = Object.keys(failedPaths)
         console.log('[Copy] failedPathsKeys', failedPathsKeys)
 
-        if (sources.length !== failedPathsKeys.length) {
+        const expectedJobsFinal = (() => {
+            // Recompute to be safe in case of future changes
+            const folderSourcesFinal = (sources || []).filter((path) => path.endsWith('/'))
+            const fileSourcesFinal = (sources || []).filter((path) => !path.endsWith('/'))
+            const parentToFilesMapFinal: Record<string, true> = {}
+            for (const fileSource of fileSourcesFinal) {
+                const parentFolder = fileSource.split('/').slice(0, -1).join('/')
+                parentToFilesMapFinal[parentFolder] = true
+            }
+            return folderSourcesFinal.length + Object.keys(parentToFilesMapFinal).length
+        })()
+
+        if (expectedJobsFinal !== failedPathsKeys.length) {
             setIsStarted(true)
         }
 
         if (failedPathsKeys.length > 0) {
-            if (sources.length === failedPathsKeys.length) {
+            if (expectedJobsFinal === failedPathsKeys.length) {
                 await message(`${failedPathsKeys[0]} ${failedPaths[failedPathsKeys[0]]}`, {
                     title: 'Failed to start copy',
                     kind: 'error',
@@ -380,6 +468,59 @@ export default function Copy() {
         }
 
         setIsLoading(false)
+    }
+
+    async function handleAddToTemplates(name: string) {
+        if (!!jsonError || !sources || sources.length === 0 || !dest || sources[0] === dest) {
+            await message('Your config for this operation is incomplete or has errors.', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+        const templates = usePersistedStore.getState().templates
+
+        const mergedOptions = {
+            copyOptions,
+            filterOptions,
+            configOptions,
+            remoteOptions,
+            sources,
+            dest,
+        }
+
+        const newTemplates = [
+            ...templates,
+            {
+                id: Math.floor(Date.now() / 1000).toString(),
+                name,
+                operation: 'copy',
+                options: mergedOptions,
+            } as const,
+        ]
+
+        usePersistedStore.setState({ templates: newTemplates })
+    }
+
+    async function handleSelectTemplate(templateId: string) {
+        const template = usePersistedStore
+            .getState()
+            .templates.find((template) => template.id === templateId)
+
+        if (!template) {
+            await message('Template not found', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+
+        setCopyOptions(template.options.copyOptions)
+        setFilterOptions(template.options.filterOptions)
+        setConfigOptions(template.options.configOptions)
+        setRemoteOptions(template.options.remoteOptions)
+        setSources(template.options.sources)
+        setDest(template.options.dest)
     }
 
     return (
@@ -538,11 +679,17 @@ export default function Copy() {
             </div>
 
             <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+                <TemplatesDropdown
+                    operation="copy"
+                    onSelect={handleSelectTemplate}
+                    onAdd={handleAddToTemplates}
+                />
                 {isStarted ? (
                     <>
                         <Button
                             fullWidth={true}
                             size="lg"
+                            color="primary"
                             onPress={() => {
                                 setCopyOptionsJson('{}')
                                 setFilterOptionsJson('{}')
@@ -552,22 +699,31 @@ export default function Copy() {
                             }}
                             data-focus-visible="false"
                         >
-                            New Copy
+                            RESET
                         </Button>
 
                         <Button
                             fullWidth={true}
                             size="lg"
-                            color="primary"
+                            color="secondary"
                             onPress={async () => {
                                 await openWindow({ name: 'Jobs', url: '/jobs' })
-                                // await getCurrentWindow().hide()
-
-                                // await getCurrentWindow().destroy()
                             }}
                             data-focus-visible="false"
                         >
-                            Show Jobs
+                            JOBS
+                        </Button>
+
+                        <Button
+                            size="lg"
+                            isIconOnly={true}
+                            onPress={async () => {
+                                await getCurrentWindow().hide()
+                                await getCurrentWindow().destroy()
+                            }}
+                            data-focus-visible="false"
+                        >
+                            <XIcon />
                         </Button>
                     </>
                 ) : (
