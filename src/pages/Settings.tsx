@@ -281,7 +281,6 @@ function GeneralSection() {
 
     const startOnBoot = usePersistedStore((state) => state.startOnBoot)
     const setStartOnBoot = usePersistedStore((state) => state.setStartOnBoot)
-    const licenseValid = usePersistedStore((state) => state.licenseValid)
 
     const [updateButtonText, setUpdateButtonText] = useState('Check for updates')
     const [isWorkingUpdate, setIsWorkingUpdate] = useState(false)
@@ -458,13 +457,13 @@ function GeneralSection() {
                     <Checkbox
                         isSelected={startOnBoot}
                         onValueChange={async (value) => {
-                            if (!licenseValid) {
-                                await message('Community version does not support start on boot.', {
-                                    title: 'Missing license',
-                                    kind: 'error',
-                                })
-                                return
-                            }
+                            // if (!licenseValid) {
+                            //     await message('Community version does not support start on boot.', {
+                            //         title: 'Missing license',
+                            //         kind: 'error',
+                            //     })
+                            //     return
+                            // }
 
                             try {
                                 setStartOnBoot(value)

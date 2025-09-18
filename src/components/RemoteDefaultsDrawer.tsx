@@ -37,6 +37,7 @@ export default function RemoteDefaultsDrawer({
     onClose: () => void
     isOpen: boolean
 }) {
+    const licenseValid = usePersistedStore((state) => state.licenseValid)
     const remoteConfigList = usePersistedStore((state) => state.remoteConfigList)
     const mergeRemoteConfig = usePersistedStore((state) => state.mergeRemoteConfig)
 
@@ -412,6 +413,17 @@ export default function RemoteDefaultsDrawer({
                                                 <Checkbox
                                                     isSelected={config?.mountOnStart || false}
                                                     onValueChange={async (value) => {
+                                                        if (!licenseValid) {
+                                                            await message(
+                                                                'Community version does not support mount on startup.',
+                                                                {
+                                                                    title: 'Missing license',
+                                                                    kind: 'error',
+                                                                }
+                                                            )
+                                                            return
+                                                        }
+
                                                         if (
                                                             !config?.defaultMountPoint ||
                                                             !config?.defaultRemotePath
