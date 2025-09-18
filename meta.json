@@ -1,4 +1,4 @@
 {
-    "miniVersion": "1.2.0",
-    "okVersion": "1.2.0"
+    "minimumVersion": "2.5.0",
+    "okVersion": "1.9.3"
 }
