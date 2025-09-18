@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/browser'
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
+import { sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message, open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
@@ -259,13 +260,13 @@ async function parseRemotes(remotes: string[]) {
         for (const currentMount of currentRemoteMounts) {
             console.log(
                 '[parseRemotes] Adding Unmount (' +
-                    currentMount.MountPoint.split('/').pop() +
+                    currentMount.MountPoint.split(sep()).pop() +
                     ') for ',
                 remote
             )
             const unmountMenuItem = await MenuItem.new({
                 id: `unmount-${remote}-${currentMount.MountPoint}`,
-                text: 'Unmount (' + currentMount.MountPoint.split('/').pop() + ')',
+                text: 'Unmount (' + currentMount.MountPoint.split(sep()).pop() + ')',
                 action: async () => {
                     try {
                         await showLoadingTray()
