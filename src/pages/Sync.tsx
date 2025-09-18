@@ -1,5 +1,6 @@
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import { Accordion, AccordionItem, Avatar, Button, Divider, cn } from '@heroui/react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { exists } from '@tauri-apps/plugin-fs'
 import cronstrue from 'cronstrue'
@@ -13,6 +14,7 @@ import {
     PlayIcon,
     ServerIcon,
     WrenchIcon,
+    XIcon,
 } from 'lucide-react'
 import { startTransition, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -32,6 +34,7 @@ import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { PathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Sync() {
     const [searchParams] = useSearchParams()
@@ -85,7 +88,7 @@ export default function Sync() {
         if (isLoading) return
         if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5" />
+        return <PlayIcon className="w-5 h-5 fill-current" />
     })()
 
     async function handleStartSync() {
@@ -186,6 +189,59 @@ export default function Sync() {
             })
         }
         setIsLoading(false)
+    }
+
+    async function handleAddToTemplates(name: string) {
+        if (!!jsonError || !source || !dest || source === dest) {
+            await message('Your config for this operation is incomplete or has errors.', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+        const templates = usePersistedStore.getState().templates
+
+        const mergedOptions = {
+            syncOptions,
+            filterOptions,
+            configOptions,
+            remoteOptions,
+            source,
+            dest,
+        }
+
+        const newTemplates = [
+            ...templates,
+            {
+                id: Math.floor(Date.now() / 1000).toString(),
+                name,
+                operation: 'sync',
+                options: mergedOptions,
+            } as const,
+        ]
+
+        usePersistedStore.setState({ templates: newTemplates })
+    }
+
+    async function handleSelectTemplate(templateId: string) {
+        const template = usePersistedStore
+            .getState()
+            .templates.find((template) => template.id === templateId)
+
+        if (!template) {
+            await message('Template not found', {
+                title: 'Error',
+                kind: 'error',
+            })
+            return
+        }
+
+        setSyncOptions(template.options.syncOptions)
+        setFilterOptions(template.options.filterOptions)
+        setConfigOptions(template.options.configOptions)
+        setRemoteOptions(template.options.remoteOptions)
+        setSource(template.options.source)
+        setDest(template.options.dest)
     }
 
     useEffect(() => {
@@ -454,10 +510,16 @@ export default function Sync() {
             </div>
 
             <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+                <TemplatesDropdown
+                    operation="sync"
+                    onSelect={handleSelectTemplate}
+                    onAdd={handleAddToTemplates}
+                />
                 {isStarted ? (
                     <>
                         <Button
                             fullWidth={true}
+                            color="primary"
                             size="lg"
                             onPress={() => {
                                 setSyncOptionsJson('{}')
@@ -468,22 +530,31 @@ export default function Sync() {
                             }}
                             data-focus-visible="false"
                         >
-                            New Sync
+                            RESET
                         </Button>
 
                         <Button
-                            fullWidth={true}
                             size="lg"
-                            color="primary"
+                            color="secondary"
+                            fullWidth={true}
                             onPress={async () => {
                                 await openWindow({ name: 'Jobs', url: '/jobs' })
-                                // await getCurrentWindow().hide()
-
-                                // await getCurrentWindow().destroy()
                             }}
                             data-focus-visible="false"
                         >
-                            Show Jobs
+                            JOBS
+                        </Button>
+
+                        <Button
+                            size="lg"
+                            isIconOnly={true}
+                            onPress={async () => {
+                                await getCurrentWindow().hide()
+                                await getCurrentWindow().destroy()
+                            }}
+                            data-focus-visible="false"
+                        >
+                            <XIcon />
                         </Button>
                     </>
                 ) : (
