@@ -258,7 +258,7 @@ export default function Mount() {
     const buttonIcon = (() => {
         if (isLoading || isMounted) return
         if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
-        if (jsonError) return <AlertOctagonIcon className="w-4 h-4" />
+        if (jsonError) return <AlertOctagonIcon className="w-4 h-4 mt-0.5" />
         return <PlayIcon className="w-4 h-4 fill-current" />
     })()
 

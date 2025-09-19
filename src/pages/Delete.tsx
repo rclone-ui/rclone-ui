@@ -261,7 +261,7 @@ export default function Delete() {
         if (isLoading) return
         if (!sourceFs || sourceFs.length === 0) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5" />
+        return <PlayIcon className="w-5 h-5 fill-current" />
     })()
 
     return (

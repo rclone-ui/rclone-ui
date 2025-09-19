@@ -186,7 +186,7 @@ export default function Copy() {
         if (!sources || sources.length === 0 || !dest || sources[0] === dest)
             return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5" />
+        return <PlayIcon className="w-5 h-5 fill-current" />
     })()
 
     async function handleStartCopy() {
