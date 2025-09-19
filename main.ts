@@ -179,11 +179,16 @@ async function startRclone() {
 
         if (event.code === 1 || event.code === 143) {
             Sentry.captureException(new Error('Rclone has crashed'))
-            await message('Rclone has crashed', {
+            const confirmed = await ask('Rclone has crashed', {
                 title: 'Error',
                 kind: 'error',
+                okLabel: 'Relaunch',
+                cancelLabel: 'Exit',
             })
-            await exit(0)
+            if (!confirmed) {
+                return await exit(0)
+            }
+            await relaunch()
         }
     })
 
