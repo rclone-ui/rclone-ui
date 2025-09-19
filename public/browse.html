@@ -112,16 +112,26 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
         }
 
         /* Links */
-        a {
+       a {
           color: #66b3ff !important;
+		  letter-spacing: 0.05px !important;
         }
 
-        a:visited {
-          color: #b366ff !important;
-        }
-
-        a:hover {
+		a:hover {
           color: #99ccff !important;
+        } 
+
+        a:not([class]) {
+          color: #e8e8e8 !important;
+        }
+
+        a[href^="."] {
+          color: #808080 !important;
+        }
+		
+        /* Item name font size */
+        span.name {
+          font-size: 16px !important;
         }
 
         /* Filter input */
@@ -130,6 +140,12 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           color: #e0e0e0 !important;
           border: 1px solid #404040 !important;
           padding: 5px 10px !important;
+          height: 28px !important;
+          width: 100% !important;
+		  max-width: -webkit-fill-available !important;
+          border-radius: 10px !important;
+          font-size: 16px !important;
+          text-transform: capitalize !important;
         }
 
         #filter:focus {
