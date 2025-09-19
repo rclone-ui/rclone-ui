@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/browser'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
+import type { FlagValue } from '../../types/rclone'
 import { useStore } from '../store'
 import { parseRcloneOptions } from './common'
 
@@ -859,7 +860,10 @@ export async function getSftpFlags() {
         headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
-    const sftpFlags = r.sftp
+    const sftpFlags = r.sftp.map((flag: any) => ({
+        ...flag,
+        FieldName: flag.Name,
+    }))
 
     return sftpFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
 }
@@ -872,7 +876,173 @@ export async function getFtpFlags() {
         headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
-    const ftpFlags = r.ftp
+    const ftpFlags = r.ftp.map((flag: any) => ({
+        ...flag,
+        FieldName: flag.Name,
+    }))
 
     return ftpFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
+}
+
+export async function getDlnaFlags() {
+    console.log('[getDlnaFlags]')
+
+    const r = await fetch('http://localhost:5572/options/info', {
+        method: 'POST',
+        headers: getAuthHeader(),
+    }).then((res) => res.json() as Promise<any>)
+
+    const dlnaFlags = r.dlna.map((flag: any) => ({
+        ...flag,
+        FieldName: flag.Name,
+    }))
+
+    return dlnaFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
+}
+
+/* SERVE */
+export interface ServeListItem {
+    id: string
+    addr: string
+    params: {
+        fs: string
+        type: string
+        opt?: Record<string, unknown>
+        vfsOpt?: Record<string, unknown>
+    }
+}
+
+export async function listServes() {
+    console.log('[listServes]')
+
+    const r = await fetch('http://localhost:5572/serve/list', {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+        .then(
+            (res) =>
+                res.json() as Promise<{
+                    list: ServeListItem[]
+                }>
+        )
+        .catch((e) => {
+            Sentry.captureException(e)
+            console.log('error', e)
+            throw e
+        })
+
+    if (!Array.isArray(r?.list)) {
+        throw new Error('[listServes] Failed to get running serves')
+    }
+
+    return r.list
+}
+
+export async function startServe({
+    // type,
+    // fs,
+    // addr,
+    _filter,
+    _config,
+    ...props
+}: {
+    // type: string
+    // fs: string
+    // addr: string
+    // options?: Record<string, string | number | boolean | string[]>
+    _filter?: Record<string, FlagValue>
+    _config?: Record<string, FlagValue>
+} & Record<string, FlagValue>) {
+    console.log('[startServe] ', props)
+
+    const params = new URLSearchParams()
+    // params.set('type', type)
+    // params.set('fs', fs)
+    // params.set('user', 'usr')
+    // params.set('pass', 'pas')
+
+    for (const [key, value] of Object.entries(props)) {
+        if (Array.isArray(value)) {
+            for (const v of value) params.append(key, String(v))
+        } else if (value !== undefined) {
+            params.set(key, String(value))
+        }
+    }
+
+    // if (options && Object.keys(options).length > 0) {
+    //     const parsed = parseRcloneOptions(options)
+    //     for (const [key, value] of Object.entries(parsed)) {
+    //         if (Array.isArray(value)) {
+    //             for (const v of value) params.append(key, String(v))
+    //         } else if (value !== undefined) {
+    //             params.set(key, String(value))
+    //         }
+    //     }
+    // }
+
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    }
+
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    }
+
+    const r = await fetch(`http://localhost:5572/serve/start?${params.toString()}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+        .then((res) => res.json() as Promise<{ addr: string; id: string } | { error: string }>)
+        .catch((e) => {
+            Sentry.captureException(e)
+            console.log('error', e)
+            throw e
+        })
+
+    if ('error' in r) {
+        throw new Error(r.error)
+    }
+
+    return r
+}
+
+export async function stopServe(id: string) {
+    console.log('[stopServe] ', id)
+
+    const params = new URLSearchParams()
+    params.set('id', id)
+
+    const r = await fetch(`http://localhost:5572/serve/stop?${params.toString()}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+        .then((res) => res.json())
+        .catch((e) => {
+            Sentry.captureException(e)
+            console.log('error', e)
+            throw e
+        })
+
+    if ('error' in r) {
+        throw new Error(r.error)
+    }
+}
+
+export async function stopAllServes() {
+    console.log('[stopAllServes]')
+
+    const r = await fetch('http://localhost:5572/serve/stopall', {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+        .then((res) => res.json())
+        .catch((e) => {
+            Sentry.captureException(e)
+            console.log('error', e)
+            throw e
+        })
+
+    if ('error' in r) {
+        throw new Error(r.error)
+    }
 }

@@ -24,3 +24,5 @@ export interface Backend {
     Options: BackendOption[]
     Prefix: string
 }
+
+export type FlagValue = string | number | boolean | string[]

@@ -556,6 +556,21 @@ function GeneralSection() {
                         Show <span className="font-mono text-blue-300">Move</span> option
                     </Checkbox>
                     <Checkbox
+                        isSelected={!disabledActions?.includes('tray-serve')}
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-serve') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-serve'])
+                            }
+                        }}
+                    >
+                        Show <span className="font-mono text-blue-300">Serve</span> option
+                    </Checkbox>
+                    <Checkbox
                         isSelected={!disabledActions?.includes('tray-purge')}
                         onValueChange={(value) => {
                             if (value) {

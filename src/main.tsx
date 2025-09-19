@@ -12,6 +12,7 @@ import Jobs from './pages/Jobs'
 import Mount from './pages/Mount'
 import Move from './pages/Move'
 import Purge from './pages/Purge'
+import Serve from './pages/Serve'
 import Settings from './pages/Settings'
 import Startup from './pages/Startup'
 import Sync from './pages/Sync'
@@ -68,6 +69,10 @@ const router = createBrowserRouter([
     {
         path: '/purge',
         element: <Purge />,
+    },
+    {
+        path: '/serve',
+        element: <Serve />,
     },
     {
         path: '/mount',

@@ -33,10 +33,6 @@ interface State {
     rcloneAuth: string
     rcloneAuthHeader: string
 
-    serveList: { pid: number; protocol: string; remote: string }[]
-    setServeList: (serve: { pid: number; protocol: string; remote: string }) => void
-    removeServeList: (pid: number) => void
-
     remotes: string[]
     setRemotes: (remotes: string[]) => void
     addRemote: (remote: string) => void
@@ -146,12 +142,6 @@ export const useStore = create<State>()(
             rcloneLoaded: false,
             rcloneAuth: '',
             rcloneAuthHeader: '',
-
-            serveList: [],
-            setServeList: (serve: { pid: number; protocol: string; remote: string }) =>
-                set((state) => ({ serveList: [...state.serveList, serve] })),
-            removeServeList: (pid: number) =>
-                set((state) => ({ serveList: state.serveList.filter((s) => s.pid !== pid) })),
 
             remotes: [],
             setRemotes: (remotes: string[]) => set((_) => ({ remotes })),

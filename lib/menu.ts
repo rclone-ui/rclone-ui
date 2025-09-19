@@ -8,7 +8,15 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { isDirectoryEmpty } from './fs'
 import notify from './notify'
-import { cleanupRemote, deleteRemote, listMounts, mountRemote, unmountRemote } from './rclone/api'
+import {
+    cleanupRemote,
+    deleteRemote,
+    listMounts,
+    listServes,
+    mountRemote,
+    stopServe,
+    unmountRemote,
+} from './rclone/api'
 import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
 import { showDefaultTray, showLoadingTray } from './tray'
@@ -22,6 +30,8 @@ async function parseRemotes(remotes: string[]) {
     console.log('[parseRemotes] listing mounts')
     const currentMounts = await listMounts()
     console.log('[parseRemotes] currentMounts', currentMounts)
+    const currentServes = await listServes()
+    console.log('[parseRemotes] currentServes', currentServes)
 
     const parsedRemotes: Record<string, (MenuItem | Submenu | PredefinedMenuItem)[]> = {}
 
@@ -320,6 +330,34 @@ async function parseRemotes(remotes: string[]) {
             submenuItems.push(showLocationItem)
         }
 
+        for (const currentServe of currentServes) {
+            // console.log('[parseRemotes] Adding Stop Serve (' + currentServe.Addr.split(':')[0] + ') for ', remote)
+            const stopServeMenuItem = await MenuItem.new({
+                id: `stop-serve-${currentServe.id}`,
+                text: 'Stop Serve',
+                action: async () => {
+                    try {
+                        await showLoadingTray()
+                        await stopServe(currentServe.id)
+
+                        await message(`Successfully stopped serve ${currentServe.id}`, {
+                            title: 'Success',
+                        })
+                    } catch (error) {
+                        Sentry.captureException(error)
+                        console.error('Stop serve operation failed:', error)
+                        await message(`Failed to stop serve ${currentServe.id}: ${error}`, {
+                            kind: 'error',
+                            title: 'Stop Serve Error',
+                        })
+                    } finally {
+                        await showDefaultTray()
+                    }
+                },
+            })
+            submenuItems.push(stopServeMenuItem)
+        }
+
         parsedRemotes[remote] = submenuItems
     }
 
@@ -434,6 +472,20 @@ export async function buildMenu() {
             },
         })
         menuItems.push(syncMenuItem)
+    }
+
+    if (!persistedStoreState.disabledActions?.includes('tray-serve')) {
+        const serveToMenuItem = await MenuItem.new({
+            id: 'serve',
+            text: 'Serve',
+            action: async () => {
+                await openWindow({
+                    name: 'Serve',
+                    url: '/serve',
+                })
+            },
+        })
+        menuItems.push(serveToMenuItem)
     }
 
     if (!persistedStoreState.disabledActions?.includes('tray-purge')) {
