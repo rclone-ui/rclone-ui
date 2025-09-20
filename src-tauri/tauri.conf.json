@@ -25,6 +25,7 @@
                 "focus": true,
                 "url": "tray.html",
                 "theme": "Dark",
+                "alwaysOnTop": true,
                 "backgroundThrottling": "disabled"
             }
         ],
