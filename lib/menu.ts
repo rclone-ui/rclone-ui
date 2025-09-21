@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/browser'
 import { Menu, MenuItem, PredefinedMenuItem, Submenu } from '@tauri-apps/api/menu'
-import { sep } from '@tauri-apps/api/path'
+import { resolveResource, sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message, open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
@@ -11,12 +11,14 @@ import notify from './notify'
 import {
     cleanupRemote,
     deleteRemote,
+    getRemote,
     listMounts,
     listServes,
     mountRemote,
     stopServe,
     unmountRemote,
 } from './rclone/api'
+import { compareVersions, getRcloneVersion } from './rclone/common'
 import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
 import { showDefaultTray, showLoadingTray } from './tray'
@@ -33,14 +35,21 @@ async function parseRemotes(remotes: string[]) {
     const currentServes = await listServes()
     console.log('[parseRemotes] currentServes', currentServes)
 
-    const parsedRemotes: Record<string, (MenuItem | Submenu | PredefinedMenuItem)[]> = {}
+    const parsedRemotes: Record<
+        string,
+        { icon: string; items: (MenuItem | Submenu | PredefinedMenuItem)[] }
+    > = {}
 
     for (const remote of remotes) {
         console.log('[parseRemotes] remote', remote)
+
         const remoteConfig = persistedStoreState.remoteConfigList?.[remote]
         if (remoteConfig?.disabledActions?.includes('tray')) {
             continue
         }
+
+        const remoteInfo = await getRemote(remote).catch(null)
+        console.log('[parseRemotes] remoteInfo', remoteInfo)
 
         const submenuItems: (MenuItem | Submenu | PredefinedMenuItem)[] = []
 
@@ -206,37 +215,42 @@ async function parseRemotes(remotes: string[]) {
         }
 
         if (!remoteConfig?.disabledActions?.includes('tray-cleanup')) {
-            const cleanupMenuItem = await MenuItem.new({
-                id: `cleanup-${remote}`,
-                text: 'Cleanup',
-                action: async () => {
-                    try {
-                        const confirmed = await ask(`Start cleanup on ${remote}?`, {
-                            title: `Cleaning up ${remote}`,
-                            kind: 'warning',
-                            okLabel: 'Start',
-                            cancelLabel: 'Cancel',
-                        })
+            if (
+                remoteInfo?.provider &&
+                ['s3', 'b2', 'box', 'drive', 'onedrive'].includes(remoteInfo.provider)
+            ) {
+                const cleanupMenuItem = await MenuItem.new({
+                    id: `cleanup-${remote}`,
+                    text: 'Cleanup',
+                    action: async () => {
+                        try {
+                            const confirmed = await ask(`Start cleanup on ${remote}?`, {
+                                title: `Cleaning up ${remote}`,
+                                kind: 'warning',
+                                okLabel: 'Start',
+                                cancelLabel: 'Cancel',
+                            })
 
-                        if (!confirmed) {
-                            return
+                            if (!confirmed) {
+                                return
+                            }
+
+                            await cleanupRemote(remote)
+                            await message(`Cleanup started for ${remote}`, {
+                                title: 'Cleanup Started',
+                                okLabel: 'OK',
+                            })
+                        } catch (error) {
+                            await message(`Failed to start cleanup job, ${error}`, {
+                                title: 'Cleanup Error',
+                                kind: 'error',
+                                okLabel: 'OK',
+                            })
                         }
-
-                        await cleanupRemote(remote)
-                        await message(`Cleanup started for ${remote}`, {
-                            title: 'Cleanup Started',
-                            okLabel: 'OK',
-                        })
-                    } catch (error) {
-                        await message(`Failed to start cleanup job, ${error}`, {
-                            title: 'Cleanup Error',
-                            kind: 'error',
-                            okLabel: 'OK',
-                        })
-                    }
-                },
-            })
-            submenuItems.push(cleanupMenuItem)
+                    },
+                })
+                submenuItems.push(cleanupMenuItem)
+            }
         }
 
         if (!remoteConfig?.disabledActions?.includes('tray-remove')) {
@@ -358,7 +372,12 @@ async function parseRemotes(remotes: string[]) {
             submenuItems.push(stopServeMenuItem)
         }
 
-        parsedRemotes[remote] = submenuItems
+        parsedRemotes[remote] = {
+            icon: remoteInfo?.provider
+                ? await resolveResource(`icons/small/providers/${remoteInfo.provider}.png`)
+                : await resolveResource(`icons/small/backends/${remoteInfo?.type}.png`),
+            items: submenuItems,
+        }
     }
 
     return parsedRemotes
@@ -383,13 +402,14 @@ export async function buildMenu() {
         })
         menuItems.push(noRemotesMenuItem)
     } else if (remotes.length > 5) {
-        const items = await parseRemotes(remotes)
+        const parsedRemotes = await parseRemotes(remotes)
         const submenuItems: (MenuItem | Submenu | PredefinedMenuItem)[] = []
 
-        for (const remote in items) {
+        for (const r in parsedRemotes) {
             const sub = await Submenu.new({
-                items: items[remote],
-                text: remote,
+                items: parsedRemotes[r].items,
+                icon: parsedRemotes[r].icon,
+                text: r,
             })
             submenuItems.push(sub)
         }
@@ -401,12 +421,13 @@ export async function buildMenu() {
 
         menuItems.push(sub)
     } else {
-        const items = await parseRemotes(remotes)
+        const parsedRemotes = await parseRemotes(remotes)
 
-        for (const remote in items) {
+        for (const r in parsedRemotes) {
             const sub = await Submenu.new({
-                items: items[remote],
-                text: remote,
+                items: parsedRemotes[r].items,
+                icon: parsedRemotes[r].icon,
+                text: r,
             })
             menuItems.push(sub)
         }
@@ -446,20 +467,6 @@ export async function buildMenu() {
         menuItems.push(copyMenuItem)
     }
 
-    if (!persistedStoreState.disabledActions?.includes('tray-move')) {
-        const moveMenuItem = await MenuItem.new({
-            id: 'move',
-            text: 'Move',
-            action: async () => {
-                await openWindow({
-                    name: 'Move',
-                    url: '/move',
-                })
-            },
-        })
-        menuItems.push(moveMenuItem)
-    }
-
     if (!persistedStoreState.disabledActions?.includes('tray-sync')) {
         const syncMenuItem = await MenuItem.new({
             id: 'sync',
@@ -474,46 +481,82 @@ export async function buildMenu() {
         menuItems.push(syncMenuItem)
     }
 
-    if (!persistedStoreState.disabledActions?.includes('tray-serve')) {
-        const serveToMenuItem = await MenuItem.new({
-            id: 'serve',
-            text: 'Serve',
-            action: async () => {
-                await openWindow({
-                    name: 'Serve',
-                    url: '/serve',
-                })
-            },
-        })
-        menuItems.push(serveToMenuItem)
-    }
+    const allowsAdditional =
+        !persistedStoreState.disabledActions?.includes('tray-move') ||
+        !persistedStoreState.disabledActions?.includes('tray-serve') ||
+        !persistedStoreState.disabledActions?.includes('tray-purge') ||
+        !persistedStoreState.disabledActions?.includes('tray-delete')
 
-    if (!persistedStoreState.disabledActions?.includes('tray-purge')) {
-        const purgeMenuItem = await MenuItem.new({
-            id: 'purge',
-            text: 'Purge',
-            action: async () => {
-                await openWindow({
-                    name: 'Purge',
-                    url: '/purge',
-                })
-            },
-        })
-        menuItems.push(purgeMenuItem)
-    }
+    if (allowsAdditional) {
+        const commandsSubmenuItems: (MenuItem | Submenu | PredefinedMenuItem)[] = []
 
-    if (!persistedStoreState.disabledActions?.includes('tray-delete')) {
-        const deleteMenuItem = await MenuItem.new({
-            id: 'delete',
-            text: 'Delete',
-            action: async () => {
-                await openWindow({
-                    name: 'Delete',
-                    url: '/delete',
-                })
-            },
+        if (!persistedStoreState.disabledActions?.includes('tray-move')) {
+            const moveMenuItem = await MenuItem.new({
+                id: 'move',
+                text: 'Move',
+                action: async () => {
+                    await openWindow({
+                        name: 'Move',
+                        url: '/move',
+                    })
+                },
+            })
+            commandsSubmenuItems.push(moveMenuItem)
+        }
+
+        const rcloneVersion = await getRcloneVersion()
+
+        if (
+            rcloneVersion?.yours &&
+            compareVersions(rcloneVersion.yours, '1.70.0') === 1 &&
+            !persistedStoreState.disabledActions?.includes('tray-serve')
+        ) {
+            const serveToMenuItem = await MenuItem.new({
+                id: 'serve',
+                text: 'Serve',
+                action: async () => {
+                    await openWindow({
+                        name: 'Serve',
+                        url: '/serve',
+                    })
+                },
+            })
+            commandsSubmenuItems.push(serveToMenuItem)
+        }
+
+        if (!persistedStoreState.disabledActions?.includes('tray-purge')) {
+            const purgeMenuItem = await MenuItem.new({
+                id: 'purge',
+                text: 'Purge',
+                action: async () => {
+                    await openWindow({
+                        name: 'Purge',
+                        url: '/purge',
+                    })
+                },
+            })
+            commandsSubmenuItems.push(purgeMenuItem)
+        }
+
+        if (!persistedStoreState.disabledActions?.includes('tray-delete')) {
+            const deleteMenuItem = await MenuItem.new({
+                id: 'delete',
+                text: 'Delete',
+                action: async () => {
+                    await openWindow({
+                        name: 'Delete',
+                        url: '/delete',
+                    })
+                },
+            })
+            commandsSubmenuItems.push(deleteMenuItem)
+        }
+
+        const commandsSubmenu = await Submenu.new({
+            items: commandsSubmenuItems,
+            text: 'Commands',
         })
-        menuItems.push(deleteMenuItem)
+        menuItems.push(commandsSubmenu)
     }
 
     await PredefinedMenuItem.new({
