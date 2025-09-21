@@ -259,7 +259,6 @@ version = "2.6.0"
 dependencies = [
  "cocoa",
  "fix-path-env",
- "glib-macros 0.21.2",
  "log",
  "machine-uid",
  "reqwest 0.11.27",
@@ -2038,7 +2037,7 @@ dependencies = [
  "futures-task",
  "futures-util",
  "gio-sys",
- "glib-macros 0.18.5",
+ "glib-macros",
  "glib-sys",
  "gobject-sys",
  "libc",
@@ -2057,19 +2056,6 @@ dependencies = [
  "heck 0.4.1",
  "proc-macro-crate 2.0.0",
  "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn 2.0.104",
-]
-
-[[package]]
-name = "glib-macros"
-version = "0.21.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55eda916eecdae426d78d274a17b48137acdca6fba89621bd3705f2835bc719f"
-dependencies = [
- "heck 0.5.0",
- "proc-macro-crate 3.3.0",
  "proc-macro2",
  "quote",
  "syn 2.0.104",
