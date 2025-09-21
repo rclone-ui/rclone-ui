@@ -71,12 +71,12 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libayatana-appindicator3-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: install dependencies (linux arm only)
         if: matrix.platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
         run: |
-          sudo apt-get install -y xdg-utils
+          sudo apt-get install -y xdg-utils libayatana-appindicator3-dev
           
       - name: install dependencies (windows only)
         if: matrix.platform == 'windows-11-arm'
