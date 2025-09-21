@@ -181,23 +181,49 @@ export function compareVersions(version1: string, version2: string): number {
 
 const YOURS_VERSION_REGEX = /yours:\s+([^\s]+)/
 const LATEST_VERSION_REGEX = /latest:\s+([^\s]+)/
-export function shouldUpdateRclone(output: string) {
-    if (!output.includes('yours')) return false
 
-    // parse the output text to extract versions
+export async function getRcloneVersion(type?: 'system' | 'internal') {
+    let instanceType = type
+    if (!instanceType) {
+        instanceType = (await isSystemRcloneInstalled()) ? 'system' : 'internal'
+    }
+
+    const result = await Command.create(
+        instanceType === 'system' ? 'rclone-system' : 'rclone-internal',
+        ['selfupdate', '--check']
+    ).execute()
+    const output = result.stdout.trim()
+    return parseRcloneVersion(output)
+}
+
+export function parseRcloneVersion(output: string) {
     const yoursMatch = output.match(YOURS_VERSION_REGEX)
     const latestMatch = output.match(LATEST_VERSION_REGEX)
 
     if (!yoursMatch || !latestMatch) {
-        console.warn('[shouldUpdateRclone] could not parse version output:', output)
+        return null
+    }
+
+    return {
+        yours: yoursMatch[1],
+        latest: latestMatch[1],
+    }
+}
+
+export async function shouldUpdateRclone(type?: 'system' | 'internal') {
+    const versionData = await getRcloneVersion(type)
+    if (!versionData?.yours) return false
+
+    if (!versionData) {
+        console.warn('[shouldUpdateRclone] received no version data:', versionData)
         return false
     }
 
-    const currentVersion = yoursMatch[1]
-    const latestVersion = latestMatch[1]
+    const currentVersion = versionData.yours
+    const latestVersion = versionData.latest
 
     if (!currentVersion || !latestVersion) {
-        console.warn('[shouldUpdateRclone] could not get versions')
+        console.warn('[shouldUpdateRclone] could not parse version output:', versionData)
         return false
     }
 

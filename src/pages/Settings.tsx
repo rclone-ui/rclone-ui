@@ -62,7 +62,12 @@ import {
     getRemote,
     getVersion,
 } from '../../lib/rclone/api'
-import { getConfigPath, getDefaultPaths } from '../../lib/rclone/common'
+import {
+    compareVersions,
+    getConfigPath,
+    getDefaultPaths,
+    getRcloneVersion,
+} from '../../lib/rclone/common'
 import { usePersistedStore, useStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import ConfigCreateDrawer from '../components/ConfigCreateDrawer'
@@ -286,6 +291,12 @@ function GeneralSection() {
     const [isWorkingUpdate, setIsWorkingUpdate] = useState(false)
     const [update, setUpdate] = useState<Update | null>(null)
 
+    const [rcloneVersion, setRcloneVersion] = useState<{ yours: string; latest: string } | null>(
+        null
+    )
+
+    const showServe = rcloneVersion?.yours && compareVersions(rcloneVersion.yours, '1.70.0') === 1
+
     async function updateCallback() {
         if (!update) {
             try {
@@ -384,6 +395,12 @@ function GeneralSection() {
     useEffect(() => {
         triggerTrayRebuild()
     }, [disabledActions])
+
+    useEffect(() => {
+        getRcloneVersion().then((version) => {
+            setRcloneVersion(version)
+        })
+    }, [])
 
     return (
         <BaseSection header={{ title: 'General' }}>
@@ -555,21 +572,24 @@ function GeneralSection() {
                     >
                         Show <span className="font-mono text-blue-300">Move</span> option
                     </Checkbox>
-                    <Checkbox
-                        isSelected={!disabledActions?.includes('tray-serve')}
-                        onValueChange={(value) => {
-                            if (value) {
-                                setDisabledActions(
-                                    disabledActions?.filter((action) => action !== 'tray-serve') ||
-                                        []
-                                )
-                            } else {
-                                setDisabledActions([...(disabledActions || []), 'tray-serve'])
-                            }
-                        }}
-                    >
-                        Show <span className="font-mono text-blue-300">Serve</span> option
-                    </Checkbox>
+                    {showServe && (
+                        <Checkbox
+                            isSelected={!disabledActions?.includes('tray-serve')}
+                            onValueChange={(value) => {
+                                if (value) {
+                                    setDisabledActions(
+                                        disabledActions?.filter(
+                                            (action) => action !== 'tray-serve'
+                                        ) || []
+                                    )
+                                } else {
+                                    setDisabledActions([...(disabledActions || []), 'tray-serve'])
+                                }
+                            }}
+                        >
+                            Show <span className="font-mono text-blue-300">Serve</span> option
+                        </Checkbox>
+                    )}
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-purge')}
                         onValueChange={(value) => {

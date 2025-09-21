@@ -10,7 +10,8 @@ use machine_uid;
 use std::fs::{self, File};
 use std::path::Path;
 use zip::ZipArchive;
-use tauri_plugin_sentry::{minidump, sentry};
+use tauri_plugin_sentry;
+use sentry;
 
 #[tauri::command]
 fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
@@ -554,7 +555,7 @@ pub fn run() {
         },
     ));
 
-    let _guard = minidump::init(&client);
+    let _guard = tauri_plugin_sentry::minidump::init(&client);
 	
     let mut app = tauri::Builder::default()
 		.plugin(tauri_plugin_sentry::init_with_no_injection(&client))

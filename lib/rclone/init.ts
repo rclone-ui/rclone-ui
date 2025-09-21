@@ -44,24 +44,7 @@ export async function initRclone(args: string[]) {
         internal = true
     }
 
-    let needsUpdate = false
-
-    if (system) {
-        console.log('[initRclone] checking system rclone version')
-        const checkInstance = Command.create('rclone-system', ['selfupdate', '--check'])
-        const checkResult = await checkInstance.execute()
-        const output = checkResult.stdout.trim()
-        needsUpdate = shouldUpdateRclone(output)
-    }
-    if (internal) {
-        console.log('[initRclone] checking internal rclone version')
-        const checkInstance = Command.create('rclone-internal', ['selfupdate', '--check'])
-        const checkResult = await checkInstance.execute()
-        const output = checkResult.stdout.trim()
-        needsUpdate = shouldUpdateRclone(output)
-    }
-
-    if (needsUpdate) {
+    if (await shouldUpdateRclone(system ? 'system' : 'internal')) {
         console.log('[initRclone] needs update')
 
         useStore.setState({ startupStatus: 'updating' })
