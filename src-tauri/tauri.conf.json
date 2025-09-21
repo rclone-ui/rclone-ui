@@ -75,6 +75,14 @@
             },
             "signCommand": "trusted-signing-cli -e https://eus.codesigning.azure.net -a sign-1 -c Sign1 -d Rclone %1"
         },
+        "linux": {
+            "deb": {
+                "depends": ["libayatana-appindicator3-1 | libappindicator3-1"]
+            },
+            "rpm": {
+                "depends": ["libayatana-appindicator3-1 | libappindicator3-1"]
+            }
+        },
         "createUpdaterArtifacts": true
     },
     "plugins": {
