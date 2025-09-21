@@ -46,3 +46,6 @@ reqwest = { version = "0.11", features = ["json"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+glib-macros = "0.21.2"
