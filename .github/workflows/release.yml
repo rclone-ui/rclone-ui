@@ -75,7 +75,7 @@ jobs:
       - name: install dependencies (linux arm only)
         if: matrix.platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
         run: |
-          sudo apt-get install -y xdg-utils
+          sudo apt-get install -y xdg-utils curl dev build-essential libssl-dev libgtk-3-dev libayatana-appindicator3-dev libfuse2 file
           
       - name: install dependencies (windows only)
         if: matrix.platform == 'windows-11-arm'
