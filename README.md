@@ -28,6 +28,8 @@
   </a>
 </p>
 
+<br />
+
 ## Features
 ### 🖥️ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)
 ### ✅ Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
