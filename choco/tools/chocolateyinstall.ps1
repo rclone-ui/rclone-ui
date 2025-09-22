@@ -12,8 +12,13 @@ $silentArgs = '/S /AllUsers'
 
 $arch   = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Architecture)
 $isArm  = $arch -eq 12   # 12 = ARM64, 9 = x64
-$url    = $isArm ? $url_arm64 : $url_x64
-$sha    = $isArm ? $sha_arm64 : $sha_x64
+if ($isArm) {
+  $url = $url_arm64
+  $sha = $sha_arm64
+} else {
+  $url = $url_x64
+  $sha = $sha_x64
+}
 
 $packageArgs = @{
   packageName    = $packageName
