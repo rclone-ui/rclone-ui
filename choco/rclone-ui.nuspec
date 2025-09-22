@@ -17,7 +17,7 @@
 
     <summary>GUI for Rclone.</summary>
     <description>
-A light, transparent layer on top of rclone to manage your remotes & tasks in a more user-friendly way.
+A light, transparent layer on top of rclone to manage your remotes &amp; tasks in a more user-friendly way.
 
 Features;
 - Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
