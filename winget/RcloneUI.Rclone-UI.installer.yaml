@@ -1,0 +1,69 @@
+PackageIdentifier: RcloneUI.RcloneUI
+PackageVersion: 2.6.0
+InstallerLocale: en-US
+MinimumOSVersion: 10.0.0.0
+Platform:
+- Windows.Desktop
+InstallerType: nullsoft
+Scope: machine
+InstallModes:
+- interactive
+- silent
+- silentWithProgress
+UpgradeBehavior: install
+ElevationRequirement: elevatesSelf
+Dependencies:
+  PackageDependencies:
+    - PackageIdentifier: Microsoft.EdgeWebView2Runtime
+Installers:
+  - Architecture: x64
+    Scope: user
+    InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_x64.exe
+    InstallerSha256: c40ed89dc2f512ff4ed12e1801a75a52c46e8c48c534515cdc0c413a9ccfeaa4
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+      Custom: /CurrentUser
+    AppsAndFeaturesEntries:
+      - DisplayName: Rclone UI
+        Publisher: Rclone UI
+        DisplayVersion: 2.6.0
+  - Architecture: x64
+    Scope: machine
+    InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_x64.exe
+    InstallerSha256: c40ed89dc2f512ff4ed12e1801a75a52c46e8c48c534515cdc0c413a9ccfeaa4
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+      Custom: /AllUsers
+    AppsAndFeaturesEntries:
+      - DisplayName: Rclone UI
+        Publisher: Rclone UI
+        DisplayVersion: 2.6.0
+  - Architecture: arm64
+    Scope: user
+    InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_arm64.exe
+    InstallerSha256: 69968f8e3b32a42b826ccad56b91972ac8ae659a2682404f3103d31d62df3e0
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+      Custom: /CurrentUser
+    AppsAndFeaturesEntries:
+      - DisplayName: Rclone UI
+        Publisher: Rclone UI
+        DisplayVersion: 2.6.0
+  - Architecture: arm64
+    Scope: machine
+    InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_arm64.exe
+    InstallerSha256: 69968f8e3b32a42b826ccad56b91972ac8ae659a2682404f3103d31d62df3e0
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+      Custom: /AllUsers
+    AppsAndFeaturesEntries:
+      - DisplayName: Rclone UI
+        Publisher: Rclone UI
+        DisplayVersion: 2.6.0
+ManifestType: installer
+ManifestVersion: 1.10.0
+ReleaseDate: 2025-09-22

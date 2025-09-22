@@ -1,0 +1,32 @@
+name: WinGet
+
+on:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure WinGet CLI is present
+        uses: Cyberboss/install-winget@v1
+
+      - name: Show winget version
+        shell: pwsh
+        run: winget --version
+
+      - name: Validate manifests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path -Path "$pwd\winget")) {
+            Write-Error "Expected manifests directory '$pwd\winget' not found."
+          }
+
+          # Run validation non-interactively and with verbose logs for CI
+          Write-Host "Validating manifests in $pwd\winget"
+          winget validate --manifest "$pwd\winget" --disable-interactivity --verbose-logs `
+            | Tee-Object -FilePath "$pwd\winget-validate-output.txt"
