@@ -12,7 +12,7 @@
     <docsUrl>https://github.com/rclone-ui/rclone-ui</docsUrl>
     <bugTrackerUrl>https://github.com/rclone-ui/rclone-ui/issues</bugTrackerUrl>
 
-    <licenseUrl>https://github.com/rclone-ui/rclone-ui?tab=Apache-2.0-1-ov-file#readme/licenseUrl>
+    <licenseUrl>https://github.com/rclone-ui/rclone-ui?tab=Apache-2.0-1-ov-file#readme</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
 
     <summary>GUI for Rclone.</summary>
