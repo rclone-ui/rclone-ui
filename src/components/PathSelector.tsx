@@ -15,7 +15,7 @@ import {
 } from '@heroui/react'
 import { dirname, homeDir, join, sep } from '@tauri-apps/api/path'
 import { readDir } from '@tauri-apps/plugin-fs'
-import { ArrowLeftIcon, ArrowUpIcon, LaptopIcon, StarIcon, XIcon } from 'lucide-react'
+import { ArrowLeftIcon, LaptopIcon, StarIcon, XIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { Key } from 'react'
 import { formatBytes } from '../../lib/format.ts'
@@ -794,7 +794,7 @@ export default function PathSelector({
                                     selectedKeys={isSelecting ? visibleSelectedKeys : new Set([])}
                                     onSelectionChange={handleSelectionChange}
                                     showSelectionCheckboxes={isSelecting && allowMultiple}
-                                    maxTableHeight={650}
+                                    maxTableHeight={600}
                                     classNames={{
                                         'wrapper': 'p-0 overscroll-y-none pb-20',
                                         'th': '!rounded-none',
@@ -929,7 +929,78 @@ export default function PathSelector({
                                 </Table>
                             </div>
 
-                            {selectedRemote !== 'UI_FAVORITES' && (
+                            <div className="flex justify-center w-full ">
+                                {!isSelecting && (
+                                    <Tooltip
+                                        content="Go to parent directory"
+                                        size="lg"
+                                        color="foreground"
+                                    >
+                                        <Button
+                                            color="primary"
+                                            size="lg"
+                                            onPress={navigateUp}
+                                            isDisabled={isUpDisabled || isLoading}
+                                            radius="none"
+                                            startContent={<ArrowLeftIcon className="size-5" />}
+                                            className="gap-2 min-w-fit"
+                                        >
+                                            BACK
+                                        </Button>
+                                    </Tooltip>
+                                )}
+                                {!isSelecting && (
+                                    <Button
+                                        color="success"
+                                        size="lg"
+                                        variant="flat"
+                                        onPress={() => setIsSelecting(true)}
+                                        fullWidth={true}
+                                        radius="none"
+                                    >
+                                        Enter selection mode
+                                    </Button>
+                                )}
+                                {isSelecting && (
+                                    <Tooltip
+                                        content="Exit selection mode"
+                                        size="lg"
+                                        color="foreground"
+                                    >
+                                        <Button
+                                            color="danger"
+                                            variant="flat"
+                                            radius="none"
+                                            size="lg"
+                                            onPress={() => {
+                                                setIsSelecting(false)
+                                                setSelectedPaths(new Set())
+                                            }}
+                                            startContent={<XIcon className="size-5" />}
+                                            className="gap-2 min-w-fit"
+                                        >
+                                            CANCEL
+                                        </Button>
+                                    </Tooltip>
+                                )}
+                                {isSelecting && (
+                                    <Button
+                                        color="primary"
+                                        size="lg"
+                                        radius="none"
+                                        onPress={handleConfirm}
+                                        isDisabled={selectedCount === 0}
+                                        fullWidth={true}
+                                    >
+                                        {selectedCount === 0
+                                            ? 'No items selected'
+                                            : selectionMode === 'single'
+                                              ? 'Pick'
+                                              : `Pick ${selectedCount} item${selectedCount > 1 ? 's' : ''}`}
+                                    </Button>
+                                )}
+                            </div>
+                            {/* {selectedRemote !== 'UI_FAVORITES' && (
                                 <div className="absolute left-0 right-0 flex justify-center gap-2 bottom-5">
                                     {!isSelecting && (
                                         <Tooltip
@@ -994,7 +1065,7 @@ export default function PathSelector({
                                         </Tooltip>
                                     )}
                                 </div>
-                            )}
+                            )} */}
                         </div>
                     </DrawerBody>
                 )}

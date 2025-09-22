@@ -9,6 +9,7 @@ import { isRemotePath } from '../../lib/fs'
 import { listPath } from '../../lib/rclone/api'
 import { useStore } from '../../lib/store'
 import PathSelector from './PathSelector'
+import RemoteAvatar from './RemoteAvatar'
 
 export function PathFinder({
     sourcePath = '',
@@ -249,6 +250,7 @@ export function PathField({
             IsDir: boolean
             Name: string
             Path: string
+            _showAvatar: boolean
         }[]
     >([])
     const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -273,6 +275,7 @@ export function PathField({
                     IsDir: true,
                     Name: remote + ':/',
                     Path: remote + ':/',
+                    _showAvatar: true,
                 }))
                 setSuggestions(remoteItems)
                 setIsLoading(false)
@@ -303,6 +306,7 @@ export function PathField({
                         IsDir: entry.isDirectory,
                         Name: entry.name,
                         Path: `${cleanedPath}${extraSlash}${entry.name}`,
+                        _showAvatar: false,
                     }))
 
                 setSuggestions(localSuggestions)
@@ -332,6 +336,7 @@ export function PathField({
                 IsDir: item.IsDir,
                 Name: item.Path,
                 Path: `${remote}:/${item.Path}`,
+                _showAvatar: false,
             }))
 
             setSuggestions(suggestionsWithRemote)
@@ -400,7 +405,15 @@ export function PathField({
                 >
                     {visibleSuggestions.map((item, index) => (
                         <AutocompleteItem
-                            startContent={item.IsDir ? '📁' : '📄'}
+                            startContent={
+                                item._showAvatar ? (
+                                    <RemoteAvatar remote={item.Path.replace(':/', '')} />
+                                ) : item.IsDir ? (
+                                    '📁'
+                                ) : (
+                                    '📄'
+                                )
+                            }
                             key={index}
                             textValue={item.Path}
                             title={item.Name}
@@ -476,6 +489,7 @@ export function MultiPathField({
             IsDir: boolean
             Name: string
             Path: string
+            _showAvatar: boolean
         }[]
     >([])
     const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -498,6 +512,7 @@ export function MultiPathField({
                     IsDir: true,
                     Name: remote + ':/',
                     Path: remote + ':/',
+                    _showAvatar: true,
                 }))
                 setSuggestions(remoteItems)
                 setIsLoading(false)
@@ -528,6 +543,7 @@ export function MultiPathField({
                         IsDir: entry.isDirectory,
                         Name: entry.name,
                         Path: `${cleanedPath}${extraSlash}${entry.name}`,
+                        _showAvatar: false,
                     }))
 
                 setSuggestions(localSuggestions)
@@ -557,6 +573,7 @@ export function MultiPathField({
                 IsDir: item.IsDir,
                 Name: item.Path,
                 Path: `${remote}:/${item.Path}`,
+                _showAvatar: false,
             }))
 
             setSuggestions(suggestionsWithRemote)
@@ -650,7 +667,15 @@ export function MultiPathField({
                     >
                         {visibleSuggestions.map((item, index) => (
                             <AutocompleteItem
-                                startContent={item.IsDir ? '📁' : '📄'}
+                                startContent={
+                                    item._showAvatar ? (
+                                        <RemoteAvatar remote={item.Path.replace(':/', '')} />
+                                    ) : item.IsDir ? (
+                                        '📁'
+                                    ) : (
+                                        '📄'
+                                    )
+                                }
                                 key={index}
                                 textValue={item.Path}
                                 title={item.Name}

@@ -87,7 +87,7 @@ export default function TemplatesDropdown({
                         className="gap-1.5 text-success"
                         startContent={<PlusIcon className="size-4" />}
                     >
-                        ADD TO TEMPLATES
+                        SAVE AS TEMPLATE
                     </DropdownItem>
                 </DropdownSection>
                 {

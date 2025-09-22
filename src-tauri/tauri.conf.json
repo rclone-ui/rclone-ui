@@ -49,6 +49,7 @@
         "longDescription": "Cross-platform GUI for rclone & S3",
         "license": "Apache-2.0",
         "homepage": "https://github.com/rclone-ui/rclone-ui",
+        "publisher": "Rclone UI",
         "category": "Utility",
         "copyright": "Copyright © 2025 Rclone UI.",
         "macOS": {
