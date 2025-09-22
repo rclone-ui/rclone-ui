@@ -1,7 +1,9 @@
+import * as Sentry from '@sentry/browser'
 import { appLocalDataDir, sep } from '@tauri-apps/api/path'
-import { exists } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { Command } from '@tauri-apps/plugin-shell'
+import { RCLONE_CONF_REGEX } from './constants'
 
 export async function getDefaultPaths() {
     console.log('[getDefaultPaths]')
@@ -28,30 +30,15 @@ export async function getDefaultPaths() {
     }
 }
 
-export async function getDefaultPath(type: 'system' | 'internal') {
-    console.log('[getDefaultPath]', type)
-
-    let instance = null
-    if (type === 'system') {
-        console.log('[getDefaultPath] running system rclone')
-        instance = Command.create('rclone-system', [
-            'rcd',
-            '--rc-no-auth',
-            '--rc-serve',
-            // '-rc-addr',
-            // ':5572',
-        ])
-    }
-    if (type === 'internal') {
-        console.log('[getDefaultPath] running internal rclone')
-        instance = Command.create('rclone-internal', [
-            'rcd',
-            '--rc-no-auth',
-            '--rc-serve',
-            // '-rc-addr',
-            // ':5572',
-        ])
-    }
+export async function getSystemConfigPath() {
+    console.log('[getDefaultPath] running system rclone')
+    const instance = Command.create('rclone-system', [
+        'rcd',
+        '--rc-no-auth',
+        '--rc-serve',
+        // '-rc-addr',
+        // ':5572',
+    ])
 
     if (!instance) {
         console.error('[getDefaultPath] failed to create rclone instance')
@@ -93,11 +80,11 @@ export async function getConfigPath({ id, validate = true }: { id: string; valid
 
     console.log('[getConfigPath] configPath', configPath)
 
-    if (id == 'default') {
-        const system = await isSystemRcloneInstalled()
-        const defaultPath = await getDefaultPath(system ? 'system' : 'internal')
+    if (id == 'default' && (await isSystemRcloneInstalled())) {
+        const defaultPath = await getSystemConfigPath()
 
         configPath = defaultPath
+        console.log('[getConfigPath] configPath', configPath)
     }
 
     if (validate) {
@@ -109,6 +96,35 @@ export async function getConfigPath({ id, validate = true }: { id: string; valid
     }
 
     return configPath
+}
+
+export async function createConfigFile(path: string) {
+    console.log('[createConfigFile] path', path)
+
+    const hasConfig = await exists(path).catch(() => false)
+    console.log('[createConfigFile] hasConfig', hasConfig)
+    if (!hasConfig) {
+        console.log('[createConfigFile] writing space character to default path')
+        await writeFile(path, new Uint8Array([32])) // ASCII code for space character
+
+        if (!(await exists(path).catch(() => false))) {
+            console.log('[createConfigFile] failed to write space character to default path')
+            Sentry.captureException(
+                new Error('CONFIG_PATH: Failed to write space character to default path')
+            )
+            const folderPath = path.replace(RCLONE_CONF_REGEX, '')
+            console.log('[createConfigFile] creating folder')
+            await mkdir(folderPath, { recursive: true })
+            await writeFile(path, new Uint8Array([32]))
+            const existsFinally = await exists(path).catch(() => false)
+            console.log('[createConfigFile] existsFinally', existsFinally)
+            Sentry.captureException(
+                new Error(
+                    'CONFIG_PATH: Status after folder creation: ' + existsFinally ? 'true' : 'false'
+                )
+            )
+        }
+    }
 }
 
 /**

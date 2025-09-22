@@ -12,14 +12,14 @@ import { Command } from '@tauri-apps/plugin-shell'
 import { usePersistedStore, useStore } from '../store'
 import { openSmallWindow } from '../window'
 import {
+    createConfigFile,
     getConfigPath,
-    getDefaultPath,
+    getSystemConfigPath,
     isInternalRcloneInstalled,
     isSystemRcloneInstalled,
     shouldUpdateRclone,
 } from './common'
-
-const RCLONE_CONF_REGEX = /\/rclone\.conf$/
+import { RCLONE_CONF_REGEX } from './constants'
 
 export async function initRclone(args: string[]) {
     console.log('[initRclone]')
@@ -93,16 +93,12 @@ export async function initRclone(args: string[]) {
     const persistedState = usePersistedStore.getState()
     let configFiles = persistedState.configFiles || []
     let activeConfigFile = persistedState.activeConfigFile
-    const defaultPath = await getDefaultPath(system ? 'system' : 'internal')
-
-    console.log('[initRclone] defaultPath', defaultPath)
 
     if (system) {
-        const hasConfig = await exists(defaultPath).catch(() => false)
-        if (!hasConfig) {
-            // const data = new Uint8Array([32]) // ASCII code for space character
-            await writeFile(defaultPath, new Uint8Array([]))
-        }
+        const defaultPath = await getSystemConfigPath()
+        console.log('[initRclone] defaultPath', defaultPath)
+
+        await createConfigFile(defaultPath)
     }
 
     configFiles = configFiles.filter((config) => config.id !== 'default')
@@ -123,6 +119,11 @@ export async function initRclone(args: string[]) {
         }
 
         usePersistedStore.setState({ activeConfigFile })
+    }
+
+    if (internal && activeConfigFile.id === 'default') {
+        const defaultInternalPath = await getConfigPath({ id: 'default', validate: false })
+        await createConfigFile(defaultInternalPath)
     }
 
     let configFolderPath = activeConfigFile.sync

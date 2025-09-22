@@ -219,6 +219,9 @@ async function startRclone() {
         }
 
         await childProcess.kill()
+
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+
         await exit(0)
     })
     console.log('[startRclone] set listener for close-app')
@@ -241,6 +244,9 @@ async function startRclone() {
         }
 
         await childProcess.kill()
+
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+
         await relaunch()
     })
     console.log('[startRclone] set listener for relaunch-app')

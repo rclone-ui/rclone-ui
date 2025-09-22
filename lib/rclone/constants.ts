@@ -13,3 +13,5 @@ export const RCLONE_VFS_DEFAULTS = {
     'ChunkSize': '4M',
     'ChunkStreams': 16,
 }
+
+export const RCLONE_CONF_REGEX = /\/rclone\.conf$/
