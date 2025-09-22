@@ -4,71 +4,73 @@
   </a>
   <br>
   <a href="https://rcloneui.com">
-    Cross-platform GUI dla Rclone
+    The cross-platform GUI for Rclone
   </a>
 </h1>
 
 <h3 align="center">
-  <strong>Lekka, przejrzysta nakładka na <tt>rclone</tt> pozwalająca wygodniej zarządzać zdalnymi zasobami i zadaniami.</strong>
+  <strong>A light, transparent layer on top of <tt>rclone</tt> to manage your remotes &amp; tasks in a more user-friendly way.</strong>
 </h3>
 
 <br />
 
 <p align="center">
   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Pobrania" src="https://img.shields.io/badge/POBRANIA-blue?label=Kliknij%20by%20zobaczyć" />
+    <img alt="Downloads" src="https://img.shields.io/badge/DOWNLOADS-blue?label=Tap%20to%20see" />
   </a>
  &nbsp;
   <a href="https://github.com/rclone-ui/rclone-ui/releases/latest">
-    <img alt="wersje" src="https://github.com/rclone-ui/rclone-ui/actions/workflows/release.yml/badge.svg" />
+    <img alt="release" src="https://github.com/rclone-ui/rclone-ui/actions/workflows/release.yml/badge.svg" />
   </a>
   &nbsp;
   <a href="https://github.com/rclone-ui/rclone-ui/stargazers">
-    <img alt="gwiazdki GitHub" src="https://img.shields.io/github/stars/rclone-ui/rclone-ui" />
+    <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/rclone-ui/rclone-ui" />
   </a>
 </p>
 
-## Funkcje
-### 🖥️ Cross platform, działa na Windows, Linux, macOS (x64, ARM i Apple Silicon)
-### ✅ Działa z istniejącą kopią rclone (lub może ją dla ciebie zainstalować). Za Twoją zgodą może równie aktualizować ją do najnowszej wersji
-### 🔗 Dodawanie / edycja / usuwanie zdalnych zasobów (Remotes)
-### ⚡️ Wspiera wszystkie operacje: Sync, Copy, Move, Delete, Purge, Serve, Mount, itd.
-### ⭐️ Oszczędzaj czas ustawiając domyślne flagi osobno dla każdego Remote’a i dla każdej operacji (Mount, Sync, Copy itd.)
-### 🎛️ Dostosuj flagi (parametry) podczas uruchamiania operacji – indywidualnie, w zależności od przypadku
-### 📚 Wbudowana dokumentacja dla każdej flagi — nie musisz już googlować, co oznacza!
-### 📂 Przeglądarka plików
+<br />
+
+## Features
+### 🖥️ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)
+### ✅ Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
+### 🔗 Add/Edit/Remove Remotes
+### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount, etc
+### ⭐️ Save time by setting default flags for each Remote separately, for each operation (Mount, Sync, Copy, etc)
+### 🎛️ Customize the flags (parameters) when running an operation, on a case by case basis
+### 📚 Embedded documentation for each flag, no need to google what everything does!
+### 📂 File Browser
 ### 📡 Proxy
 
 <img src=".github/rclone-1.png" alt="Rclone UI">
 
-### ⏰ Zaplanowane zadania (cron)
-### 📊 Dzienniki zadań — wizualizacja wszystkich operacji w tle
-### 🚀 Uruchamianie przy starcie systemu (autostart) i automatyczne montowanie (automount)
-### 🔒 Ustawienie hasła do panelu ustawień
-### 👁️ Ukrywanie poleceń lub zdalnych zasobów (Remotes) w menu zasobnika
-### ⚙️ Import/Eksport konfiguracji (szyfrowany hasłem lub poleceniem)
-### ✍️ Podpisane cyfrowo przez Microsoft i notaryzowane na macOS
+### ⏰ Scheduled Tasks (cron)
+### 📊 Job Logs (visualize all background operations)
+### 🚀 Start on boot (autostart) and Mount on start (automount)
+### 🔒 Set a password for the Settings panel
+### 👁️ Hide commands or Remotes from the tray menu
+### ⚙️ Import/Export Configs (encrypted with pass or command)
+### ✍️ Signed by Microsoft and Notarized on macOS
 
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
-## Link do pobrania
+## Downloads
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
 - **macOS** (**[Apple Silicon](https://get.rcloneui.com/mac)**, **[Intel](https://get.rcloneui.com/mac64)**)
 - **Linux** (**[AppImage](https://get.rcloneui.com/linux)**, **[deb](https://get.rcloneui.com/linux-deb)**, **[rpm](https://get.rcloneui.com/linux-rpm)**)
-- **Linux `ARM`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
+- **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
 
-## Co dalej?
-> Wszystkie ukonczone zadania zostały przeniesione do sekcji "Funkcje".
-### [Zobacz dyskusję o wersji 3!](https://github.com/rclone-ui/rclone-ui/issues/37)
+## Roadmap
+> Finalized items have been moved to the "Features" section.
+### [Check out the V3 discussion!](https://github.com/rclone-ui/rclone-ui/issues/37)
 
-## 1 gwiazdka = 1 kawa
+## 1 Star = 1 Instant Coffee
 <a href="https://www.star-history.com/#rclone-ui/rclone-ui&Timeline">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline&theme=dark" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline" />
-   <img alt="Historia gwiazdek na Github" src="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline" />
  </picture>
 </a>
 
-## Chcesz pomóc?
-Zapraszamy do współpracy! Otwórz [zgłoszenie](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) lub [PR](https://github.com/FTCHD/rclone-ui/compare), i wspólnie ulepszmy Rclone 🎉🎉
+## Contributing
+We welcome your contributions! Please open an [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) or a [PR](https://github.com/FTCHD/rclone-ui/compare), and let's make this better together 🎉🎉
