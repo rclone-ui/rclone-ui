@@ -43,7 +43,7 @@ Installers:
   - Architecture: arm64
     Scope: user
     InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_arm64.exe
-    InstallerSha256: 69968F8E3B32A42B826CCAD56B91972AC8AE659A2682404F3103D31D62DF3E0
+    InstallerSha256: A69968F8E3B32A42B826CCAD56B91972AC8AE659A2682404F3103D31D62DF3E0
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /S
@@ -55,7 +55,7 @@ Installers:
   - Architecture: arm64
     Scope: machine
     InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_arm64.exe
-    InstallerSha256: 69968F8E3B32A42B826CCAD56B91972AC8AE659A2682404F3103D31D62DF3E0
+    InstallerSha256: A69968F8E3B32A42B826CCAD56B91972AC8AE659A2682404F3103D31D62DF3E0
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /S
