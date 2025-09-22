@@ -95,9 +95,9 @@ jobs:
                   winget uninstall --id $env:PACKAGE_ID -e --scope $scope --silent `
                       --source winget --accept-source-agreements --disable-interactivity --verbose-logs 2>$null
 
-                  # Install from the local manifest, but constrain dependency resolution to 'winget'
+                  # Install from the local manifest.
                   winget install --manifest $env:MANIFEST_DIR --scope $scope --architecture x64 --silent `
-                      --source winget --accept-source-agreements --accept-package-agreements `
+                      --dependency-source winget --accept-source-agreements --accept-package-agreements `
                       --disable-interactivity --verbose-logs `
                       | Tee-Object -FilePath "$pwd\winget-install-$scope.txt"
 
