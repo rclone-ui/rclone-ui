@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/browser'
 import { appLocalDataDir, sep } from '@tauri-apps/api/path'
 import { exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
@@ -104,25 +103,26 @@ export async function createConfigFile(path: string) {
     const hasConfig = await exists(path).catch(() => false)
     console.log('[createConfigFile] hasConfig', hasConfig)
     if (!hasConfig) {
-        console.log('[createConfigFile] writing space character to default path')
-        await writeFile(path, new Uint8Array([32])) // ASCII code for space character
+        console.log('[createConfigFile] writing space character to default path (1)', path)
+        try {
+            await writeFile(path, new Uint8Array())
+        } catch (error) {
+            console.error('[createConfigFile] error', error)
+        }
 
         if (!(await exists(path).catch(() => false))) {
-            console.log('[createConfigFile] failed to write space character to default path')
-            Sentry.captureException(
-                new Error('CONFIG_PATH: Failed to write space character to default path')
+            console.log(
+                '[createConfigFile] failed to write space character to default path (1)',
+                path
             )
             const folderPath = path.replace(RCLONE_CONF_REGEX, '')
-            console.log('[createConfigFile] creating folder')
+            console.log('[createConfigFile] creating folder', folderPath)
             await mkdir(folderPath, { recursive: true })
-            await writeFile(path, new Uint8Array([32]))
+            console.log('[createConfigFile] created folder', folderPath)
+            console.log('[createConfigFile] writing space character to default path (2)', path)
+            await writeFile(path, new Uint8Array())
             const existsFinally = await exists(path).catch(() => false)
             console.log('[createConfigFile] existsFinally', existsFinally)
-            Sentry.captureException(
-                new Error(
-                    'CONFIG_PATH: Status after folder creation: ' + existsFinally ? 'true' : 'false'
-                )
-            )
         }
     }
 }

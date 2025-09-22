@@ -203,6 +203,8 @@ async function startRclone() {
     getCurrentWindow().listen('close-app', async (e) => {
         console.log('[startRclone] (main) window close-app requested')
 
+        await showLoadingTray()
+
         const jobs = await listJobs().catch(() => ({ active: [] }))
 
         if (jobs.active.length > 0) {
@@ -214,6 +216,7 @@ async function startRclone() {
             })
 
             if (!answer) {
+                await showDefaultTray()
                 return
             }
         }
@@ -228,6 +231,7 @@ async function startRclone() {
 
     getCurrentWindow().listen('relaunch-app', async (e) => {
         console.log('[startRclone] (main) window relaunch-app requested')
+        await showLoadingTray()
 
         const jobs = await listJobs().catch(() => ({ active: [] }))
 
@@ -239,6 +243,7 @@ async function startRclone() {
                 cancelLabel: 'Cancel',
             })
             if (!answer) {
+                await showDefaultTray()
                 return
             }
         }

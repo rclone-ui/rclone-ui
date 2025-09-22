@@ -155,33 +155,48 @@ export async function initRclone(args: string[]) {
     try {
         const configContent = await readTextFile(`${configFolderPath}${sep()}rclone.conf`)
         const isEncrypted = configContent.includes('RCLONE_ENCRYPT_V0:')
-        if (isEncrypted && !password) {
-            password = await promptForConfigPassword(activeConfigFile.label)
-            console.log('[initRclone] password', password)
 
+        if (isEncrypted) {
             if (!password) {
-                await message('Password is required for encrypted configurations.', {
-                    title: 'Password Required',
-                    kind: 'error',
-                    okLabel: 'OK',
-                })
-                await exit(0)
-                return
-            }
+                password = await promptForConfigPassword(activeConfigFile.label)
+                console.log('[initRclone] password', password)
 
-            if (!activeConfigFile.isEncrypted) {
-                const updatedConfigFile = { ...activeConfigFile, isEncrypted: true }
-                const updatedConfigFiles = configFiles.map((config) =>
-                    config.id === activeConfigFile!.id ? updatedConfigFile : config
-                )
-                usePersistedStore.setState({
-                    configFiles: updatedConfigFiles,
-                    activeConfigFile: updatedConfigFile,
-                })
+                if (!password) {
+                    await message('Password is required for encrypted configurations.', {
+                        title: 'Password Required',
+                        kind: 'error',
+                        okLabel: 'OK',
+                    })
+                    await exit(0)
+                    return
+                }
 
-                // Update activeConfigFile reference for the rest of the function
-                activeConfigFile = updatedConfigFile
+                if (!activeConfigFile.isEncrypted) {
+                    const updatedConfigFile = { ...activeConfigFile, isEncrypted: true }
+                    const updatedConfigFiles = configFiles.map((config) =>
+                        config.id === activeConfigFile!.id ? updatedConfigFile : config
+                    )
+                    usePersistedStore.setState({
+                        configFiles: updatedConfigFiles,
+                        activeConfigFile: updatedConfigFile,
+                    })
+
+                    // Update activeConfigFile reference for the rest of the function
+                    activeConfigFile = updatedConfigFile
+                }
             }
+        } else if (activeConfigFile.isEncrypted) {
+            const updatedConfigFile = { ...activeConfigFile, isEncrypted: false }
+            const updatedConfigFiles = configFiles.map((config) =>
+                config.id === activeConfigFile!.id ? updatedConfigFile : config
+            )
+            usePersistedStore.setState({
+                configFiles: updatedConfigFiles,
+                activeConfigFile: updatedConfigFile,
+            })
+
+            // Update activeConfigFile reference for the rest of the function
+            activeConfigFile = updatedConfigFile
         }
     } catch (error) {
         console.log('[initRclone] could not read config file', error)
@@ -238,8 +253,9 @@ export async function initRclone(args: string[]) {
         }
     }
 
-    if (activeConfigFile.id !== 'default') {
+    if (internal || activeConfigFile.id !== 'default') {
         extraParams.env.RCLONE_CONFIG_DIR = configFolderPath
+        extraParams.env.RCLONE_CONFIG = `${configFolderPath}/rclone.conf`
     }
 
     console.log('[initRclone] extraParams', extraParams)
