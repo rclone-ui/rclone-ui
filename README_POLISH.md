@@ -15,18 +15,26 @@
 <br />
 
 <p align="center">
-  <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Pobrania" src="https://img.shields.io/badge/POBRANIA-blue?label=Kliknij%20by%20zobaczyć" />
-  </a>
- &nbsp;
-  <a href="https://github.com/rclone-ui/rclone-ui/releases/latest">
-    <img alt="wersje" src="https://github.com/rclone-ui/rclone-ui/actions/workflows/release.yml/badge.svg" />
+   <a href="https://github.com/rclone-ui/rclone-ui/releases/latest">
+    <img alt="Latest Release" src="https://img.shields.io/github/actions/workflow/status/rclone-ui/rclone-ui/release.yml?style=for-the-badge" />
   </a>
   &nbsp;
+  <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
+    <img alt="Pobrania" src="https://img.shields.io/badge/POBRANIA-blue?style=for-the-badge&label=Kliknij%20by%20zobaczyć" />
+  </a>
+ &nbsp;
+  <a href="https://tauri.app/?ref=rclone-ui">
+    <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
+  </a>
+</p>
+
+<p align="center">
   <a href="https://github.com/rclone-ui/rclone-ui/stargazers">
     <img alt="gwiazdki GitHub" src="https://img.shields.io/github/stars/rclone-ui/rclone-ui" />
   </a>
 </p>
+
+<br />
 
 ## Funkcje
 ### 🖥️ Cross platform, działa na Windows, Linux, macOS (x64, ARM i Apple Silicon)
@@ -72,3 +80,16 @@
 
 ## Chcesz pomóc?
 Zapraszamy do współpracy! Otwórz [zgłoszenie](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) lub [PR](https://github.com/FTCHD/rclone-ui/compare), i wspólnie ulepszmy Rclone 🎉🎉
+
+<br />
+
+<p align="center">
+  <img alt="English" src="https://img.shields.io/badge/ENGLISH-gray?style=for-the-badge" />
+  <img alt="Chinese" src="https://img.shields.io/badge/CHINESE-gray?style=for-the-badge" />
+  <img alt="Japanese" src="https://img.shields.io/badge/JAPANESE-gray?style=for-the-badge" />
+  <img alt="Polish" src="https://img.shields.io/badge/POLISH-chartreuse?style=for-the-badge" />
+  <img alt="German" src="https://img.shields.io/badge/GERMAN-gray?style=for-the-badge" />
+  <img alt="Spanish" src="https://img.shields.io/badge/SPANISH-gray?style=for-the-badge" />
+  <img alt="Romanian" src="https://img.shields.io/badge/ROMANIAN-gray?style=for-the-badge" />
+  <img alt="Pirate" src="https://img.shields.io/badge/PIRATE-gray?style=for-the-badge" />
+</p>

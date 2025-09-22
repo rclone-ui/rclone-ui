@@ -4,12 +4,12 @@
   </a>
   <br>
   <a href="https://rcloneui.com">
-    The cross-platform GUI for Rclone
+    Das Rclone Control Center
   </a>
 </h1>
 
 <h3 align="center">
-  <strong>A light, transparent layer on top of <tt>rclone</tt> to manage your remotes &amp; tasks in a more user-friendly way.</strong>
+  <strong>Ein transparentes Layer über <tt>rclone</tt>, um deine Remotes &amp; Tasks benutzerfreundlich zu verwalten.</strong>
 </h3>
 
 <br />
@@ -20,7 +20,7 @@
   </a>
   &nbsp;
   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Downloads" src="https://img.shields.io/badge/DOWNLOADS-blue?style=for-the-badge&label=Tap%20to%20see" />
+    <img alt="Aufladen" src="https://img.shields.io/badge/AUFLADEN-blue?style=for-the-badge&label=Tap%20to%20see" />
   </a>
  &nbsp;
   <a href="https://tauri.app/?ref=rclone-ui">
@@ -37,25 +37,25 @@
 <br />
 
 ## Features
-### 🖥️ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)
-### ✅ Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
-### 🔗 Add/Edit/Remove Remotes
-### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount, etc
-### ⭐️ Save time by setting default flags for each Remote separately, for each operation (Mount, Sync, Copy, etc)
-### 🎛️ Customize the flags (parameters) when running an operation, on a case by case basis
-### 📚 Embedded documentation for each flag, no need to google what everything does!
+### 🖥️ Cross-platform: Windows, Linux, macOS (x64, Arm und Apple Silicon)
+### ✅ Funktioniert mit deiner bestehenden rclone-Installation (oder kann rclone für dich installieren) und hält sie auf Wunsch aktuell
+### 🔗 Remotes hinzufügen/bearbeiten/entfernen
+### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount, etc.
+### ⭐️ Zeit sparen durch Default Flags pro Remote und pro Operation (Mount, Sync, Copy, etc.)
+### 🎛️ Flags (Parameter) bei Bedarf pro Run/Case anpassen
+### 📚 Eingebettete Doku zu jedem Flag – kein Googeln nötig!
 ### 📂 File Browser
 ### 📡 Proxy
 
 <img src=".github/rclone-1.png" alt="Rclone UI">
 
 ### ⏰ Scheduled Tasks (cron)
-### 📊 Job Logs (visualize all background operations)
-### 🚀 Start on boot (autostart) and Mount on start (automount)
-### 🔒 Set a password for the Settings panel
-### 👁️ Hide commands or Remotes from the tray menu
-### ⚙️ Import/Export Configs (encrypted with pass or command)
-### ✍️ Signed by Microsoft and Notarized on macOS
+### 📊 Job Logs (alle Hintergrund-Operationen visualisieren)
+### 🚀 Start on boot (Autostart) & Mount on start (Automount)
+### 🔒 Passwort für das Settings Panel setzen
+### 👁️ Commands oder Remotes im Tray Menu ausblenden
+### ⚙️ Import/Export Configs (encrypted with <tt>pass</tt> oder <tt>command</tt>)
+### ✍️ Signed by Microsoft & Notarized on macOS
 
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
@@ -66,10 +66,10 @@
 - **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
 
 ## Roadmap
-> Finalized items have been moved to the "Features" section.
+> Abgeschlossene Items wurden in den Abschnitt „Features“ verschoben.
 ### [Check out the V3 discussion!](https://github.com/rclone-ui/rclone-ui/issues/37)
 
-## 1 Star = 1 Instant Coffee
+## 1 Star = 1 Instantkaffee
 <a href="https://www.star-history.com/#rclone-ui/rclone-ui&Timeline">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline&theme=dark" />
@@ -79,16 +79,16 @@
 </a>
 
 ## Contributing
-We welcome your contributions! Please open an [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) or a [PR](https://github.com/FTCHD/rclone-ui/compare), and let's make this better together 🎉🎉
+Wir freuen uns über Beiträge! Öffne einfach ein [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) oder einen [PR](https://github.com/FTCHD/rclone-ui/compare) – lass uns das gemeinsam besser machen 🎉🎉
 
 <br />
 
 <p align="center">
-  <img alt="English" src="https://img.shields.io/badge/ENGLISH-chartreuse?style=for-the-badge" />
+  <img alt="English" src="https://img.shields.io/badge/ENGLISH-gray?style=for-the-badge" />
   <img alt="Chinese" src="https://img.shields.io/badge/CHINESE-gray?style=for-the-badge" />
   <img alt="Japanese" src="https://img.shields.io/badge/JAPANESE-gray?style=for-the-badge" />
   <img alt="Polish" src="https://img.shields.io/badge/POLISH-gray?style=for-the-badge" />
-  <img alt="German" src="https://img.shields.io/badge/GERMAN-gray?style=for-the-badge" />
+  <img alt="German" src="https://img.shields.io/badge/GERMAN-chartreuse?style=for-the-badge" />
   <img alt="Spanish" src="https://img.shields.io/badge/SPANISH-gray?style=for-the-badge" />
   <img alt="Romanian" src="https://img.shields.io/badge/ROMANIAN-gray?style=for-the-badge" />
   <img alt="Pirate" src="https://img.shields.io/badge/PIRATE-gray?style=for-the-badge" />

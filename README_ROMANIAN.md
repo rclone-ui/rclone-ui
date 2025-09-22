@@ -4,12 +4,12 @@
   </a>
   <br>
   <a href="https://rcloneui.com">
-    The cross-platform GUI for Rclone
+    Interfața Desktop pentru Rclone
   </a>
 </h1>
 
 <h3 align="center">
-  <strong>A light, transparent layer on top of <tt>rclone</tt> to manage your remotes &amp; tasks in a more user-friendly way.</strong>
+  <strong>Un layer transparent peste <tt>rclone</tt> pentru a gestiona Remotes & Tasks într-un mod mai user-friendly.</strong>
 </h3>
 
 <br />
@@ -20,7 +20,7 @@
   </a>
   &nbsp;
   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Downloads" src="https://img.shields.io/badge/DOWNLOADS-blue?style=for-the-badge&label=Tap%20to%20see" />
+    <img alt="Downloads" src="https://img.shields.io/badge/DESCARCA-blue?style=for-the-badge&label=Apasa%20aici" />
   </a>
  &nbsp;
   <a href="https://tauri.app/?ref=rclone-ui">
@@ -37,25 +37,25 @@
 <br />
 
 ## Features
-### 🖥️ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)
-### ✅ Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
-### 🔗 Add/Edit/Remove Remotes
-### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount, etc
-### ⭐️ Save time by setting default flags for each Remote separately, for each operation (Mount, Sync, Copy, etc)
-### 🎛️ Customize the flags (parameters) when running an operation, on a case by case basis
-### 📚 Embedded documentation for each flag, no need to google what everything does!
+### 🖥️ Toate Platformele: Windows, Linux, macOS (x64, Arm și Apple Silicon)
+### ✅ Funcționează cu instalarea ta existentă de rclone (sau îl poate instala pentru tine) și îl menține up-to-date (cu aprobarea ta)
+### 🔗 Adaugă/Editează/Șterge Remotes
+### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount etc.
+### ⭐️ Economisește timp setând default flags pentru fiecare Remote, separat pentru fiecare operațiune (Mount, Sync, Copy etc.)
+### 🎛️ Personalizează flags când rulezi o operațiune, de la caz la caz
+### 📚 Documentație integrată pentru fiecare flag — nu mai trebuie să dai search pe Google ca să afli ce face!
 ### 📂 File Browser
 ### 📡 Proxy
 
 <img src=".github/rclone-1.png" alt="Rclone UI">
 
-### ⏰ Scheduled Tasks (cron)
-### 📊 Job Logs (visualize all background operations)
-### 🚀 Start on boot (autostart) and Mount on start (automount)
-### 🔒 Set a password for the Settings panel
-### 👁️ Hide commands or Remotes from the tray menu
-### ⚙️ Import/Export Configs (encrypted with pass or command)
-### ✍️ Signed by Microsoft and Notarized on macOS
+### ⏰ Sarcini programate (cron)
+### 📊 Job Logs (vizualizează toate operațiunile în background)
+### 🚀 Start on boot (autostart) și Mount on start (automount)
+### 🔒 Setează o parolă pentru panoul de Settings
+### 👁️ Ascunde comenzile sau Remotes din meniul tray
+### ⚙️ Import/Export Configs (criptate cu `pass` sau `command`)
+### ✍️ Signed by Microsoft și Notarized pe macOS
 
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
@@ -66,10 +66,10 @@
 - **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
 
 ## Roadmap
-> Finalized items have been moved to the "Features" section.
-### [Check out the V3 discussion!](https://github.com/rclone-ui/rclone-ui/issues/37)
+> Itemi finalizati au fost mutați în secțiunea „Features”.
+### [Vezi discuția pentru V3!](https://github.com/rclone-ui/rclone-ui/issues/37)
 
-## 1 Star = 1 Instant Coffee
+## 1 Star = 1 Cafea Instant
 <a href="https://www.star-history.com/#rclone-ui/rclone-ui&Timeline">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline&theme=dark" />
@@ -78,18 +78,18 @@
  </picture>
 </a>
 
-## Contributing
-We welcome your contributions! Please open an [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) or a [PR](https://github.com/FTCHD/rclone-ui/compare), and let's make this better together 🎉🎉
+## Contribuții
+Apreciem contribuțiile tale! Deschide un [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) sau un [PR](https://github.com/FTCHD/rclone-ui/compare) și hai să facem Rclone UI și mai bun împreună 🎉🎉
 
 <br />
 
 <p align="center">
-  <img alt="English" src="https://img.shields.io/badge/ENGLISH-chartreuse?style=for-the-badge" />
+  <img alt="English" src="https://img.shields.io/badge/ENGLISH-gray?style=for-the-badge" />
   <img alt="Chinese" src="https://img.shields.io/badge/CHINESE-gray?style=for-the-badge" />
   <img alt="Japanese" src="https://img.shields.io/badge/JAPANESE-gray?style=for-the-badge" />
   <img alt="Polish" src="https://img.shields.io/badge/POLISH-gray?style=for-the-badge" />
   <img alt="German" src="https://img.shields.io/badge/GERMAN-gray?style=for-the-badge" />
   <img alt="Spanish" src="https://img.shields.io/badge/SPANISH-gray?style=for-the-badge" />
-  <img alt="Romanian" src="https://img.shields.io/badge/ROMANIAN-gray?style=for-the-badge" />
+  <img alt="Romanian" src="https://img.shields.io/badge/ROMANIAN-chartreuse?style=for-the-badge" />
   <img alt="Pirate" src="https://img.shields.io/badge/PIRATE-gray?style=for-the-badge" />
 </p>

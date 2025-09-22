@@ -4,12 +4,12 @@
   </a>
   <br>
   <a href="https://rcloneui.com">
-    The cross-platform GUI for Rclone
+    The cross-platform GUI fer Rclone, arrr!
   </a>
 </h1>
 
 <h3 align="center">
-  <strong>A light, transparent layer on top of <tt>rclone</tt> to manage your remotes &amp; tasks in a more user-friendly way.</strong>
+  <strong>A trim, see-through layer atop <tt>rclone</tt> so ye can captain yer remotes &amp; tasks like a true seadog.</strong>
 </h3>
 
 <br />
@@ -37,59 +37,59 @@
 <br />
 
 ## Features
-### 🖥️ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)
-### ✅ Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
-### 🔗 Add/Edit/Remove Remotes
-### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount, etc
-### ⭐️ Save time by setting default flags for each Remote separately, for each operation (Mount, Sync, Copy, etc)
-### 🎛️ Customize the flags (parameters) when running an operation, on a case by case basis
-### 📚 Embedded documentation for each flag, no need to google what everything does!
-### 📂 File Browser
-### 📡 Proxy
+### 🖥️ Runs on all decks — Windows, Linux, macOS (x64, Arm, an’ Apple Silicon)
+### ✅ Sails with yer existing rclone (or we’ll fetch it fer ye) an’ keeps it shipshape (with yer aye-aye)
+### 🔗 Add/Edit/Remove (Scuttle) Remotes
+### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount—pillagin’ made easy
+### ⭐️ Save precious time by settin’ default flags per Remote, per operation (Mount, Sync, Copy, an’ the like)
+### 🎛️ Tweak the flags (parrrrrameters) fer each voyage as ye see fit
+### 📚 Flag lore be embedded—no need t’ consult the oracle o’ Google!
+### 📂 File Hold—er, Browser—fer rummagin’ through yer treasure
+### 📡 Proxy—send yer packets through the fog
 
 <img src=".github/rclone-1.png" alt="Rclone UI">
 
-### ⏰ Scheduled Tasks (cron)
-### 📊 Job Logs (visualize all background operations)
-### 🚀 Start on boot (autostart) and Mount on start (automount)
-### 🔒 Set a password for the Settings panel
-### 👁️ Hide commands or Remotes from the tray menu
-### ⚙️ Import/Export Configs (encrypted with pass or command)
-### ✍️ Signed by Microsoft and Notarized on macOS
+### ⏰ Scheduled Raids (cron)
+### 📊 Ship’s Log fer Jobs (spy all background maneuvers)
+### 🚀 Weigh anchor on boot (autostart) an’ auto-mount the drives
+### 🔒 Guard the Captain’s Quarters (Settings) with a secret word
+### 👁️ Keep commands or Remotes hidden from the crow’s-nest tray
+### ⚙️ Import/Export Maps (configs) — encrypt ’em with pass or command
+### ✍️ Signed by the Crown o’ Microsoft an’ Notarized on macOS—legit as a Letter o’ Marque
 
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
-## Downloads
+## Downloads (hoist the booty!)
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
 - **macOS** (**[Apple Silicon](https://get.rcloneui.com/mac)**, **[Intel](https://get.rcloneui.com/mac64)**)
 - **Linux** (**[AppImage](https://get.rcloneui.com/linux)**, **[deb](https://get.rcloneui.com/linux-deb)**, **[rpm](https://get.rcloneui.com/linux-rpm)**)
 - **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
 
-## Roadmap
-> Finalized items have been moved to the "Features" section.
-### [Check out the V3 discussion!](https://github.com/rclone-ui/rclone-ui/issues/37)
+## Chart o’ the Voyage (Roadmap)
+> Plunder already claimed has been moved t’ the “Features” hold.
+### [Spy the V3 Parley!](https://github.com/rclone-ui/rclone-ui/issues/37)
 
-## 1 Star = 1 Instant Coffee
+## 1 Star = 1 Mug o’ Grog
 <a href="https://www.star-history.com/#rclone-ui/rclone-ui&Timeline">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline&theme=dark" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline" />
+   <img alt="Star History Chart (count the loot)" src="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline" />
  </picture>
 </a>
 
-## Contributing
-We welcome your contributions! Please open an [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) or a [PR](https://github.com/FTCHD/rclone-ui/compare), and let's make this better together 🎉🎉
+## Contribootin’
+We welcome yer code booty! Hoist an [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) or fire a [PR broadside](https://github.com/FTCHD/rclone-ui/compare), an’ let’s make this vessel swifter together 🎉🏴‍☠️
 
 <br />
 
 <p align="center">
-  <img alt="English" src="https://img.shields.io/badge/ENGLISH-chartreuse?style=for-the-badge" />
+  <img alt="English" src="https://img.shields.io/badge/ENGLISH-gray?style=for-the-badge" />
   <img alt="Chinese" src="https://img.shields.io/badge/CHINESE-gray?style=for-the-badge" />
   <img alt="Japanese" src="https://img.shields.io/badge/JAPANESE-gray?style=for-the-badge" />
   <img alt="Polish" src="https://img.shields.io/badge/POLISH-gray?style=for-the-badge" />
   <img alt="German" src="https://img.shields.io/badge/GERMAN-gray?style=for-the-badge" />
   <img alt="Spanish" src="https://img.shields.io/badge/SPANISH-gray?style=for-the-badge" />
   <img alt="Romanian" src="https://img.shields.io/badge/ROMANIAN-gray?style=for-the-badge" />
-  <img alt="Pirate" src="https://img.shields.io/badge/PIRATE-gray?style=for-the-badge" />
+  <img alt="Pirate" src="https://img.shields.io/badge/PIRATE-chartreuse?style=for-the-badge" />
 </p>
