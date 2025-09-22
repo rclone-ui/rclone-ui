@@ -8,10 +8,15 @@ $sha_x64     = 'x64'
 $url_arm64   = 'arm64'
 $sha_arm64   = 'arm64'
 
-$silentArgs = '/S /AllUsers'
+$repo        = 'rclone-ui/rclone-ui'
+$pkgVersion  = $env:ChocolateyPackageVersion
+if (-not $pkgVersion) { $pkgVersion = $env:chocolateyPackageVersion }
+$base        = if ($pkgVersion) { "https://github.com/$repo/releases/download/v$pkgVersion" } else { $null }
+$defaultUrlX64   = if ($base) { "$base/Rclone.UI_x64.exe" } else { $null }
+$defaultUrlArm64 = if ($base) { "$base/Rclone.UI_arm64.exe" } else { $null }
 
 $arch   = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Architecture)
-$isArm  = $arch -eq 12   # 12 = ARM64, 9 = x64
+$isArm  = $arch -eq 12
 if ($isArm) {
   $url = $url_arm64
   $sha = $sha_arm64
@@ -20,14 +25,25 @@ if ($isArm) {
   $sha = $sha_x64
 }
 
+if (-not ($url -match '^https?://')) {
+  if ($isArm -and $defaultUrlArm64) {
+    $url = $defaultUrlArm64
+  } elseif ($defaultUrlX64) {
+    $url = $defaultUrlX64
+  }
+}
+
 $packageArgs = @{
   packageName    = $packageName
   fileType       = 'exe'
   url64bit       = $url
-  checksum64     = $sha
-  checksumType64 = 'sha256'
-  silentArgs     = $silentArgs
+  silentArgs     = '/S /AllUsers'
   validExitCodes = @(0)
+}
+
+if ($sha -match '^[0-9A-Fa-f]{64}$') {
+  $packageArgs['checksum64']     = $sha
+  $packageArgs['checksumType64'] = 'sha256'
 }
 
 Install-ChocolateyPackage @packageArgs
