@@ -84,12 +84,28 @@ Zapraszamy do współpracy! Otwórz [zgłoszenie](https://github.com/FTCHD/rclon
 <br />
 
 <p align="center">
-  <img alt="English" src="https://img.shields.io/badge/ENGLISH-gray?style=for-the-badge" />
-  <img alt="Chinese" src="https://img.shields.io/badge/CHINESE-gray?style=for-the-badge" />
-  <img alt="Japanese" src="https://img.shields.io/badge/JAPANESE-gray?style=for-the-badge" />
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README.md">
+    <img alt="English" src="https://img.shields.io/badge/ENGLISH-gray?style=for-the-badge" />
+  </a>
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_CHINESE.md">
+    <img alt="Chinese" src="https://img.shields.io/badge/CHINESE-gray?style=for-the-badge" />
+  </a>
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_JAPANESE.md">
+    <img alt="Japanese" src="https://img.shields.io/badge/JAPANESE-gray?style=for-the-badge" />
+  </a>
+    <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_POLISH.md">
   <img alt="Polish" src="https://img.shields.io/badge/POLISH-chartreuse?style=for-the-badge" />
-  <img alt="German" src="https://img.shields.io/badge/GERMAN-gray?style=for-the-badge" />
-  <img alt="Spanish" src="https://img.shields.io/badge/SPANISH-gray?style=for-the-badge" />
-  <img alt="Romanian" src="https://img.shields.io/badge/ROMANIAN-gray?style=for-the-badge" />
-  <img alt="Pirate" src="https://img.shields.io/badge/PIRATE-gray?style=for-the-badge" />
+  </a>
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_GERMAN.md">
+    <img alt="German" src="https://img.shields.io/badge/GERMAN-gray?style=for-the-badge" />
+  </a>
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_SPANISH.md">
+    <img alt="Spanish" src="https://img.shields.io/badge/SPANISH-gray?style=for-the-badge" />
+  </a>
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_ROMANIAN.md">
+    <img alt="Romanian" src="https://img.shields.io/badge/ROMANIAN-gray?style=for-the-badge" />
+  </a>
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_PIRATE.md">
+    <img alt="Pirate" src="https://img.shields.io/badge/PIRATE-gray?style=for-the-badge" />
+  </a>
 </p>
