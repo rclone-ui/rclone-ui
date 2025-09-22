@@ -19,7 +19,7 @@ Installers:
   - Architecture: x64
     Scope: user
     InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_x64.exe
-    InstallerSha256: c40ed89dc2f512ff4ed12e1801a75a52c46e8c48c534515cdc0c413a9ccfeaa4
+    InstallerSha256: C40ED89DC2F512FF4ED12E1801A75A52C46E8C48C534515CDC0C413A9CCFEAA4
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /S
@@ -31,7 +31,7 @@ Installers:
   - Architecture: x64
     Scope: machine
     InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_x64.exe
-    InstallerSha256: c40ed89dc2f512ff4ed12e1801a75a52c46e8c48c534515cdc0c413a9ccfeaa4
+    InstallerSha256: C40ED89DC2F512FF4ED12E1801A75A52C46E8C48C534515CDC0C413A9CCFEAA4
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /S
@@ -43,7 +43,7 @@ Installers:
   - Architecture: arm64
     Scope: user
     InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_arm64.exe
-    InstallerSha256: 69968f8e3b32a42b826ccad56b91972ac8ae659a2682404f3103d31d62df3e0
+    InstallerSha256: 69968F8E3B32A42B826CCAD56B91972AC8AE659A2682404F3103D31D62DF3E0
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /S
@@ -55,7 +55,7 @@ Installers:
   - Architecture: arm64
     Scope: machine
     InstallerUrl: https://github.com/rclone-ui/rclone-ui/releases/download/v2.6.0/Rclone.UI_arm64.exe
-    InstallerSha256: 69968f8e3b32a42b826ccad56b91972ac8ae659a2682404f3103d31d62df3e0
+    InstallerSha256: 69968F8E3B32A42B826CCAD56B91972AC8AE659A2682404F3103D31D62DF3E0
     InstallerSwitches:
       Silent: /S
       SilentWithProgress: /S
