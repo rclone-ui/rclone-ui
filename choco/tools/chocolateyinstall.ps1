@@ -3,10 +3,10 @@ $ErrorActionPreference = 'Stop'
 $packageName = 'rclone-ui'
 $toolsDir    = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-$url_x64     = 'URL_X64'
-$sha_x64     = 'SHA256_x64'
-$url_arm64   = 'URL_ARM64'
-$sha_arm64   = 'SHA256_arm64'
+$url_x64     = 'x64'
+$sha_x64     = 'x64'
+$url_arm64   = 'arm64'
+$sha_arm64   = 'arm64'
 
 $silentArgs = '/S /AllUsers'
 
