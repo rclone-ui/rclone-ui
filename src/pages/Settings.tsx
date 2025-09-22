@@ -383,7 +383,7 @@ function GeneralSection() {
             return
         }
 
-        await getCurrentWindow().emit('close-app')
+        await getCurrentWindow().emit('relaunch-app')
     }
 
     useEffect(() => {
