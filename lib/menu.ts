@@ -397,7 +397,7 @@ export async function buildMenu() {
     if (remotes.length === 0) {
         const noRemotesMenuItem = await MenuItem.new({
             id: 'no-remotes',
-            text: 'No Remotes',
+            text: 'Add Remotes in Settings!',
             enabled: false,
         })
         menuItems.push(noRemotesMenuItem)
