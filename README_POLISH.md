@@ -23,6 +23,10 @@
     <img alt="Pobrania" src="https://img.shields.io/badge/POBRANIA-blue?style=for-the-badge&label=Kliknij%20by%20zobaczyć" />
   </a>
  &nbsp;
+   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
+    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
+  </a>
+ &nbsp;
   <a href="https://tauri.app/?ref=rclone-ui">
     <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
   </a>
@@ -63,7 +67,8 @@
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
 - **macOS** (**[Apple Silicon](https://get.rcloneui.com/mac)**, **[Intel](https://get.rcloneui.com/mac64)**)
 - **Linux** (**[AppImage](https://get.rcloneui.com/linux)**, **[deb](https://get.rcloneui.com/linux-deb)**, **[rpm](https://get.rcloneui.com/linux-rpm)**)
-- **Linux `ARM`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
+- **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
+- Brew **`brew install -cask rclone-ui`**
 
 ## Co dalej?
 > Wszystkie ukonczone zadania zostały przeniesione do sekcji "Funkcje".
