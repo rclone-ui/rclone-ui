@@ -15,3 +15,4 @@ export const RCLONE_VFS_DEFAULTS = {
 }
 
 export const RCLONE_CONF_REGEX = /[\/\\]rclone\.conf$/
+export const DOUBLE_BACKSLASH_REGEX = /\\\\/g

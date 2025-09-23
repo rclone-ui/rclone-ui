@@ -40,6 +40,7 @@ export default function TemplatesDropdown({
                     type="button"
                     color="primary"
                     className="min-w-fit"
+                    variant="shadow"
                     // className="max-w-2xl gap-2"
                     // data-focus-visible="false"
                 >

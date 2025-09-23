@@ -68,6 +68,7 @@ import {
     getDefaultPaths,
     getRcloneVersion,
 } from '../../lib/rclone/common'
+import { DOUBLE_BACKSLASH_REGEX } from '../../lib/rclone/constants'
 import { usePersistedStore, useStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import ConfigCreateDrawer from '../components/ConfigCreateDrawer'
@@ -847,6 +848,7 @@ function RemotesSection() {
                     color="primary"
                     data-focus-visible="false"
                     variant="shadow"
+                    size="lg"
                 >
                     Create Remote
                 </Button>
@@ -1329,12 +1331,13 @@ function AboutSection() {
         const defaultPaths = await getDefaultPaths()
         const version = await getVersion()
         const dirs = {
-            home: await homeDir(),
-            appLocalData: await appLocalDataDir(),
-            temp: await tempDir(),
-            appLog: await appLogDir(),
-            download: await downloadDir(),
-            appData: await appDataDir(),
+            // replace ALL (not just one) double backslashes with a single backslash
+            home: (await homeDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
+            appLocalData: (await appLocalDataDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
+            temp: (await tempDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
+            appLog: (await appLogDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
+            download: (await downloadDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
+            appData: (await appDataDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
         }
         return {
             versions: {
@@ -1478,12 +1481,16 @@ ${last30Lines.join('\n')}
                         value={JSON.stringify(info, null, 2)}
                         size="lg"
                         label="Debug"
-                        minRows={39}
-                        maxRows={39}
+                        minRows={40}
+                        maxRows={40}
                         disableAutosize={false}
                         isReadOnly={false}
                         variant="faded"
                         className="pb-10"
+                        autoCapitalize="false"
+                        autoComplete="false"
+                        autoCorrect="false"
+                        spellCheck="false"
                     />
                 </div>
             )}

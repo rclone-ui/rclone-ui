@@ -2,7 +2,7 @@ import { appLocalDataDir, sep } from '@tauri-apps/api/path'
 import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { Command } from '@tauri-apps/plugin-shell'
-import { RCLONE_CONF_REGEX } from './constants'
+import { DOUBLE_BACKSLASH_REGEX, RCLONE_CONF_REGEX } from './constants'
 
 export async function getDefaultPaths() {
     console.log('[getDefaultPaths]')
@@ -20,12 +20,12 @@ export async function getDefaultPaths() {
 
     console.log('[getDefaultPaths] json', JSON.stringify(defaultPaths, null, 2))
 
-    const doubleBackslashRegex = /\\\\/g
-
     return {
-        cache: defaultPaths.cache ? defaultPaths.cache.replace(doubleBackslashRegex, '\\') : '',
-        config: defaultPaths.config ? defaultPaths.config.replace(doubleBackslashRegex, '\\') : '',
-        temp: defaultPaths.temp ? defaultPaths.temp.replace(doubleBackslashRegex, '\\') : '',
+        cache: defaultPaths.cache ? defaultPaths.cache.replace(DOUBLE_BACKSLASH_REGEX, '\\') : '',
+        config: defaultPaths.config
+            ? defaultPaths.config.replace(DOUBLE_BACKSLASH_REGEX, '\\')
+            : '',
+        temp: defaultPaths.temp ? defaultPaths.temp.replace(DOUBLE_BACKSLASH_REGEX, '\\') : '',
     }
 }
 

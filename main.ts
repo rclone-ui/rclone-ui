@@ -177,7 +177,7 @@ async function startRclone() {
     command.addListener('close', async (event) => {
         console.log('close', event)
 
-        if (event.code === 1 || event.code === 143) {
+        if (event.code === 143 || (platform() === 'windows' && event.code === 1)) {
             Sentry.captureException(new Error('Rclone has crashed'))
             const confirmed = await ask('Rclone has crashed', {
                 title: 'Error',
