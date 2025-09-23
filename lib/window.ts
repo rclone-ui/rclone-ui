@@ -75,7 +75,7 @@ export async function openWindow({
     name,
     url,
     width = 820,
-    height = 700,
+    height = platform() === 'windows' ? 730 : 700,
 }: {
     name: string
     url: string

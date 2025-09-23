@@ -814,7 +814,7 @@ function LicenseSection() {
 
             <div
                 className={cn(
-                    'w-full overflow-hidden border-0 border-red-500 left-28 h-[470px] opacity-0 transition-opacity duration-300 ease-in-out',
+                    'w-full overflow-hidden border-0 border-red-500 left-28 h-[485px] opacity-0 transition-opacity duration-300 ease-in-out',
                     showPricingTable && 'opacity-100'
                 )}
             >
@@ -1328,17 +1328,21 @@ function AboutSection() {
     const isLoadingLogs = useRef(false)
     const [last30Lines, setLast30Lines] = useState<string[]>([])
 
+    const jsonStringified = info
+        ? JSON.stringify(info, null, 2).replace(DOUBLE_BACKSLASH_REGEX, '\\')
+        : ''
+
     async function fetchInfo() {
+        if (!currentConfig) return
         const defaultPaths = await getDefaultPaths()
         const version = await getVersion()
         const dirs = {
-            // replace ALL (not just one) double backslashes with a single backslash
-            home: (await homeDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
-            appLocalData: (await appLocalDataDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
-            temp: (await tempDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
-            appLog: (await appLogDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
-            download: (await downloadDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
-            appData: (await appDataDir()).replace(DOUBLE_BACKSLASH_REGEX, '\\'),
+            home: await homeDir(),
+            appLocalData: await appLocalDataDir(),
+            temp: await tempDir(),
+            appLog: await appLogDir(),
+            download: await downloadDir(),
+            appData: await appDataDir(),
         }
         return {
             versions: {
@@ -1351,10 +1355,10 @@ function AboutSection() {
             paths: defaultPaths,
             dirs,
             config: {
-                id: currentConfig?.id!,
-                label: currentConfig?.label!,
-                sync: currentConfig?.sync,
-                isEncrypted: currentConfig?.isEncrypted!,
+                id: currentConfig.id,
+                label: currentConfig.label,
+                sync: currentConfig.sync,
+                isEncrypted: currentConfig.isEncrypted,
             },
         }
     }
@@ -1383,9 +1387,10 @@ function AboutSection() {
     }
 
     useEffect(() => {
-        fetchInfo().then(setInfo)
+        if (!currentConfig) return
+        fetchInfo().then((info) => setInfo(info || null))
         // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
-    }, [fetchInfo])
+    }, [fetchInfo, currentConfig])
 
     useEffect(() => {
         if (!info) {
@@ -1436,7 +1441,7 @@ function AboutSection() {
                             fullWidth={true}
                             color="default"
                             onPress={async () => {
-                                await writeText(JSON.stringify(info, null, 2))
+                                await writeText(jsonStringified)
                             }}
                         >
                             Copy Debug Info
@@ -1459,7 +1464,7 @@ function AboutSection() {
 							
 Debug Info:
 \`\`\`json
-${JSON.stringify(info, null, 2)}
+${jsonStringified}
 \`\`\`
 
 Logs (last 30 lines):
@@ -1479,7 +1484,7 @@ ${last30Lines.join('\n')}
                     </div>
 
                     <Textarea
-                        value={JSON.stringify(info, null, 2)}
+                        value={jsonStringified}
                         size="lg"
                         label="Debug"
                         minRows={40}

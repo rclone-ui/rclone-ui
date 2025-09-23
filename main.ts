@@ -130,6 +130,16 @@ async function checkAlreadyRunning() {
                 }
             )
             if (confirmed) {
+                if (platform() === 'windows') {
+                    await message(
+                        "If you're on Windows, you might notice a few powershell/terminal windows opening and closing.\n\nThis is normal and expected, imagine we are playing whack-a-mole with the rclone process to close it.",
+                        {
+                            'title': 'Trigger Warning',
+                            'kind': 'info',
+                            'okLabel': 'Got it',
+                        }
+                    )
+                }
                 const result = await invoke('stop_rclone_processes')
                 console.log('stop_rclone_processes', result)
                 await new Promise((resolve) => setTimeout(resolve, 1000))

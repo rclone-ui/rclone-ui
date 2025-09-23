@@ -536,7 +536,7 @@ export default function Copy() {
                 />
 
                 <div
-                    className={cn('flex flex-col pb-10', showMore && 'pb-0')}
+                    className={cn('flex flex-col pb-10 relative', showMore && 'pb-0')}
                     ref={animationParent}
                 >
                     <Accordion>

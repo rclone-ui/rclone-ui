@@ -607,22 +607,23 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
 		.plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![])))
         // .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-        // 	println!("{}, {argv:?}, {cwd}", app.package_info().name);
-        // 	// app.emit("single-instance", Payload { args: argv, cwd }).unwrap();
-        // }))
-        // .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-        //     let _ = app
-        //         .get_webview_window("main")
-        //         .expect("no main window")
-        //         .set_focus();
-        // }))
-        .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_log::Builder::new().build())
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_opener::init())
+			// 	println!("{}, {argv:?}, {cwd}", app.package_info().name);
+			// 	// app.emit("single-instance", Payload { args: argv, cwd }).unwrap();
+			// }))
+			// .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+				//     let _ = app
+				//         .get_webview_window("main")
+				//         .expect("no main window")
+				//         .set_focus();
+				// }))
+		.plugin(tauri_plugin_store::Builder::new().build())
+		.plugin(tauri_plugin_http::init())
+		.plugin(tauri_plugin_fs::init())
+		.plugin(tauri_plugin_dialog::init())
+		.plugin(tauri_plugin_log::Builder::new().build())
+		.plugin(tauri_plugin_shell::init())
+		.plugin(tauri_plugin_opener::init())
+		.plugin(tauri_plugin_prevent_default::debug())
         .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, is_rclone_running, stop_rclone_processes, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection])
         .setup(|_app| Ok(()))
         // .setup(|app| {
