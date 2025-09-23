@@ -1,5 +1,5 @@
 import { appLocalDataDir, sep } from '@tauri-apps/api/path'
-import { exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { Command } from '@tauri-apps/plugin-shell'
 import { RCLONE_CONF_REGEX } from './constants'
@@ -30,7 +30,7 @@ export async function getDefaultPaths() {
 }
 
 export async function getSystemConfigPath() {
-    console.log('[getDefaultPath] running system rclone')
+    console.log('[getSystemConfigPath] running system rclone')
     const instance = Command.create('rclone-system', [
         'rcd',
         '--rc-no-auth',
@@ -40,13 +40,13 @@ export async function getSystemConfigPath() {
     ])
 
     if (!instance) {
-        console.error('[getDefaultPath] failed to create rclone instance')
+        console.error('[getSystemConfigPath] failed to create rclone instance')
         throw new Error('Failed to create rclone instance, please try again later.')
     }
 
     const output = await instance.spawn()
 
-    console.log('[getDefaultPath] spawned rclone')
+    console.log('[getSystemConfigPath] spawned rclone')
 
     await new Promise((resolve) => setTimeout(resolve, 200))
 
@@ -59,7 +59,7 @@ export async function getSystemConfigPath() {
 
         return defaultPaths.config
     } catch (error) {
-        console.error('[getDefaultPath] error', error)
+        console.error('[getSystemConfigPath] error', error)
         if (error instanceof Error) {
             throw error
         }
@@ -105,7 +105,7 @@ export async function createConfigFile(path: string) {
     if (!hasConfig) {
         console.log('[createConfigFile] writing space character to default path (1)', path)
         try {
-            await writeFile(path, new Uint8Array())
+            await writeTextFile(path, '# Empty config file\n')
         } catch (error) {
             console.error('[createConfigFile] error', error)
         }
@@ -120,7 +120,7 @@ export async function createConfigFile(path: string) {
             await mkdir(folderPath, { recursive: true })
             console.log('[createConfigFile] created folder', folderPath)
             console.log('[createConfigFile] writing space character to default path (2)', path)
-            await writeFile(path, new Uint8Array())
+            await writeTextFile(path, '# Empty config file\n')
             const existsFinally = await exists(path).catch(() => false)
             console.log('[createConfigFile] existsFinally', existsFinally)
         }
