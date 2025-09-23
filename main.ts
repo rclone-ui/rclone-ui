@@ -582,6 +582,7 @@ async function checkVersion() {
 
 getCurrentWindow().listen('tauri://close-requested', async (e) => {
     console.log('(main) window close requested')
+    await getCurrentWindow().destroy()
 })
 
 getCurrentWindow().listen('rebuild-tray', async (e) => {
