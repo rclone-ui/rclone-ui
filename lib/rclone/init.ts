@@ -153,7 +153,14 @@ export async function initRclone(args: string[]) {
 
     let password: string | null = activeConfigFile.pass || activeConfigFile.passCommand || null
     try {
-        const configContent = await readTextFile(`${configFolderPath}${sep()}rclone.conf`)
+        const configPath = `${configFolderPath}/rclone.conf`
+        console.log('[initRclone] configPath', configPath)
+        const configPathExists = await exists(configPath).catch(() => false)
+        console.log('[initRclone] configPathExists', configPathExists)
+        if (!configPathExists) {
+            throw new Error('Config file does not exist')
+        }
+        const configContent = await readTextFile(configPath)
         const isEncrypted = configContent.includes('RCLONE_ENCRYPT_V0:')
 
         if (isEncrypted) {
