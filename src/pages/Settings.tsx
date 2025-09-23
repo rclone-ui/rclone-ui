@@ -1059,6 +1059,7 @@ function ConfigSection() {
             const configPath = await getConfigPath({ id: id, validate: true })
             const text = await readTextFile(configPath)
 
+            await getCurrentWindow().setFocus()
             const selectedPath = await open({
                 title: `Select a directory to export "${label}"`,
                 multiple: false,

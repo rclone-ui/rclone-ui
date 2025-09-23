@@ -76,6 +76,7 @@ async function parseRemotes(remotes: string[]) {
                         let selectedPath = remoteConfig?.defaultMountPoint || null
 
                         if (!selectedPath) {
+                            await getCurrentWindow().setFocus()
                             selectedPath = await open({
                                 title: `Select a directory to mount "${remote}"`,
                                 multiple: false,

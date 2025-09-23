@@ -9,6 +9,7 @@ import {
 } from '@heroui/react'
 import { Button } from '@heroui/react'
 import { sep } from '@tauri-apps/api/path'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { UploadIcon } from 'lucide-react'
@@ -230,6 +231,7 @@ export default function ConfigSyncDrawer({
                                                     }
 
                                                     try {
+                                                        await getCurrentWindow().setFocus()
                                                         let selectedFolder = await open({
                                                             directory: true,
                                                             multiple: false,

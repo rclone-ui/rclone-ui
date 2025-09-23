@@ -10,6 +10,7 @@ import {
 } from '@heroui/react'
 import { Button } from '@heroui/react'
 import { sep } from '@tauri-apps/api/path'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import { mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { UploadIcon } from 'lucide-react'
@@ -222,6 +223,7 @@ export default function ConfigCreateDrawer({
                                                 variant="light"
                                                 size="sm"
                                                 onPress={async () => {
+                                                    await getCurrentWindow().setFocus()
                                                     const selectedFile = await open({
                                                         directory: false,
                                                         multiple: false,

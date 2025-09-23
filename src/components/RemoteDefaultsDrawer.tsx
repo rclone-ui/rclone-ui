@@ -2,6 +2,7 @@ import { Checkbox } from '@heroui/react'
 import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@heroui/react'
 import { Accordion, AccordionItem, Avatar, Button, Input } from '@heroui/react'
 import { homeDir } from '@tauri-apps/api/path'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import {
     CogIcon,
@@ -374,6 +375,7 @@ export default function RemoteDefaultsDrawer({
                                                     onPress={async () => {
                                                         try {
                                                             await lockWindows()
+                                                            await getCurrentWindow().setFocus()
                                                             const selected = await open({
                                                                 directory: true,
                                                                 multiple: false,

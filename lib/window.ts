@@ -33,7 +33,6 @@ export async function openFullWindow({
         height: 0,
         width: 0,
         visibleOnAllWorkspaces: false,
-        alwaysOnTop: false,
         resizable: true,
         visible: false,
         focus: true,
@@ -66,6 +65,7 @@ export async function openFullWindow({
     await w.hide()
     await w.setSize(size)
     await w.center()
+    await w.setZoom(1)
     await w.show()
 
     return w
@@ -91,7 +91,6 @@ export async function openWindow({
         width: 0,
         resizable: false,
         visibleOnAllWorkspaces: false,
-        alwaysOnTop: true,
         visible: false,
         focus: true,
         title: name,
@@ -110,6 +109,7 @@ export async function openWindow({
     await w.setSize(new LogicalSize(width, height))
     await w.center()
     await w.setDecorations(true)
+    await w.setZoom(1)
     await w.show()
 
     useStore.setState({ firstWindow: false })
@@ -133,7 +133,6 @@ export async function openSmallWindow({
         width: 0,
         resizable: false,
         visibleOnAllWorkspaces: false,
-        alwaysOnTop: false,
         visible: false,
         focus: true,
         title: name,
@@ -149,6 +148,7 @@ export async function openSmallWindow({
 
     await w.setSize(new LogicalSize(800, 500))
     await w.center()
+    await w.setZoom(1)
     await w.show()
 
     useStore.setState({ firstWindow: false })

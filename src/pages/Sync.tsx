@@ -538,7 +538,11 @@ export default function Sync() {
                             color="secondary"
                             fullWidth={true}
                             onPress={async () => {
-                                await openWindow({ name: 'Jobs', url: '/jobs' })
+                                const createdWindow = await openWindow({
+                                    name: 'Jobs',
+                                    url: '/jobs',
+                                })
+                                await createdWindow.setFocus()
                             }}
                             data-focus-visible="false"
                         >
