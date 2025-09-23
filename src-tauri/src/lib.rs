@@ -10,6 +10,7 @@ use machine_uid;
 use std::fs::{self, File};
 use std::path::Path;
 use zip::ZipArchive;
+use sysinfo::{System};
 use tauri_plugin_sentry;
 use sentry;
 
@@ -179,6 +180,46 @@ fn get_arch() -> String {
 #[tauri::command]
 fn get_uid() -> String {
     return machine_uid::get().unwrap();
+}
+
+#[tauri::command]
+fn is_rclone_running() -> bool {
+
+    let system = System::new_all();
+    for (_pid, process) in system.processes() {
+        let name = process.name();
+        let lower = name.to_ascii_lowercase();
+        if lower == "rclone" || lower == "rclone.exe" {
+            return true;
+        }
+    }
+    false
+}
+
+#[tauri::command]
+async fn stop_rclone_processes(timeout_ms: Option<u64>) -> Result<u32, String> {
+    let timeout = timeout_ms.unwrap_or(5000);
+
+    let system = System::new_all();
+
+    // Collect PIDs first to avoid holding references across await points
+    let mut pids: Vec<u32> = Vec::new();
+    for (pid, process) in system.processes() {
+        let name_lower = process.name().to_ascii_lowercase();
+        if name_lower == "rclone" || name_lower == "rclone.exe" {
+            pids.push(pid.as_u32());
+        }
+    }
+
+    let mut stopped: u32 = 0;
+    for pid in pids {
+        match stop_pid(pid, Some(timeout)).await {
+            Ok(()) => stopped += 1,
+            Err(_e) => {}
+        }
+    }
+
+    Ok(stopped)
 }
 
 #[tauri::command]
@@ -582,7 +623,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection])
+        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, is_rclone_running, stop_rclone_processes, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection])
         .setup(|_app| Ok(()))
         // .setup(|app| {
         //     if cfg!(debug_assertions) {

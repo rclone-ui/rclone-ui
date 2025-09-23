@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/browser'
 import { getVersion as getUiVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
@@ -112,6 +113,32 @@ async function validateInstance() {
             kind: 'error',
             okLabel: 'OK',
         })
+    }
+}
+
+async function checkAlreadyRunning() {
+    try {
+        const running = await invoke<boolean>('is_rclone_running')
+        if (running) {
+            const confirmed = await ask(
+                'Rclone is already running on this system.\n\nPlease stop it before launching Rclone UI.',
+                {
+                    title: 'Rclone Already Running',
+                    kind: 'info',
+                    okLabel: 'Close Rclone',
+                    cancelLabel: 'Exit UI',
+                }
+            )
+            if (confirmed) {
+                const result = await invoke('stop_rclone_processes')
+                console.log('stop_rclone_processes', result)
+                await new Promise((resolve) => setTimeout(resolve, 1000))
+            } else {
+                await exit(0)
+            }
+        }
+    } catch (err) {
+        console.error('Failed to check rclone process:', err)
     }
 }
 
@@ -565,6 +592,7 @@ initTray()
     .then(() => waitForHydration())
     .then(() => checkVersion())
     .then(() => validateInstance())
+    .then(() => checkAlreadyRunning())
     .then(() => startRclone())
     .then(() => onboardUser())
     .then(() => startupMounts())
