@@ -245,30 +245,6 @@
                 }
             ]
         },
-        {
-            "identifier": "fs:allow-read-text-file",
-            "allow": [
-                {
-                    "path": "*/**"
-                }
-            ]
-        },
-        {
-            "identifier": "fs:allow-read-file",
-            "allow": [
-                {
-                    "path": "*/**"
-                }
-            ]
-        },
-        {
-            "identifier": "fs:allow-read-dir",
-            "allow": [
-                {
-                    "path": "*/**"
-                }
-            ]
-        },
 
         "opener:allow-open-url",
         {

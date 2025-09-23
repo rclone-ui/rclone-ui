@@ -136,7 +136,7 @@ export async function initRclone(args: string[]) {
     console.log('[initRclone] configFolderPath', configFolderPath)
 
     if (activeConfigFile.sync) {
-        if (!(await exists(configFolderPath + sep() + 'rclone.conf'))) {
+        if (!(await exists(`${configFolderPath}${sep()}rclone.conf`))) {
             await message('The config file could not be found. Switching to the default config.', {
                 title: 'Invalid synced config',
                 kind: 'error',
@@ -153,13 +153,8 @@ export async function initRclone(args: string[]) {
 
     let password: string | null = activeConfigFile.pass || activeConfigFile.passCommand || null
     try {
-        const configPath = `${configFolderPath}/rclone.conf`
+        const configPath = `${configFolderPath}${sep()}rclone.conf`
         console.log('[initRclone] configPath', configPath)
-        const configPathExists = await exists(configPath).catch(() => false)
-        console.log('[initRclone] configPathExists', configPathExists)
-        if (!configPathExists) {
-            throw new Error('Config file does not exist')
-        }
         const configContent = await readTextFile(configPath)
         const isEncrypted = configContent.includes('RCLONE_ENCRYPT_V0:')
 
@@ -262,7 +257,7 @@ export async function initRclone(args: string[]) {
 
     if (internal || activeConfigFile.id !== 'default') {
         extraParams.env.RCLONE_CONFIG_DIR = configFolderPath
-        extraParams.env.RCLONE_CONFIG = `${configFolderPath}/rclone.conf`
+        extraParams.env.RCLONE_CONFIG = `${configFolderPath}${sep()}rclone.conf`
     }
 
     console.log('[initRclone] extraParams', extraParams)
@@ -388,7 +383,7 @@ export async function provisionRclone() {
     try {
         await invoke('unzip_file', {
             zipPath,
-            outputFolder: `${tempDirPath}/rclone/extracted`,
+            outputFolder: `${tempDirPath}${sep()}rclone${sep()}extracted`,
         })
         console.log('[provisionRclone] successfully unzipped file')
     } catch (error) {
@@ -436,7 +431,7 @@ export async function provisionRclone() {
         console.log('[provisionRclone] appLocalDataDirPath created')
     }
 
-    await copyFile(rcloneBinaryPath, `${appLocalDataDirPath}/${binaryName}`)
+    await copyFile(rcloneBinaryPath, `${appLocalDataDirPath}${sep()}${binaryName}`)
     console.log('[provisionRclone] copied rclone binary')
 
     const hasInstalled = await isInternalRcloneInstalled()
