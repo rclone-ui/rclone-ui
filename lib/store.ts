@@ -115,6 +115,8 @@ interface PersistedState {
     activeConfigFile: ConfigFile | null
     setActiveConfigFile: (configFile: string) => void
     updateConfigFile: (id: string, configFile: Partial<ConfigFile>) => void
+
+    lastSkippedVersion: string | undefined
 }
 
 const getStorage = (store: LazyStore): StateStorage => ({
@@ -264,6 +266,8 @@ export const usePersistedStore = create<PersistedState>()(
                         f.id === id ? { ...f, ...configFile } : f
                     ),
                 })),
+
+            lastSkippedVersion: undefined,
         }),
         {
             name: 'store',

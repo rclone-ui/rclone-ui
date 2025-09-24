@@ -3,6 +3,7 @@ import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { Command } from '@tauri-apps/plugin-shell'
 import { getConfigParentFolder } from '../format'
+import { usePersistedStore } from '../store'
 import { DOUBLE_BACKSLASH_REGEX } from './constants'
 
 export async function getDefaultPaths() {
@@ -227,8 +228,7 @@ export function parseRcloneVersion(output: string) {
     }
 }
 
-export async function shouldUpdateRclone(type?: 'system' | 'internal') {
-    const versionData = await getRcloneVersion(type)
+export function shouldUpdateRclone(versionData: { yours: string; latest: string } | null) {
     if (!versionData?.yours) return false
 
     if (!versionData) {
@@ -246,6 +246,11 @@ export async function shouldUpdateRclone(type?: 'system' | 'internal') {
 
     console.log('[shouldUpdateRclone] current version:', currentVersion)
     console.log('[shouldUpdateRclone] latest version:', latestVersion)
+
+    if (usePersistedStore.getState().lastSkippedVersion === currentVersion) {
+        console.log('[shouldUpdateRclone] current version is in the lastSkippedVersion')
+        return false
+    }
 
     // Compare versions using the existing compareVersions function
     const versionComparison = compareVersions(currentVersion, latestVersion)

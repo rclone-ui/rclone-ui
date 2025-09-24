@@ -15,6 +15,7 @@ import { openSmallWindow } from '../window'
 import {
     createConfigFile,
     getConfigPath,
+    getRcloneVersion,
     getSystemConfigPath,
     isInternalRcloneInstalled,
     isSystemRcloneInstalled,
@@ -44,7 +45,9 @@ export async function initRclone(args: string[]) {
         internal = true
     }
 
-    if (await shouldUpdateRclone(system ? 'system' : 'internal')) {
+    const rcloneVersion = await getRcloneVersion(system ? 'system' : 'internal')
+
+    if (shouldUpdateRclone(rcloneVersion)) {
         console.log('[initRclone] needs update')
 
         useStore.setState({ startupStatus: 'updating' })
@@ -65,6 +68,18 @@ export async function initRclone(args: string[]) {
                         code
                     )
                     useStore.setState({ startupStatus: 'error' })
+                    const skipping = await ask(
+                        'You are running an outdated version of the CLI that could not be updated.\n\nPlease update manually and restart Rclone UI.',
+                        {
+                            title: 'Error',
+                            kind: 'error',
+                            okLabel: 'Skip version',
+                            cancelLabel: 'Exit',
+                        }
+                    )
+                    if (skipping) {
+                        usePersistedStore.setState({ lastSkippedVersion: rcloneVersion!.yours })
+                    }
                 } else {
                     useStore.setState({ startupStatus: 'updated' })
                 }
