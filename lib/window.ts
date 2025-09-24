@@ -67,6 +67,7 @@ export async function openFullWindow({
     await w.center()
     await w.setZoom(1)
     await w.show()
+    await w.setFocus()
 
     return w
 }
@@ -111,6 +112,7 @@ export async function openWindow({
     await w.setDecorations(true)
     await w.setZoom(1)
     await w.show()
+    await w.setFocus()
 
     useStore.setState({ firstWindow: false })
 
@@ -150,6 +152,7 @@ export async function openSmallWindow({
     await w.center()
     await w.setZoom(1)
     await w.show()
+    await w.setFocus()
 
     useStore.setState({ firstWindow: false })
 

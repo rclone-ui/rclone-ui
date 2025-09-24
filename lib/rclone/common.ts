@@ -2,7 +2,8 @@ import { appLocalDataDir, sep } from '@tauri-apps/api/path'
 import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { Command } from '@tauri-apps/plugin-shell'
-import { DOUBLE_BACKSLASH_REGEX, RCLONE_CONF_REGEX } from './constants'
+import { getConfigParentFolder } from '../format'
+import { DOUBLE_BACKSLASH_REGEX } from './constants'
 
 export async function getDefaultPaths() {
     console.log('[getDefaultPaths]')
@@ -115,7 +116,7 @@ export async function createConfigFile(path: string) {
                 '[createConfigFile] failed to write space character to default path (1)',
                 path
             )
-            const folderPath = path.replace(RCLONE_CONF_REGEX, '')
+            const folderPath = getConfigParentFolder(path)
             console.log('[createConfigFile] creating folder', folderPath)
             await mkdir(folderPath, { recursive: true })
             console.log('[createConfigFile] created folder', folderPath)

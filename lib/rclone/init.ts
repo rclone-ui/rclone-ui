@@ -9,6 +9,7 @@ import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { Command } from '@tauri-apps/plugin-shell'
+import { getConfigParentFolder } from '../format'
 import { usePersistedStore, useStore } from '../store'
 import { openSmallWindow } from '../window'
 import {
@@ -19,7 +20,6 @@ import {
     isSystemRcloneInstalled,
     shouldUpdateRclone,
 } from './common'
-import { RCLONE_CONF_REGEX } from './constants'
 
 export async function initRclone(args: string[]) {
     console.log('[initRclone]')
@@ -128,10 +128,7 @@ export async function initRclone(args: string[]) {
 
     let configFolderPath = activeConfigFile.sync
         ? activeConfigFile.sync
-        : (await getConfigPath({ id: activeConfigFile.id!, validate: true })).replace(
-              RCLONE_CONF_REGEX,
-              ''
-          )
+        : getConfigParentFolder(await getConfigPath({ id: activeConfigFile.id!, validate: true }))
 
     console.log('[initRclone] configFolderPath', configFolderPath)
 
@@ -143,9 +140,8 @@ export async function initRclone(args: string[]) {
                 okLabel: 'OK',
             })
             activeConfigFile = configFiles[0]
-            configFolderPath = (await getConfigPath({ id: 'default', validate: true })).replace(
-                RCLONE_CONF_REGEX,
-                ''
+            configFolderPath = getConfigParentFolder(
+                await getConfigPath({ id: 'default', validate: true })
             )
             usePersistedStore.setState({ activeConfigFile: configFiles[0] })
         }
