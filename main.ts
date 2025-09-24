@@ -118,7 +118,8 @@ async function validateInstance() {
 
 async function checkAlreadyRunning() {
     try {
-        const running = await invoke<boolean>('is_rclone_running')
+        const rcPort = 5572
+        const running = await invoke<boolean>('is_rclone_running', { port: rcPort })
         if (running) {
             const confirmed = await ask(
                 'Rclone is already running on this system.\n\nPlease stop it before launching Rclone UI.',

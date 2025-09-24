@@ -183,7 +183,27 @@ fn get_uid() -> String {
 }
 
 #[tauri::command]
-fn is_rclone_running() -> bool {
+fn is_rclone_running(port: Option<u16>) -> bool {
+
+    if let Some(port) = port {
+        use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream};
+        use std::time::Duration;
+
+        let timeout = Duration::from_millis(200);
+        let addrs = [
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+            SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), port),
+        ];
+
+        for addr in addrs.iter() {
+            if let Ok(stream) = TcpStream::connect_timeout(addr, timeout) {
+                drop(stream);
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     let system = System::new_all();
     for (_pid, process) in system.processes() {
