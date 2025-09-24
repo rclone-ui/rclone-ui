@@ -32,4 +32,5 @@ export const SUPPORTED_BACKENDS = [
     'webdav',
     'onedrive',
     'http',
+    'storj',
 ]
