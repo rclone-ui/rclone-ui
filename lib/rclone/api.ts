@@ -4,24 +4,9 @@ import { platform } from '@tauri-apps/plugin-os'
 import type { FlagValue } from '../../types/rclone'
 import { useStore } from '../store'
 import { parseRcloneOptions } from './common'
+import { SUPPORTED_BACKENDS } from './constants'
 
 /* UTILS */
-const SUPPORTED_BACKENDS = [
-    'sftp',
-    's3',
-    'b2',
-    'drive',
-    'dropbox',
-    'ftp',
-    'azurefiles',
-    'azureblob',
-    'gcs',
-    'protondrive',
-    'box',
-    'webdav',
-    'onedrive',
-    'http',
-]
 
 function getAuthHeader() {
     return

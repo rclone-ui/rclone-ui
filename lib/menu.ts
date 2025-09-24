@@ -19,6 +19,7 @@ import {
     unmountRemote,
 } from './rclone/api'
 import { compareVersions, getRcloneVersion } from './rclone/common'
+import { SUPPORTED_BACKENDS } from './rclone/constants'
 import { dialogGetMountPlugin, needsMountPlugin } from './rclone/mount'
 import { usePersistedStore, useStore } from './store'
 import { showDefaultTray, showLoadingTray } from './tray'
@@ -50,6 +51,11 @@ async function parseRemotes(remotes: string[]) {
 
         const remoteInfo = await getRemote(remote).catch(null)
         console.log('[parseRemotes] remoteInfo', remoteInfo)
+
+        if (!remoteInfo || !SUPPORTED_BACKENDS.includes(remoteInfo?.type)) {
+            console.log('[parseRemotes] skipping remote not supported', remoteInfo)
+            continue
+        }
 
         const submenuItems: (MenuItem | Submenu | PredefinedMenuItem)[] = []
 

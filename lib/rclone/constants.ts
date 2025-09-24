@@ -16,3 +16,20 @@ export const RCLONE_VFS_DEFAULTS = {
 
 export const RCLONE_CONF_REGEX = /[\/\\]rclone\.conf$/
 export const DOUBLE_BACKSLASH_REGEX = /\\\\/g
+
+export const SUPPORTED_BACKENDS = [
+    'sftp',
+    's3',
+    'b2',
+    'drive',
+    'dropbox',
+    'ftp',
+    'azurefiles',
+    'azureblob',
+    'gcs',
+    'protondrive',
+    'box',
+    'webdav',
+    'onedrive',
+    'http',
+]
