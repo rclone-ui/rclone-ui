@@ -68,7 +68,7 @@ export default function RemoteOptionsSection({
 
         for (const remote of uniqueRemotes) {
             const remoteInfo = await getRemote(remote)
-            console.log('[Copy] remoteInfo', remoteInfo)
+            console.log('[Copy] remoteInfo', remoteInfo?.provider, remoteInfo?.type)
 
             if (remoteInfo.type === 's3') {
                 if (remoteInfo.provider) {

@@ -13,6 +13,7 @@ import { isDirectoryEmpty } from './lib/fs'
 import { validateLicense } from './lib/license'
 import notify from './lib/notify'
 import {
+    getRemote,
     listJobs,
     listRemotes,
     mountRemote,
@@ -23,6 +24,7 @@ import {
     startSync,
 } from './lib/rclone/api'
 import { compareVersions } from './lib/rclone/common'
+import { SUPPORTED_BACKENDS } from './lib/rclone/constants'
 import { initRclone } from './lib/rclone/init'
 import { usePersistedStore, useStore } from './lib/store'
 import { initTray, showDefaultTray, showLoadingTray } from './lib/tray'
@@ -307,7 +309,17 @@ async function startRclone() {
     console.log('[startRclone] listing remotes')
     const remotes = await listRemotes()
     console.log('[startRclone] got remotes')
-    useStore.setState({ remotes: remotes })
+
+    const remotesInfo = await Promise.all(
+        remotes.map(async (remote) => await getRemote(remote).catch(() => null))
+    )
+    const supportedRemotes = remotes.filter(
+        (_, index) => remotesInfo[index] && SUPPORTED_BACKENDS.includes(remotesInfo[index]!.type)
+    )
+
+    console.log(`[startRclone] skipped ${remotes.length - supportedRemotes.length} remotes`)
+
+    useStore.setState({ remotes: supportedRemotes })
 
     // console.log('childProcess', JSON.stringify(childProcess)) // prints `pid`
 }
