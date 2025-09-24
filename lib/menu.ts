@@ -53,7 +53,7 @@ async function parseRemotes(remotes: string[]) {
         console.log('[parseRemotes] remoteInfo', remoteInfo)
 
         if (!remoteInfo || !SUPPORTED_BACKENDS.includes(remoteInfo?.type)) {
-            console.log('[parseRemotes] skipping remote not supported', remoteInfo)
+            console.log('[parseRemotes] skipping remote not supported', remote)
             continue
         }
 

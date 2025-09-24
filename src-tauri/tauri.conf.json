@@ -45,7 +45,7 @@
             "icons/icon.icns",
             "icons/icon.ico"
         ],
-        "resources": ["icons/favicon/", "icons/small/"],
+        "resources": ["icons/favicon/*", "icons/small/providers/*", "icons/small/backends/*"],
         "shortDescription": "Cross-platform GUI for rclone & S3",
         "longDescription": "Cross-platform GUI for rclone & S3",
         "license": "Apache-2.0",
