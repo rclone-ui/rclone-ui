@@ -373,10 +373,22 @@ async function parseRemotes(remotes: string[]) {
             submenuItems.push(stopServeMenuItem)
         }
 
+        let iconPath = await resolveResource('icons/favicon/icon.png')
+
+        try {
+            if (remoteInfo?.provider) {
+                iconPath = await resolveResource(`icons/small/providers/${remoteInfo.provider}.png`)
+            } else if (remoteInfo?.type) {
+                iconPath = await resolveResource(`icons/small/backends/${remoteInfo?.type}.png`)
+            }
+        } catch (error) {
+            Sentry.captureException(new Error(`Error resolving icon path for ${remote}: ${error}`))
+            Sentry.captureException(error)
+            console.error('Error resolving icon path for', remote, error)
+        }
+
         parsedRemotes[remote] = {
-            icon: remoteInfo?.provider
-                ? await resolveResource(`icons/small/providers/${remoteInfo.provider}.png`)
-                : await resolveResource(`icons/small/backends/${remoteInfo?.type}.png`),
+            icon: iconPath,
             items: submenuItems,
         }
     }
