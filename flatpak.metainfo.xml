@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.rcloneui.RcloneUI</id>
+  
+  <name>Rclone UI</name>
+  <summary>The cross-platform desktop GUI for rclone &amp; S3.</summary>
+  
+  <metadata_license>MIT</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  
+  <developer id="com.rcloneui">
+    <name>Rclone UI</name>
+  </developer>
+  
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </supports>
+  
+  <recommends>
+	<control>keyboard</control>
+	<control>pointing</control>
+  </recommends>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  
+  <description>
+    <p>
+      Easily manage your rclone remotes &amp; tasks in a transparent way.
+    </p>
+    <p>
+      Free to use, open source, actively maintained and built with Tauri.
+    </p>
+    <p>
+      Features:
+    </p>
+	<ol>
+		<li>✅ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)</li>
+		<li>✅ Works with your existing rclone installation (or can install rclone for you)</li>
+		<li>✅ File Browser</li>
+		<li>✅ Sync, Copy, Mount, and more</li>
+		<li>✅ Jobs (see all background operations)</li>
+		<li>✅ Add/Remove Remotes</li>
+		<li>✅ Set default flags for each remote separately, based on the operation (mount, sync, copy, etc)</li>
+		<li>✅ Customize the flags when running an operation on a case by case basis</li>
+		<li>✅ Set a password for the Settings panel</li>
+		<li>✅ Hide commands or remotes from the tray menu</li>
+	</ol>
+  </description>
+  
+  <categories>
+	<category>System</category>
+	<category>Network</category>
+  </categories>
+
+  <keywords>
+	<keyword>Rclone</keyword>
+	<keyword>S3</keyword>
+	<keyword>Google Drive</keyword>
+	<keyword>OneDrive</keyword>
+	<keyword>FTP</keyword>
+	<keyword>SFTP</keyword>
+	<keyword>WebDAV</keyword>
+	<keyword>Rsync</keyword>
+	<keyword>File Manager</keyword>
+  </keywords>
+	
+  <branding>
+    <color type="primary" scheme_preference="light">#016fee</color>
+	<color type="primary" scheme_preference="dark">#093a7b</color>
+  </branding>
+	
+  <content_rating type="oars-1.1" />
+	
+  <url type="bugtracker">https://github.com/rclone-ui/rclone-ui/issues</url>
+  <url type="homepage">https://github.com/rclone-ui/rclone-ui</url>
+  <url type="vcs-browser">https://github.com/rclone-ui/rclone-ui</url>
+  
+  <screenshots>
+    <screenshot type="default">
+      <image>https://rcloneui.com/flathub-1.png</image>
+      <caption>Copy, Mount, Sync, and more</caption>
+    </screenshot>
+	<screenshot>
+      <image>https://rcloneui.com/flathub-2.png</image>
+      <caption>Add/Remove Remotes</caption>
+    </screenshot>
+  </screenshots>
+	
+  <releases>
+    <release version="2.6.3" date="2025-09-28">
+      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.6.3</url>
+      <description>
+	    <p>2.6.3 Release</p>
+    	<ul>
+		  <li>Initial flatpak release.</li>
+          <li>Relaunch on update.</li>
+          <li>Bug squashing &amp; improvements.</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  
+  <launchable type="desktop-id">com.rcloneui.RcloneUI.desktop</launchable>
+</component>
