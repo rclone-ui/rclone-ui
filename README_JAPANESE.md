@@ -68,7 +68,7 @@
 - **macOS**（**[Apple Silicon](https://get.rcloneui.com/mac)**、**[Intel](https://get.rcloneui.com/mac64)**）
 - **Linux**（**[AppImage](https://get.rcloneui.com/linux)**、**[deb](https://get.rcloneui.com/linux-deb)**、**[rpm](https://get.rcloneui.com/linux-rpm)**）
 - **Linux `Arm`**（**[AppImage](https://get.rcloneui.com/linux-arm)**、**[deb](https://get.rcloneui.com/linux-deb-arm)**、**[rpm](https://get.rcloneui.com/linux-rpm-arm)**）
-- Brew **`brew install -cask rclone-ui`**
+- Brew **`brew install --cask rclone-ui`**
 
 ## ロードマップ
 > 完了した項目は「機能」セクションに移動しました。
