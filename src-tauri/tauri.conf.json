@@ -81,7 +81,7 @@
             "deb": {
                 "depends": ["libayatana-appindicator3-1 | libappindicator3-1"],
                 "files": {
-                    "/usr/share/flatpak.metainfo.xml": "src-tauri/flatpak.metainfo.xml"
+                    "/usr/share/flatpak.metainfo.xml": "flatpak.metainfo.xml"
                 }
             },
             "rpm": {
