@@ -26,6 +26,8 @@ export default defineConfig(async () => ({
         }),
     ],
 
+    build: { chunkSizeWarningLimit: 2048 },
+
     esbuild: {
         supported: {
             'top-level-await': false, //browsers can handle top-level-await features
