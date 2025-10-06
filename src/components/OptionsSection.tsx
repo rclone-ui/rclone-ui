@@ -123,7 +123,7 @@ export default function OptionsSection({
 
                     return (
                         <Tooltip
-                            key={option.FieldName}
+                            key={option.Name}
                             delay={500}
                             content={
                                 <div className="flex flex-col w-full gap-1 overflow-y-auto max-w-52 max-h-80 overscroll-y-none">
@@ -206,7 +206,7 @@ export default function OptionsSection({
                                     ) : undefined
                                 }
                             >
-                                {option.FieldName}
+                                {option.Name}
                             </Chip>
                         </Tooltip>
                     )

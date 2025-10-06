@@ -837,52 +837,20 @@ export async function getConfigFlags() {
     return copyFlags
 }
 
-export async function getSftpFlags() {
-    console.log('[getSftpFlags]')
+export async function getServeFlags(type: string) {
+    console.log('[getServeFlags] ', type)
 
     const r = await fetch('http://localhost:5572/options/info', {
         method: 'POST',
         headers: getAuthHeader(),
     }).then((res) => res.json() as Promise<any>)
 
-    const sftpFlags = r.sftp.map((flag: any) => ({
+    const serveFlags = r[type].map((flag: any) => ({
         ...flag,
         FieldName: flag.Name,
     }))
 
-    return sftpFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-}
-
-export async function getFtpFlags() {
-    console.log('[getFtpFlags]')
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const ftpFlags = r.ftp.map((flag: any) => ({
-        ...flag,
-        FieldName: flag.Name,
-    }))
-
-    return ftpFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-}
-
-export async function getDlnaFlags() {
-    console.log('[getDlnaFlags]')
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const dlnaFlags = r.dlna.map((flag: any) => ({
-        ...flag,
-        FieldName: flag.Name,
-    }))
-
-    return dlnaFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
+    return serveFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
 }
 
 /* SERVE */

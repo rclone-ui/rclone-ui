@@ -83,13 +83,12 @@ export default function RemoteOptionsSection({
                         )
                         .map((o) => {
                             const newName = `s3_${o.Name}`
-                            const newFieldName = o.FieldName ? `S3${o.FieldName}` : `s3_ ${o.Name}`
                             if (addedKeys.has(newName)) return null
                             addedKeys.add(newName)
                             return {
                                 ...o,
                                 Name: newName,
-                                FieldName: newFieldName,
+                                FieldName: newName,
                             }
                         })
                         .filter(Boolean)
@@ -103,15 +102,12 @@ export default function RemoteOptionsSection({
                     .filter((o) => !IGNORED_OPTIONS.includes(o.Name) && !!o.Help)
                     .map((o) => {
                         const newName = `${remoteInfo.type}_${o.Name}`
-                        const newFieldName = o.FieldName
-                            ? `${remoteInfo.type.toUpperCase()}${o.FieldName}`
-                            : `${remoteInfo.type}_${o.Name}`
                         if (addedKeys.has(newName)) return null
                         addedKeys.add(newName)
                         return {
                             ...o,
                             Name: newName,
-                            FieldName: newFieldName,
+                            FieldName: newName,
                         }
                     })
                     .filter(Boolean)

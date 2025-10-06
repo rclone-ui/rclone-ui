@@ -24,6 +24,26 @@ import { usePersistedStore, useStore } from './store'
 import { showDefaultTray, showLoadingTray } from './tray'
 import { lockWindows, openFullWindow, openWindow, unlockWindows } from './window'
 
+const SUPPORTS_CLEANUP = [
+    's3',
+    'b2',
+    'box',
+    'drive',
+    'onedrive',
+    'internetarchive',
+    'jottacloud',
+    'mailru',
+    'mega',
+    'oos',
+    'pcloud',
+    'pikpak',
+    'putio',
+    'qingstor',
+    'protondrive',
+    'seafile',
+    'yandex',
+]
+
 async function parseRemotes(remotes: string[]) {
     console.log('[parseRemotes] remotes', remotes)
 
@@ -216,10 +236,7 @@ async function parseRemotes(remotes: string[]) {
         }
 
         if (!remoteConfig?.disabledActions?.includes('tray-cleanup')) {
-            if (
-                remoteInfo?.provider &&
-                ['s3', 'b2', 'box', 'drive', 'onedrive'].includes(remoteInfo.provider)
-            ) {
+            if (remoteInfo?.provider && SUPPORTS_CLEANUP.includes(remoteInfo.provider)) {
                 const cleanupMenuItem = await MenuItem.new({
                     id: `cleanup-${remote}`,
                     text: 'Cleanup',

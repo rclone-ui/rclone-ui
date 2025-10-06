@@ -69,6 +69,11 @@ export async function openFullWindow({
     await w.show()
     await w.setFocus()
 
+    if (platform() === 'linux') {
+        await w.setResizable(false)
+        await w.setResizable(true)
+    }
+
     return w
 }
 
@@ -116,6 +121,11 @@ export async function openWindow({
 
     useStore.setState({ firstWindow: false })
 
+    if (platform() === 'linux') {
+        await w.setResizable(false)
+        await w.setResizable(true)
+    }
+
     return w
 }
 
@@ -155,6 +165,11 @@ export async function openSmallWindow({
     await w.setFocus()
 
     useStore.setState({ firstWindow: false })
+
+    if (platform() === 'linux') {
+        await w.setResizable(false)
+        await w.setResizable(true)
+    }
 
     return w
 }

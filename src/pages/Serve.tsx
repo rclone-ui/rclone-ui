@@ -13,10 +13,8 @@ import {
 import { useEffect, useState } from 'react'
 import {
     getCurrentGlobalFlags,
-    getDlnaFlags,
     getFilterFlags,
-    getFtpFlags,
-    getSftpFlags,
+    getServeFlags,
     getVfsFlags,
     startServe,
 } from '../../lib/rclone/api'
@@ -26,7 +24,7 @@ import { triggerTrayRebuild } from '../../lib/tray'
 import type { FlagValue } from '../../types/rclone'
 import OptionsSection from '../components/OptionsSection'
 
-const SERVE_TYPES = ['dlna', 'ftp', 'sftp'] as const
+const SERVE_TYPES = ['dlna', 'ftp', 'sftp', 'http', 'nfs', 'restic', 's3', 'webdav'] as const
 
 export default function Serve() {
     const remotes = useStore((state) => state.remotes)
@@ -55,14 +53,10 @@ export default function Serve() {
 
     const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
 
-    const getAvailableOptions =
-        type === 'dlna'
-            ? getDlnaFlags
-            : type === 'ftp'
-              ? getFtpFlags
-              : type === 'sftp'
-                ? getSftpFlags
-                : () => Promise.resolve([])
+    const getAvailableOptions = async () => {
+        if (!type) return []
+        return getServeFlags(type)
+    }
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
     useEffect(() => {
