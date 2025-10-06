@@ -91,7 +91,11 @@ export default function RemoteEditDrawer({
                     </div>
                 )
             case 'string': {
-                if (option.Examples && option.Examples.length > 0) {
+                if (
+                    !(config?.provider === 'Other' && option.Name === 'endpoint') &&
+                    option.Examples &&
+                    option.Examples.length > 0
+                ) {
                     return (
                         <Autocomplete
                             id={fieldId}
@@ -254,10 +258,10 @@ export default function RemoteEditDrawer({
                                     placeholder="Select Type"
                                     selectedKeys={[config.type]}
                                     isDisabled={true}
+                                    itemHeight={42}
                                 >
                                     {backends.map((backend) => (
                                         <SelectItem
-                                            className="h-12"
                                             key={backend.Name}
                                             startContent={
                                                 <img

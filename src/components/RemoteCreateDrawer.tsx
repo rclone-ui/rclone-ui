@@ -83,7 +83,11 @@ export default function RemoteCreateDrawer({
                     </div>
                 )
             case 'string': {
-                if (option.Examples && option.Examples.length > 0) {
+                if (
+                    !(config?.provider === 'Other' && option.Name === 'endpoint') &&
+                    option.Examples &&
+                    option.Examples.length > 0
+                ) {
                     return (
                         <Autocomplete
                             id={fieldId}
@@ -278,10 +282,10 @@ export default function RemoteCreateDrawer({
                                     selectedKeys={[config.type]}
                                     onChange={handleTypeChange}
                                     isRequired={true}
+                                    itemHeight={42}
                                 >
                                     {backends.map((backend) => (
                                         <SelectItem
-                                            className="h-12"
                                             key={backend.Name}
                                             startContent={
                                                 <img
