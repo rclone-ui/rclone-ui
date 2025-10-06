@@ -3,7 +3,7 @@
   <id>com.rcloneui.RcloneUI</id>
   
   <name>Rclone UI</name>
-  <summary>The cross-platform desktop GUI for rclone &amp; S3.</summary>
+  <summary>The GUI for rclone.</summary>
   
   <metadata_license>MIT</metadata_license>
   <project_license>Apache-2.0</project_license>
@@ -18,20 +18,19 @@
     <control>touch</control>
   </supports>
   
-  <recommends>
-	<control>keyboard</control>
-	<control>pointing</control>
-  </recommends>
   <requires>
     <display_length compare="ge">360</display_length>
   </requires>
   
   <description>
     <p>
-      Easily manage your rclone remotes &amp; tasks in a transparent way.
+      The best way to manage your rclone remotes &amp; tasks in a light and easy way.
     </p>
     <p>
-      Free to use, open source, actively maintained and built with Tauri.
+      Free to use &amp; open source.
+    </p>
+	<p>
+      Stop remembering flags, copy pasting commands, and wasting time.
     </p>
     <p>
       Features:
@@ -39,15 +38,20 @@
 	<ol>
 		<li>✅ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)</li>
 		<li>✅ Works with your existing rclone installation (or can install rclone for you)</li>
-		<li>✅ File Browser</li>
-		<li>✅ Sync, Copy, Mount, and more</li>
+		<li>✅ File Browser 2.0</li>
+		<li>✅ Proxy support</li>
+		<li>✅ Sync, Copy, Mount, Serve, Move, and more</li>
 		<li>✅ Jobs (see all background operations)</li>
-		<li>✅ Add/Remove Remotes</li>
-		<li>✅ Set default flags for each remote separately, based on the operation (mount, sync, copy, etc)</li>
-		<li>✅ Customize the flags when running an operation on a case by case basis</li>
+		<li>✅ Set default flags for each remote separately, based on the operation (mount, copy, etc)</li>
+		<li>✅ Customize the flags when running an operation on a case by case basis (on top of defaults)</li>
 		<li>✅ Set a password for the Settings panel</li>
 		<li>✅ Hide commands or remotes from the tray menu</li>
+		<li>✅ Import/Export Configs (encrypted with pass or command)</li>
 	</ol>
+	<p>
+		No tracking, no ads.
+    	<em>Do more with Rclone!</em>
+    </p>
   </description>
   
   <categories>
@@ -90,13 +94,12 @@
   </screenshots>
 	
   <releases>
-    <release version="2.6.3" date="2025-09-28">
-      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.6.3</url>
+    <release version="2.7.0" date="2025-09-28">
+      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.7.0</url>
       <description>
-	    <p>2.6.3 Release</p>
+	    <p>2.7.0 Release</p>
     	<ul>
 		  <li>Initial flatpak release.</li>
-          <li>Relaunch on update.</li>
           <li>Bug squashing &amp; improvements.</li>
         </ul>
       </description>
