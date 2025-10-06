@@ -79,7 +79,10 @@
         },
         "linux": {
             "deb": {
-                "depends": ["libayatana-appindicator3-1 | libappindicator3-1"]
+                "depends": ["libayatana-appindicator3-1 | libappindicator3-1"],
+                "files": {
+                    "/usr/share/flatpak.metainfo.xml": "src-tauri/flatpak.metainfo.xml"
+                }
             },
             "rpm": {
                 "depends": ["(libappindicator-gtk3 or libayatana-appindicator-gtk3)"]
