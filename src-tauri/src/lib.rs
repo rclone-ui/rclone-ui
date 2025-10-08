@@ -25,6 +25,7 @@ fn is_tray_supported() -> bool {
     {
         use zbus::blocking::fdo::DBusProxy;
         use zbus::blocking::{Connection, Proxy};
+        use zbus::names::BusName;
 
         let conn = match Connection::session() {
             Ok(c) => c,
@@ -42,9 +43,13 @@ fn is_tray_supported() -> bool {
         ];
 
         for name in candidates {
-            if dbus.name_has_owner(name).unwrap_or(false) {
+            let bus_name = match BusName::try_from(name) {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+            if dbus.name_has_owner(bus_name).unwrap_or(false) {
                 // Try to read the property; if it fails but watcher exists, assume true
-                if let Ok(proxy) = Proxy::new(&conn, name, "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher") {
+                if let Ok(proxy) = Proxy::new(&conn, bus_name.clone(), "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher") {
                     if let Ok(registered) = proxy.get_property::<bool>("IsStatusNotifierHostRegistered") {
                         return registered;
                     }
