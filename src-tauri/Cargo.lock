@@ -284,6 +284,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-store",
  "tauri-plugin-updater",
+ "zbus",
  "zip 0.6.6",
 ]
 

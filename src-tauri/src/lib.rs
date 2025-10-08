@@ -15,6 +15,49 @@ use tauri_plugin_sentry;
 use sentry;
 
 #[tauri::command]
+fn is_tray_supported() -> bool {
+    #[cfg(not(target_os = "linux"))]
+    {
+        return true;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use zbus::blocking::fdo::DBusProxy;
+        use zbus::blocking::{Connection, Proxy};
+
+        let conn = match Connection::session() {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+
+        let dbus = match DBusProxy::new(&conn) {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+
+        let candidates = [
+            "org.kde.StatusNotifierWatcher",
+            "org.freedesktop.StatusNotifierWatcher",
+        ];
+
+        for name in candidates {
+            if dbus.name_has_owner(name).unwrap_or(false) {
+                // Try to read the property; if it fails but watcher exists, assume true
+                if let Ok(proxy) = Proxy::new(&conn, name, "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher") {
+                    if let Ok(registered) = proxy.get_property::<bool>("IsStatusNotifierHostRegistered") {
+                        return registered;
+                    }
+                }
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+#[tauri::command]
 fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
     // Open the zip file
     let file = File::open(zip_path).map_err(|e| e.to_string())?;
@@ -644,7 +687,7 @@ pub fn run() {
 		.plugin(tauri_plugin_shell::init())
 		.plugin(tauri_plugin_opener::init())
 		.plugin(tauri_plugin_prevent_default::debug())
-        .invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, is_rclone_running, stop_rclone_processes, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection])
+		.invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, is_rclone_running, stop_rclone_processes, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection, is_tray_supported])
         .setup(|_app| Ok(()))
         // .setup(|app| {
         //     if cfg!(debug_assertions) {

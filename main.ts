@@ -603,6 +603,43 @@ async function checkVersion() {
     } catch {}
 }
 
+async function checkTraySupport() {
+    let traySupported = false
+
+    try {
+        traySupported = await invoke<boolean>('is_tray_supported')
+    } catch {}
+
+    if (!traySupported) {
+        const msg =
+            'Your desktop environment does not appear to support system tray icons.\n\nRclone UI requires a tray to run. The application will exit automatically in 10 seconds.'
+
+        let alreadyExiting = false
+        const timer = setTimeout(async () => {
+            if (alreadyExiting) return
+            alreadyExiting = true
+            await exit(0)
+        }, 10_000)
+
+        ask(msg, {
+            title: 'Tray Not Supported',
+            kind: 'error',
+            okLabel: 'Exit Now',
+            cancelLabel: 'Cancel',
+        })
+            .then(async (confirmed) => {
+                if (!alreadyExiting && confirmed) {
+                    alreadyExiting = true
+                    clearTimeout(timer)
+                    await exit(0)
+                }
+            })
+            .catch()
+
+        await new Promise(() => {})
+    }
+}
+
 getCurrentWindow().listen('tauri://close-requested', async (e) => {
     console.log('(main) window close requested')
     await getCurrentWindow().destroy()
@@ -617,7 +654,8 @@ getCurrentWindow().listen('rebuild-tray', async (e) => {
     await showDefaultTray()
 })
 
-initTray()
+checkTraySupport()
+    .then(() => initTray())
     .then(() => showLoadingTray())
     .then(() => waitForHydration())
     .then(() => checkVersion())
