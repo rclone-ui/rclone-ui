@@ -94,10 +94,10 @@
   </screenshots>
 	
   <releases>
-    <release version="2.7.1" date="2025-10-07">
-      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.7.1</url>
+    <release version="2.7.2" date="2025-10-08">
+      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.7.2</url>
       <description>
-	    <p>2.7.1 Release</p>
+	    <p>2.7.2 Release</p>
     	<ul>
 		  <li>Initial flatpak release.</li>
           <li>Bug squashing &amp; improvements.</li>
