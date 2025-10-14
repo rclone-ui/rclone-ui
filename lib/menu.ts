@@ -522,6 +522,7 @@ export async function buildMenu() {
                 })
             },
         })
+        // @ts-ignore added elsewhere
         // menuItems.push(downloadMenuItem)
     }
 
