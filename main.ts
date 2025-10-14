@@ -611,32 +611,19 @@ async function checkTraySupport() {
     } catch {}
 
     if (!traySupported) {
-        const msg =
-            'Your desktop environment does not appear to support system tray icons.\n\nRclone UI requires a tray to run. The application will exit automatically in 10 seconds.'
+        const confirmed = await ask(
+            'Your desktop environment does not appear to have a tray/menubar.\n\nRclone UI requires a tray to run. Do you still wish to continue?',
+            {
+                title: 'Tray Not Supported',
+                kind: 'error',
+                okLabel: 'Continue',
+                cancelLabel: 'Exit Now',
+            }
+        )
 
-        let alreadyExiting = false
-        const timer = setTimeout(async () => {
-            if (alreadyExiting) return
-            alreadyExiting = true
-            await exit(0)
-        }, 10_000)
-
-        ask(msg, {
-            title: 'Tray Not Supported',
-            kind: 'error',
-            okLabel: 'Exit Now',
-            cancelLabel: 'Cancel',
-        })
-            .then(async (confirmed) => {
-                if (!alreadyExiting && confirmed) {
-                    alreadyExiting = true
-                    clearTimeout(timer)
-                    await exit(0)
-                }
-            })
-            .catch()
-
-        await new Promise(() => {})
+        if (!confirmed) {
+            await Promise.all([new Promise((resolve) => setTimeout(resolve, 100_000)), exit(0)])
+        }
     }
 }
 
