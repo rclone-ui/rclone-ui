@@ -30,7 +30,7 @@ export async function initRclone(args: string[]) {
 
     // rclone not available, let's download it
     if (!system && !internal) {
-        usePersistedStore.setState({ isFirstOpen: false })
+        useStore.setState({ startupDisplayed: true })
         useStore.setState({ startupStatus: 'initializing' })
         await openSmallWindow({
             name: 'Startup',

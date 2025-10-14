@@ -357,15 +357,15 @@ async function startupMounts() {
     }
 }
 
-async function onboardUser() {
-    const firstOpen = usePersistedStore.getState().isFirstOpen
-    if (firstOpen) {
+async function showStartup() {
+    const startupDisplayed = useStore.getState().startupDisplayed
+    if (startupDisplayed) {
         useStore.setState({ startupStatus: 'initialized' })
         await openSmallWindow({
             name: 'Startup',
             url: '/startup',
         })
-        usePersistedStore.setState({ isFirstOpen: false })
+        useStore.setState({ startupDisplayed: false })
     }
 }
 
@@ -649,7 +649,7 @@ checkTraySupport()
     .then(() => validateInstance())
     .then(() => checkAlreadyRunning())
     .then(() => startRclone())
-    .then(() => onboardUser())
+    .then(() => showStartup())
     .then(() => startupMounts())
     .then(() => resumeTasks())
     .then(() => showDefaultTray())

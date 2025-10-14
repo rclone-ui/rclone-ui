@@ -46,6 +46,8 @@ interface State {
         | 'updated'
         | 'error'
         | 'fatal'
+
+    startupDisplayed: boolean
 }
 
 interface PersistedState {
@@ -90,9 +92,6 @@ interface PersistedState {
     setLicenseKey: (key: string | undefined) => void
     licenseValid: boolean
     setLicenseValid: (valid: boolean) => void
-
-    isFirstOpen: boolean
-    setIsFirstOpen: (isFirstOpen: boolean) => void
 
     startOnBoot: boolean
     setStartOnBoot: (startOnBoot: boolean) => void
@@ -153,6 +152,7 @@ export const useStore = create<State>()(
                 set((state) => ({ remotes: state.remotes.filter((r) => r !== remote) })),
 
             startupStatus: null,
+            startupDisplayed: false,
         }),
         { name: 'shared-store' }
     )
@@ -198,9 +198,6 @@ export const usePersistedStore = create<PersistedState>()(
             setLicenseKey: (key: string | undefined) => set((_) => ({ licenseKey: key })),
             licenseValid: false,
             setLicenseValid: (valid: boolean) => set((_) => ({ licenseValid: valid })),
-
-            isFirstOpen: true,
-            setIsFirstOpen: (isFirstOpen: boolean) => set((_) => ({ isFirstOpen })),
 
             startOnBoot: false,
             setStartOnBoot: (startOnBoot: boolean) => set((_) => ({ startOnBoot })),
