@@ -63,12 +63,17 @@
 
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
+## Package Managers
+- Flathub **`flatpak install com.rcloneui.RcloneUI`** or **[from the store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
+- Brew **`brew install --cask rclone-ui`**
+- Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
+- Chocolatey **`choco install rclone-ui`**
+
 ## Link do pobrania
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
 - **macOS** (**[Apple Silicon](https://get.rcloneui.com/mac)**, **[Intel](https://get.rcloneui.com/mac64)**)
 - **Linux** (**[AppImage](https://get.rcloneui.com/linux)**, **[deb](https://get.rcloneui.com/linux-deb)**, **[rpm](https://get.rcloneui.com/linux-rpm)**)
 - **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
-- Brew **`brew install --cask rclone-ui`**
 
 ## Co dalej?
 > Wszystkie ukonczone zadania zostały przeniesione do sekcji "Funkcje".

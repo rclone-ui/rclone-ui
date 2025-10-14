@@ -63,12 +63,17 @@
 
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
+## 包管理器
+- Flathub **`flatpak install com.rcloneui.RcloneUI`** 或 **[从商店获取](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
+- Brew **`brew install --cask rclone-ui`**
+- Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
+- Chocolatey **`choco install rclone-ui`**
+
 ## 下载
 - **Windows**（**[Arm](https://get.rcloneui.com/win-arm)**、**[x64](https://get.rcloneui.com/win)**）
 - **macOS**（**[Apple Silicon](https://get.rcloneui.com/mac)**、**[Intel](https://get.rcloneui.com/mac64)**）
 - **Linux**（**[AppImage](https://get.rcloneui.com/linux)**、**[deb](https://get.rcloneui.com/linux-deb)**、**[rpm](https://get.rcloneui.com/linux-rpm)**）
 - **Linux `Arm`**（**[AppImage](https://get.rcloneui.com/linux-arm)**、**[deb](https://get.rcloneui.com/linux-deb-arm)**、**[rpm](https://get.rcloneui.com/linux-rpm-arm)**）
-- Brew **`brew install --cask rclone-ui`**
 
 ## 路线图
 > 已完成的内容已移至「功能」部分。

@@ -63,12 +63,17 @@
 
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
+## Package Mangarrs
+- Flathub **`flatpak install com.rcloneui.RcloneUI`** or **[from th’ store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
+- Brew **`brew install --cask rclone-ui`**
+- Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
+- Chocolatey **`choco install rclone-ui`**
+
 ## Downloads (hoist the booty!)
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
 - **macOS** (**[Apple Silicon](https://get.rcloneui.com/mac)**, **[Intel](https://get.rcloneui.com/mac64)**)
 - **Linux** (**[AppImage](https://get.rcloneui.com/linux)**, **[deb](https://get.rcloneui.com/linux-deb)**, **[rpm](https://get.rcloneui.com/linux-rpm)**)
 - **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
-- Brew **`brew install --cask rclone-ui`**
 
 ## Chart o’ the Voyage (Roadmap)
 > Plunder already claimed has been moved t’ the “Features” hold.
