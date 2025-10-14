@@ -50,31 +50,24 @@ interface State {
     startupDisplayed: boolean
 }
 
+type SupportedAction =
+    | 'tray-mount'
+    | 'tray-sync'
+    | 'tray-copy'
+    | 'tray-serve'
+    | 'tray-move'
+    | 'tray-delete'
+    | 'tray-purge'
+    | 'tray-download'
+
 interface PersistedState {
     remoteConfigList: Record<string, RemoteConfig>
     setRemoteConfig: (remote: string, config: RemoteConfig) => void
     mergeRemoteConfig: (remote: string, config: RemoteConfig) => void
 
-    disabledActions: (
-        | 'tray-mount'
-        | 'tray-sync'
-        | 'tray-copy'
-        | 'tray-serve'
-        | 'tray-move'
-        | 'tray-delete'
-        | 'tray-purge'
-    )[]
-    setDisabledActions: (
-        actions: (
-            | 'tray-mount'
-            | 'tray-sync'
-            | 'tray-copy'
-            | 'tray-serve'
-            | 'tray-move'
-            | 'tray-delete'
-            | 'tray-purge'
-        )[]
-    ) => void
+    disabledActions: SupportedAction[]
+
+    setDisabledActions: (actions: SupportedAction[]) => void
 
     proxy:
         | {
@@ -175,17 +168,8 @@ export const usePersistedStore = create<PersistedState>()(
                 })),
 
             disabledActions: [],
-            setDisabledActions: (
-                actions: (
-                    | 'tray-mount'
-                    | 'tray-sync'
-                    | 'tray-copy'
-                    | 'tray-serve'
-                    | 'tray-move'
-                    | 'tray-delete'
-                    | 'tray-purge'
-                )[]
-            ) => set((_) => ({ disabledActions: actions })),
+            setDisabledActions: (actions: SupportedAction[]) =>
+                set((_) => ({ disabledActions: actions })),
 
             favoritePaths: [],
 

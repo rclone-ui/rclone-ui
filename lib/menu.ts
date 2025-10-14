@@ -511,6 +511,20 @@ export async function buildMenu() {
         menuItems.push(syncMenuItem)
     }
 
+    if (!persistedStoreState.disabledActions?.includes('tray-download')) {
+        const downloadMenuItem = await MenuItem.new({
+            id: 'download',
+            text: 'Download',
+            action: async () => {
+                await openWindow({
+                    name: 'Download',
+                    url: '/download',
+                })
+            },
+        })
+        // menuItems.push(downloadMenuItem)
+    }
+
     const allowsAdditional =
         !persistedStoreState.disabledActions?.includes('tray-move') ||
         !persistedStoreState.disabledActions?.includes('tray-serve') ||

@@ -8,6 +8,7 @@ import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import Copy from './pages/Copy'
 import Cron from './pages/Cron'
 import Delete from './pages/Delete'
+import Download from './pages/Download'
 import Jobs from './pages/Jobs'
 import Mount from './pages/Mount'
 import Move from './pages/Move'
@@ -69,6 +70,10 @@ const router = createBrowserRouter([
     {
         path: '/purge',
         element: <Purge />,
+    },
+    {
+        path: '/download',
+        element: <Download />,
     },
     {
         path: '/serve',

@@ -574,6 +574,22 @@ function GeneralSection() {
                         Show <span className="font-mono text-blue-300">Move</span> option
                     </Checkbox>
                     <Checkbox
+                        isSelected={!disabledActions?.includes('tray-download')}
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter(
+                                        (action) => action !== 'tray-download'
+                                    ) || []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-download'])
+                            }
+                        }}
+                    >
+                        Show <span className="font-mono text-blue-300">Download</span> option
+                    </Checkbox>
+                    <Checkbox
                         isSelected={!disabledActions?.includes('tray-serve')}
                         onValueChange={(value) => {
                             if (value) {

@@ -711,6 +711,36 @@ export async function startPurge({
     }
 }
 
+export async function startDownload({
+    fs,
+    remote,
+    url,
+    autoFilename = true,
+}: {
+    fs: string // a remote name string e.g. "drive:"
+    remote: string // a path within that remote e.g. "dir"
+    url: string // string, URL to read from
+    autoFilename?: boolean // boolean, set to true to retrieve destination file name from url
+}) {
+    const params = new URLSearchParams()
+    params.set('fs', fs)
+    params.set('remote', remote)
+    params.set('url', url)
+    params.set('autoFilename', autoFilename.toString())
+    params.set('_async', 'true')
+
+    const r = await fetch(`http://localhost:5572/operations/copyurl?${params.toString()}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    })
+
+    console.log('[startDownload] operation started:', r)
+
+    if (!r.ok) {
+        throw new Error('Failed to start download job')
+    }
+}
+
 /* FLAGS */
 export async function getCurrentGlobalFlags() {
     console.log('[getCurrentGlobalFlags]')

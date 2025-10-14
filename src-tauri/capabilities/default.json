@@ -14,6 +14,7 @@
         "Jobs",
         "Cron",
         "Serve",
+        "Download",
         "Browse",
         "Startup",
         "Test"
