@@ -622,7 +622,7 @@ async function checkTraySupport() {
         )
 
         if (!confirmed) {
-            await Promise.all([new Promise((resolve) => setTimeout(resolve, 100_000)), exit(0)])
+            await Promise.race([new Promise((resolve) => setTimeout(resolve, 100_000)), exit(0)])
         }
     }
 }
