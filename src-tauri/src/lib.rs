@@ -27,34 +27,52 @@ fn is_tray_supported() -> bool {
         use zbus::blocking::{Connection, Proxy};
         use zbus::names::BusName;
 
-        let conn = match Connection::session() {
-            Ok(c) => c,
-            Err(_) => return false,
-        };
+        if let Ok(conn) = Connection::session() {
+            if let Ok(dbus) = DBusProxy::new(&conn) {
+                let candidates = [
+                    "org.kde.StatusNotifierWatcher",
+                    "org.freedesktop.StatusNotifierWatcher",
+                ];
 
-        let dbus = match DBusProxy::new(&conn) {
-            Ok(p) => p,
-            Err(_) => return false,
-        };
-
-        let candidates = [
-            "org.kde.StatusNotifierWatcher",
-            "org.freedesktop.StatusNotifierWatcher",
-        ];
-
-        for name in candidates {
-            let bus_name = match BusName::try_from(name) {
-                Ok(n) => n,
-                Err(_) => continue,
-            };
-            if dbus.name_has_owner(bus_name).unwrap_or(false) {
-                // Try to read the property; if it fails but watcher exists, assume true
-                if let Ok(proxy) = Proxy::new(&conn, name, "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher") {
-                    if let Ok(registered) = proxy.get_property::<bool>("IsStatusNotifierHostRegistered") {
-                        return registered;
+                for name in candidates {
+                    let bus_name = match BusName::try_from(name) {
+                        Ok(n) => n,
+                        Err(_) => continue,
+                    };
+                    if dbus.name_has_owner(bus_name).unwrap_or(false) {
+                        // Try to read the property; if it fails but watcher exists, assume true
+                        if let Ok(proxy) = Proxy::new(&conn, name, "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher") {
+                            if let Ok(registered) = proxy.get_property::<bool>("IsStatusNotifierHostRegistered") {
+                                return registered;
+                            }
+                        }
+                        return true;
                     }
                 }
-                return true;
+            }
+        }
+
+        // legacy XEmbed tray (X11 _NET_SYSTEM_TRAY_Sn)
+        {
+            use std::env;
+            use x11rb::protocol::xproto::ConnectionExt;
+
+            // If Wayland-only (no X server), no legacy tray will exist
+            if env::var_os("WAYLAND_DISPLAY").is_some() && env::var_os("DISPLAY").is_none() {
+                return false;
+            }
+
+            if let Ok((conn, screen_num)) = x11rb::connect(None) {
+                let sel_name = format!("_NET_SYSTEM_TRAY_S{}", screen_num);
+                if let Ok(atom_cookie) = conn.intern_atom(false, sel_name.as_bytes()) {
+                    if let Ok(atom_reply) = atom_cookie.reply() {
+                        if let Ok(owner_cookie) = conn.get_selection_owner(atom_reply.atom) {
+                            if let Ok(owner_reply) = owner_cookie.reply() {
+                                return owner_reply.owner != 0;
+                            }
+                        }
+                    }
+                }
             }
         }
 
