@@ -512,6 +512,7 @@ export async function buildMenu() {
     }
 
     if (!persistedStoreState.disabledActions?.includes('tray-download')) {
+        // @ts-ignore added elsewhere
         const downloadMenuItem = await MenuItem.new({
             id: 'download',
             text: 'Download',
@@ -522,7 +523,6 @@ export async function buildMenu() {
                 })
             },
         })
-        // @ts-ignore added elsewhere
         // menuItems.push(downloadMenuItem)
     }
 
