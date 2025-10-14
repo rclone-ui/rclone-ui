@@ -4,7 +4,7 @@ import { resolveResource, sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { ask, message, open } from '@tauri-apps/plugin-dialog'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
-import { openPath } from '@tauri-apps/plugin-opener'
+import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { isDirectoryEmpty } from './fs'
 import notify from './notify'
@@ -650,6 +650,26 @@ export async function buildMenu() {
         },
     })
     menuItems.push(settingsItem)
+
+    const issuesItem = await MenuItem.new({
+        id: 'issues',
+        text: 'Issues?',
+        action: async () => {
+            const confirmed = await ask(
+                'Please open an issue on Github and we will get it sorted in less than 48 hours, no matter if you have a license or not.',
+                {
+                    title: 'Sorry ):',
+                    kind: 'info',
+                    okLabel: 'Open Github',
+                    cancelLabel: 'Cancel',
+                }
+            )
+            if (confirmed) {
+                await openUrl('https://github.com/rclone-ui/rclone-ui/issues')
+            }
+        },
+    })
+    menuItems.push(issuesItem)
 
     const quitItem = await MenuItem.new({
         id: 'quit',
