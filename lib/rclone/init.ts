@@ -442,8 +442,38 @@ export async function provisionRclone() {
         console.log('[provisionRclone] appLocalDataDirPath created')
     }
 
-    await copyFile(rcloneBinaryPath, `${appLocalDataDirPath}${sep()}${binaryName}`)
-    console.log('[provisionRclone] copied rclone binary')
+    const targetBinaryPath = `${appLocalDataDirPath}${sep()}${binaryName}`
+    console.log('[provisionRclone] targetBinaryPath', targetBinaryPath)
+
+    const maxCopyRetries = 3
+    for (let attempt = 1; attempt <= maxCopyRetries; attempt++) {
+        try {
+            await copyFile(rcloneBinaryPath, targetBinaryPath)
+            console.log('[provisionRclone] copied rclone binary')
+            break
+        } catch (copyError) {
+            console.log(
+                `[provisionRclone] attempt ${attempt}/${maxCopyRetries} failed to copy:`,
+                copyError
+            )
+
+            if (attempt < maxCopyRetries) {
+                // Wait a bit before retrying
+                await new Promise((resolve) => setTimeout(resolve, attempt * 1000))
+            } else {
+                console.error('[provisionRclone] all copy attempts failed', copyError)
+                Sentry.captureException(copyError, {
+                    extra: {
+                        rcloneBinaryPath,
+                        targetBinaryPath,
+                    },
+                })
+                throw new Error(
+                    'Failed to provision rclone, file is busy. Install cli manually or try again later.'
+                )
+            }
+        }
+    }
 
     const hasInstalled = await isInternalRcloneInstalled()
 
