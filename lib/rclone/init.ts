@@ -144,11 +144,20 @@ export async function initRclone(args: string[]) {
     let configFolderPath = activeConfigFile.sync
         ? activeConfigFile.sync
         : getConfigParentFolder(await getConfigPath({ id: activeConfigFile.id!, validate: true }))
-
     console.log('[initRclone] configFolderPath', configFolderPath)
 
+    let configPath = configFolderPath
+    if (configPath.endsWith(sep())) {
+        configPath = `${configPath}rclone.conf`
+    } else {
+        Sentry.captureException(new Error('configPath did not end with separator'))
+        configPath = `${configPath}${sep()}rclone.conf`
+    }
+    console.log('[initRclone] configPath', configPath)
+
     if (activeConfigFile.sync) {
-        if (!(await exists(`${configFolderPath}${sep()}rclone.conf`))) {
+        console.log('[initRclone] checking if synced config file exists', configPath)
+        if (!(await exists(configPath))) {
             await message('The config file could not be found. Switching to the default config.', {
                 title: 'Invalid synced config',
                 kind: 'error',
@@ -164,10 +173,11 @@ export async function initRclone(args: string[]) {
 
     let password: string | null = activeConfigFile.pass || activeConfigFile.passCommand || null
     try {
-        const configPath = `${configFolderPath}${sep()}rclone.conf`
-        console.log('[initRclone] configPath', configPath)
+        console.log('[initRclone] reading config file', configPath)
         const configContent = await readTextFile(configPath)
         const isEncrypted = configContent.includes('RCLONE_ENCRYPT_V0:')
+
+        console.log('[initRclone] isEncrypted', isEncrypted)
 
         if (isEncrypted) {
             if (!password) {
