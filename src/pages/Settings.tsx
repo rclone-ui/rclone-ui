@@ -366,10 +366,20 @@ function GeneralSection() {
             console.error(error)
             setIsWorkingUpdate(false)
             setUpdateButtonText('Tap to retry')
-            await message('An error occurred in the update process. Please try again.', {
-                title: 'Update Error',
-                kind: 'error',
-            })
+            const wantsManualDownload = await ask(
+                'An error occurred in the update process. Please try again or tap "Download" to download the update manually.',
+                {
+                    title: 'Update Error',
+                    kind: 'error',
+                    okLabel: 'Download',
+                    cancelLabel: 'Cancel',
+                }
+            )
+
+            if (wantsManualDownload) {
+                await openUrl('https://github.com/rclone-ui/rclone-ui/releases/latest')
+            }
+
             return
         }
 
