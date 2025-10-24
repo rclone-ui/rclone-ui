@@ -26,8 +26,14 @@ async function getTray() {
 async function resolveTrayIconForTheme() {
     let theme: 'light' | 'dark' = 'dark'
     try {
-        const t = (await invoke<string>('get_system_theme')) || 'dark'
-        theme = t === 'dark' ? 'dark' : 'light'
+        if (platform() === 'macos') {
+            const t = (await invoke<string>('get_system_theme')) || 'dark'
+            theme = t === 'dark' ? 'dark' : 'light'
+        } else {
+            const currentWindow = getCurrentWindow()
+            const t = await currentWindow.theme()
+            theme = t === 'dark' ? 'dark' : 'light'
+        }
     } catch {}
 
     console.log('[resolveTrayIconForTheme] theme', theme)
