@@ -358,6 +358,11 @@ async function startupMounts() {
 }
 
 async function showStartup() {
+    const hideStartup = usePersistedStore.getState().hideStartup
+    if (hideStartup) {
+        return
+    }
+
     const startupDisplayed = useStore.getState().startupDisplayed
     if (!startupDisplayed) {
         useStore.setState({ startupDisplayed: true, startupStatus: 'initialized' })
@@ -365,6 +370,9 @@ async function showStartup() {
             name: 'Startup',
             url: '/startup',
         })
+        if (!['windows', 'macos'].includes(platform())) {
+            usePersistedStore.setState({ hideStartup: true })
+        }
     }
 }
 

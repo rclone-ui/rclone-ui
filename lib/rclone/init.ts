@@ -48,6 +48,11 @@ export async function initRclone(args: string[]) {
         }
         console.log('[initRclone] provision succeeded')
         useStore.setState({ startupStatus: 'initialized' })
+
+        if (!['windows', 'macos'].includes(platform())) {
+            usePersistedStore.setState({ hideStartup: true })
+        }
+
         internal = true
     }
 
