@@ -994,7 +994,8 @@ function RemoteCard({
     const [type, setType] = useState<string | null>(null)
     const [provider, setProvider] = useState<string | null>(null)
 
-    const imageUrl = provider ? `/icons/providers/${provider}.png` : `/icons/backends/${type}.png`
+    const imageUrl =
+        provider && !type ? `/icons/providers/${provider}.png` : `/icons/backends/${type}.png`
 
     useEffect(() => {
         const loadRemoteConfig = async () => {

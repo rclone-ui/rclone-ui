@@ -5,7 +5,7 @@ export default function RemoteAvatar({ remote, size = 4 }: { remote: string; siz
     const [remoteData, setRemoteData] = useState<{ type: string; provider?: string } | null>(null)
 
     const avatarSrc = remoteData
-        ? remoteData.provider
+        ? remoteData.provider && !remoteData.type
             ? `/icons/providers/${remoteData.provider}.png`
             : `/icons/backends/${remoteData.type}.png`
         : undefined
