@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/browser'
+import { invoke } from '@tauri-apps/api/core'
 import { Menu } from '@tauri-apps/api/menu'
 import { MenuItem } from '@tauri-apps/api/menu'
 import { resolveResource } from '@tauri-apps/api/path'
@@ -20,6 +21,21 @@ let interval: NodeJS.Timeout | null = null
 
 async function getTray() {
     return await TrayIcon.getById('main-tray')
+}
+
+async function resolveTrayIconForTheme() {
+    let theme: 'light' | 'dark' = 'dark'
+    try {
+        const t = (await invoke<string>('get_system_theme')) || 'dark'
+        theme = t === 'dark' ? 'dark' : 'light'
+    } catch {}
+
+    console.log('[resolveTrayIconForTheme] theme', theme)
+
+    const pickedPath = theme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
+    console.log('[resolveTrayIconForTheme] pickedPath', pickedPath)
+
+    return await resolveResource(pickedPath)
 }
 
 export async function showLoadingTray() {
@@ -88,7 +104,9 @@ export async function showDefaultTray() {
 
     const newMenu = await buildMenu()
     await tray.setMenu(newMenu)
-    await tray.setIcon(await resolveResource('icons/favicon/icon.png'))
+
+    const iconPath = await resolveTrayIconForTheme()
+    await tray.setIcon(iconPath)
     await tray.setTooltip('Rclone')
 
     console.log('[showDefaultTray] tray menu rebuilt')
@@ -98,9 +116,10 @@ export async function initTray() {
     try {
         console.log('[initTray]')
 
+        const initialIcon = await resolveTrayIconForTheme()
         await TrayIcon.new({
             id: 'main-tray',
-            icon: (await resolveResource('icons/favicon/icon.png'))!,
+            icon: initialIcon!,
             tooltip: 'Rclone',
             menuOnLeftClick: true,
             action: async (event: TrayIconEvent) => {

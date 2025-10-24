@@ -249,6 +249,98 @@ fn get_uid() -> String {
 }
 
 #[tauri::command]
+fn get_system_theme() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        if let Ok(output) = Command::new("defaults")
+            .args(&["read", "-g", "AppleInterfaceStyle"])
+            .output()
+        {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("dark") {
+                    return "dark".to_string();
+                }
+            }
+        }
+        return "light".to_string();
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        if let Ok(output) = Command::new("reg").args(&[
+            "query",
+            r"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            "/v",
+            "AppsUseLightTheme",
+        ]).output() {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("0x0") || out.contains("0x00000000") {
+                    return "dark".to_string();
+                }
+                if out.contains("0x1") || out.contains("0x00000001") {
+                    return "light".to_string();
+                }
+            }
+        }
+        return "light".to_string();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::process::Command;
+
+        // GNOME color-scheme (prefer-dark)
+        if let Ok(output) = Command::new("gsettings")
+            .args(&["get", "org.gnome.desktop.interface", "color-scheme"])
+            .output()
+        {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("dark") {
+                    return "dark".to_string();
+                }
+            }
+        }
+
+        // GNOME gtk-theme name contains "dark"
+        if let Ok(output) = Command::new("gsettings")
+            .args(&["get", "org.gnome.desktop.interface", "gtk-theme"])
+            .output()
+        {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("dark") {
+                    return "dark".to_string();
+                }
+            }
+        }
+
+        // KDE color scheme via kreadconfig5
+        if let Ok(output) = Command::new("kreadconfig5")
+            .args(&["--group", "General", "--key", "ColorScheme"])
+            .output()
+        {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("dark") {
+                    return "dark".to_string();
+                }
+            }
+        }
+
+        return "light".to_string();
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        "dark".to_string()
+    }
+}
+#[tauri::command]
 fn is_rclone_running(port: Option<u16>) -> bool {
 
     if let Some(port) = port {
@@ -710,7 +802,7 @@ pub fn run() {
 		.plugin(tauri_plugin_shell::init())
 		.plugin(tauri_plugin_opener::init())
 		.plugin(tauri_plugin_prevent_default::debug())
-		.invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, is_rclone_running, stop_rclone_processes, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection, is_tray_supported])
+		.invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, is_rclone_running, stop_rclone_processes, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection, is_tray_supported, get_system_theme])
         .setup(|_app| Ok(()))
         // .setup(|app| {
         //     if cfg!(debug_assertions) {
