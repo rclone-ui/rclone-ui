@@ -392,23 +392,21 @@ async function parseRemotes(remotes: string[]) {
 
         let iconPath = await resolveResource('icons/favicon/icon.png')
 
-        if (['windows', 'macos'].includes(platform())) {
-            try {
-                if (remoteInfo?.provider) {
-                    iconPath = await resolveResource(
-                        `icons/small/providers/${remoteInfo.provider}.png`
-                    )
-                } else if (remoteInfo?.type) {
-                    iconPath = await resolveResource(`icons/small/backends/${remoteInfo?.type}.png`)
-                }
-            } catch (error) {
-                Sentry.captureException(
-                    new Error(`Error resolving icon path for ${remote}: ${error}`)
-                )
-                Sentry.captureException(error)
-                console.error('Error resolving icon path for', remote, error)
+        try {
+            if (remoteInfo?.provider && !remoteInfo.type) {
+                console.log('[parseRemotes] resolving provider icon', remoteInfo.provider)
+                iconPath = await resolveResource(`icons/small/providers/${remoteInfo.provider}.png`)
+            } else if (remoteInfo?.type) {
+                console.log('[parseRemotes] resolving backend icon', remoteInfo.type)
+                iconPath = await resolveResource(`icons/small/backends/${remoteInfo?.type}.png`)
             }
+        } catch (error) {
+            Sentry.captureException(new Error(`Error resolving icon path for ${remote}: ${error}`))
+            Sentry.captureException(error)
+            console.error('Error resolving icon path for', remote, error)
         }
+
+        console.log('[parseRemotes] iconPath', iconPath)
 
         parsedRemotes[remote] = {
             icon: iconPath,
