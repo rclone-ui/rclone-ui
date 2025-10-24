@@ -359,13 +359,12 @@ async function startupMounts() {
 
 async function showStartup() {
     const startupDisplayed = useStore.getState().startupDisplayed
-    if (startupDisplayed) {
-        useStore.setState({ startupStatus: 'initialized' })
+    if (!startupDisplayed) {
+        useStore.setState({ startupDisplayed: true, startupStatus: 'initialized' })
         await openSmallWindow({
             name: 'Startup',
             url: '/startup',
         })
-        useStore.setState({ startupDisplayed: false })
     }
 }
 
