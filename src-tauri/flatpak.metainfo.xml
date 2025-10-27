@@ -94,10 +94,10 @@
   </screenshots>
 	
   <releases>
-    <release version="2.7.9" date="2025-10-28">
-      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.7.9</url>
+    <release version="2.7.10" date="2025-10-29">
+      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.7.10</url>
       <description>
-	    <p>2.7.9 Release</p>
+	    <p>2.7.10 Release</p>
     	<ul>
 		  <li>Improved Linux stability and overall performance.</li>
         </ul>
