@@ -111,6 +111,8 @@ interface PersistedState {
     lastSkippedVersion: string | undefined
 
     hideStartup: boolean
+
+    theme: 'light' | 'dark' | undefined
 }
 
 const getStorage = (store: LazyStore): StateStorage => ({
@@ -253,6 +255,8 @@ export const usePersistedStore = create<PersistedState>()(
             lastSkippedVersion: undefined,
 
             hideStartup: false,
+
+            theme: undefined,
         }),
         {
             name: 'store',
