@@ -112,7 +112,9 @@ interface PersistedState {
 
     hideStartup: boolean
 
-    theme: 'light' | 'dark' | undefined
+    theme: {
+        tray: 'light' | 'dark' | undefined
+    }
 }
 
 const getStorage = (store: LazyStore): StateStorage => ({
@@ -256,7 +258,9 @@ export const usePersistedStore = create<PersistedState>()(
 
             hideStartup: false,
 
-            theme: undefined,
+            theme: {
+                tray: undefined,
+            },
         }),
         {
             name: 'store',

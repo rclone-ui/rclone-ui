@@ -25,41 +25,66 @@ async function getTray() {
 }
 
 async function resolveTrayIconForTheme() {
-    // const existingTheme = usePersistedStore.getState().theme
-    // if (existingTheme) {
-    //     return existingTheme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
-    // }
+    const existingTheme = usePersistedStore.getState().theme
+
+    if (typeof existingTheme === 'string') {
+        usePersistedStore.setState({ theme: { tray: undefined } })
+    }
+
+    if (existingTheme.tray) {
+        return existingTheme.tray === 'dark'
+            ? 'icons/favicon/icon.png'
+            : 'icons/favicon/icon-light.png'
+    }
 
     let theme: 'light' | 'dark' = 'dark'
-    try {
-        const detectedTheme = (await invoke<string>('get_system_theme')) as
-            | 'light'
-            | 'dark'
-            | 'unknown'
 
-        if (detectedTheme === 'unknown') {
-            const answer = await ask(
-                'Could not determine your system theme, please select the correct one below',
-                {
-                    title: 'Hmm...',
-                    okLabel: 'Dark',
-                    cancelLabel: 'Light',
+    if (['macos', 'windows'].includes(platform())) {
+        try {
+            const detectedTheme = (await invoke<string>('get_system_theme')) as
+                | 'light'
+                | 'dark'
+                | 'unknown'
+
+            if (detectedTheme === 'unknown') {
+                const answer = await ask(
+                    'Could not determine your system theme, please select the correct one below',
+                    {
+                        title: 'Hmm...',
+                        okLabel: 'Dark',
+                        cancelLabel: 'Light',
+                    }
+                )
+
+                if (answer) {
+                    theme = 'dark'
+                } else {
+                    theme = 'light'
                 }
-            )
-
-            if (answer) {
-                theme = 'dark'
             } else {
-                theme = 'light'
+                theme = detectedTheme
             }
+        } catch {}
+    } else {
+        const answer = await ask(
+            'Based on your tray/menubar, how do you want the icon to look?\n\nIf your menubar has a dark background select light, otherwise select dark.',
+            {
+                title: 'Greetings, Linux User',
+                okLabel: 'Dark',
+                cancelLabel: 'Light',
+            }
+        )
+
+        if (answer) {
+            theme = 'dark'
         } else {
-            theme = detectedTheme
+            theme = 'light'
         }
-    } catch {}
+    }
 
     console.log('[resolveTrayIconForTheme] theme', theme)
 
-    usePersistedStore.setState({ theme: undefined })
+    usePersistedStore.setState({ theme: { tray: theme } })
 
     const pickedPath = theme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
     console.log('[resolveTrayIconForTheme] pickedPath', pickedPath)
