@@ -112,7 +112,7 @@ interface PersistedState {
 
     hideStartup: boolean
 
-    theme: {
+    themeV2: {
         tray: 'light' | 'dark' | undefined
     }
 }
@@ -258,7 +258,7 @@ export const usePersistedStore = create<PersistedState>()(
 
             hideStartup: false,
 
-            theme: {
+            themeV2: {
                 tray: undefined,
             },
         }),
