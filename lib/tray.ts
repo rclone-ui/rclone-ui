@@ -25,18 +25,19 @@ async function getTray() {
 }
 
 async function resolveTrayIconForTheme() {
-    const existingTheme = usePersistedStore.getState().theme
-    if (existingTheme) {
-        return existingTheme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
-    }
+    // const existingTheme = usePersistedStore.getState().theme
+    // if (existingTheme) {
+    //     return existingTheme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
+    // }
 
     let theme: 'light' | 'dark' = 'dark'
     try {
-        const oneTheme = await invoke<string>('get_system_theme')
-        const currentWindow = getCurrentWindow()
-        const twoTheme = await currentWindow.theme()
+        const detectedTheme = (await invoke<string>('get_system_theme')) as
+            | 'light'
+            | 'dark'
+            | 'unknown'
 
-        if (oneTheme !== twoTheme) {
+        if (detectedTheme === 'unknown') {
             const answer = await ask(
                 'Could not determine your system theme, please select the correct one below',
                 {
@@ -52,13 +53,13 @@ async function resolveTrayIconForTheme() {
                 theme = 'light'
             }
         } else {
-            theme = oneTheme
+            theme = detectedTheme
         }
     } catch {}
 
     console.log('[resolveTrayIconForTheme] theme', theme)
 
-    usePersistedStore.setState({ theme })
+    usePersistedStore.setState({ theme: undefined })
 
     const pickedPath = theme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
     console.log('[resolveTrayIconForTheme] pickedPath', pickedPath)
@@ -144,10 +145,10 @@ export async function initTray() {
     try {
         console.log('[initTray]')
 
-        const initialIcon = await resolveTrayIconForTheme()
+        // const initialIcon = await resolveTrayIconForTheme()
         await TrayIcon.new({
             id: 'main-tray',
-            icon: initialIcon!,
+            // icon: initialIcon!,
             tooltip: 'Rclone',
             menuOnLeftClick: true,
             action: async (event: TrayIconEvent) => {
