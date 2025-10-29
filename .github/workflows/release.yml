@@ -65,7 +65,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-          key: ${{ runner.os }}-${{ runner.arch }}-22
+          key: ${{ runner.os }}-${{ runner.arch }}
 
       - name: install dependencies (linux only)
         if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
