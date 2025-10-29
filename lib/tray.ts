@@ -42,6 +42,19 @@ async function resolveTrayIconForTheme() {
                 | 'dark'
                 | 'unknown'
 
+            const currentWindow = getCurrentWindow()
+            const windowTheme = await currentWindow.theme()
+
+            if (windowTheme !== detectedTheme) {
+                Sentry.captureException(new Error('Window theme mismatch'), {
+                    extra: {
+                        detectedTheme,
+                        windowTheme,
+                        os: platform(),
+                    },
+                })
+            }
+
             if (detectedTheme === 'unknown') {
                 const answer = await ask(
                     'Could not determine your system theme, please select the correct one below',
