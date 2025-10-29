@@ -250,10 +250,18 @@ fn get_uid() -> String {
 
 #[tauri::command]
 fn get_system_theme() -> String {
-    match dark_light::detect() {
-        dark_light::Mode::Dark => "dark".to_string(),
-        dark_light::Mode::Light => "light".to_string(),
-        dark_light::Mode::Default => "unknown".to_string(),
+    #[cfg(not(target_os = "linux"))]
+    {
+        match dark_light::detect() {
+            dark_light::Mode::Dark => "dark".to_string(),
+            dark_light::Mode::Light => "light".to_string(),
+            dark_light::Mode::Default => "unknown".to_string(),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        "unknown".to_string()
     }
 }
 
