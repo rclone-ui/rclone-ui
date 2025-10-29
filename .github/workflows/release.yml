@@ -81,7 +81,7 @@ jobs:
             libxdo-dev \
             libssl-dev \
             libappindicator3-dev \
-            librsvg2-dev 
+            librsvg2-dev \
             patchelf
 
           mkdir -p /tmp/ubuntu-packages
