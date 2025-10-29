@@ -15,22 +15,31 @@ jobs:
             args: '--target aarch64-apple-darwin'
             arch: 'silicon'
             type: 'aarch64'
+            assetPattern: '[name]_[arch][ext]'
           - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin'
             arch: 'silicon'
             type: 'x86_64'
+            assetPattern: '[name]_[arch][ext]'
           - platform: 'ubuntu-22.04' 
             args: ''
+            assetPattern: '[name]_[arch][ext]'
           - platform: 'ubuntu-22.04-arm' 
             args: ''
+            assetPattern: '[name]_[arch][ext]'
+          - platform: 'ubuntu-20.04' 
+            args: '--config "{\"bundle\":{\"createUpdaterArtifacts\":false}}"'
+            assetPattern: '[name]_[arch]_legacy[ext]'
           - platform: 'windows-11-arm'
             args: '--target x86_64-pc-windows-msvc'
             arch: 'arm64'
             type: 'x86_64'
+            assetPattern: '[name]_[arch][ext]'
           - platform: "windows-11-arm"
             args: "--target aarch64-pc-windows-msvc"
             arch: 'arm64'
             type: 'aarch64'
+            assetPattern: '[name]_[arch][ext]'
 
     runs-on: ${{ matrix.platform }}
     env:
@@ -47,7 +56,7 @@ jobs:
 
       - name: install Rust stable (linux only)
         uses: dtolnay/rust-toolchain@stable
-        if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm'
+        if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm' || matrix.platform == 'ubuntu-20.04'
         
       - name: install Rust stable (macos only)
         uses: dtolnay/rust-toolchain@stable
@@ -68,40 +77,13 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}
 
       - name: install dependencies (linux only)
-        if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
+        if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm' || matrix.platform == 'ubuntu-20.04'
         run: |
           sudo apt-get update
-
-          sudo apt-get install -y \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libgtk-3-dev \
-            libxdo-dev \
-            libssl-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-          mkdir -p /tmp/ubuntu-packages
-          cd /tmp/ubuntu-packages
-          wget https://launchpadlibrarian.net/723972773/libwebkit2gtk-4.1-0_2.44.0-0ubuntu0.22.04.1_amd64.deb
-          wget https://launchpadlibrarian.net/723972761/libwebkit2gtk-4.1-dev_2.44.0-0ubuntu0.22.04.1_amd64.deb
-          wget https://launchpadlibrarian.net/723972770/libjavascriptcoregtk-4.1-0_2.44.0-0ubuntu0.22.04.1_amd64.deb
-          wget https://launchpadlibrarian.net/723972746/libjavascriptcoregtk-4.1-dev_2.44.0-0ubuntu0.22.04.1_amd64.deb
-          wget https://launchpadlibrarian.net/723972735/gir1.2-javascriptcoregtk-4.1_2.44.0-0ubuntu0.22.04.1_amd64.deb
-          wget https://launchpadlibrarian.net/723972739/gir1.2-webkit2-4.1_2.44.0-0ubuntu0.22.04.1_amd64.deb
-          wget https://launchpadlibrarian.net/606433947/libicu70_70.1-2ubuntu1_amd64.deb
-          wget https://launchpadlibrarian.net/606433941/libicu-dev_70.1-2ubuntu1_amd64.deb
-          wget https://launchpadlibrarian.net/606433945/icu-devtools_70.1-2ubuntu1_amd64.deb
-          wget https://launchpadlibrarian.net/595623693/libjpeg8_8c-2ubuntu10_amd64.deb
-          wget https://launchpadlibrarian.net/587202140/libjpeg-turbo8_2.1.2-0ubuntu1_amd64.deb
-          wget https://launchpadlibrarian.net/592959859/xdg-desktop-portal-gtk_1.14.0-1build1_amd64.deb
-          sudo apt-get install -y /tmp/ubuntu-packages/*.deb
-
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          
       - name: install dependencies (linux arm only)
-        if: matrix.platform == 'ubuntu-22.04-arm' # This must match the platform value defined above.
+        if: matrix.platform == 'ubuntu-22.04-arm'
         run: |
           sudo apt-get install -y xdg-utils libayatana-appindicator3-dev
           
@@ -110,13 +92,21 @@ jobs:
         run: |
           cargo install trusted-signing-cli
 
-      - name: Override linuxdeploy
-        if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm' 
+      - name: Override linuxdeploy (linux only)
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           TAURI_TOOLKIT_PATH="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
           mkdir -p "$TAURI_TOOLKIT_PATH"
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-x86_64.AppImage -O "$TAURI_TOOLKIT_PATH/linuxdeploy-x86_64.AppImage"
           chmod +x "$TAURI_TOOLKIT_PATH/linuxdeploy-x86_64.AppImage"
+          
+      - name: Override linuxdeploy (linux arm only)
+        if:  matrix.platform == 'ubuntu-22.04-arm' 
+        run: |
+          TAURI_TOOLKIT_PATH="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
+          mkdir -p "$TAURI_TOOLKIT_PATH"
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-aarch64.AppImage -O "$TAURI_TOOLKIT_PATH/linuxdeploy-aarch64.AppImage"
+          chmod +x "$TAURI_TOOLKIT_PATH/linuxdeploy-aarch64.AppImage"
 
       - name: install frontend dependencies
         run: npm install
@@ -171,7 +161,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
           releaseBody: "<img width=\"1645\" height=\"626\" alt=\"Rclone UI\" src=\"https://github.com/user-attachments/assets/539c0b90-fee1-487e-879a-6a9168a44508\" />\n\n# Rclone UI v__VERSION__\n- Bug squashing & improvements.\n\n**See the assets to download this version and install.**"
-          assetNamePattern: '[name]_[arch][ext]'
+          assetNamePattern: ${{ matrix.assetPattern }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
