@@ -26,7 +26,7 @@ jobs:
             assetPattern: '[name]_[arch][ext]'
             variant: 'default'
           - platform: 'ubuntu-22.04' 
-            args: '--config "{\"bundle\":{\"createUpdaterArtifacts\":false}}"'
+            args: '--config "{"bundle":{"createUpdaterArtifacts":false}}"'
             assetPattern: '[name]_[arch]_legacy[ext]'
             variant: 'legacy'
           - platform: 'ubuntu-22.04-arm' 
