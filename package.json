@@ -1,7 +1,7 @@
 {
     "name": "rclone-ui",
     "private": true,
-    "version": "2.7.18",
+    "version": "2.7.19",
     "type": "module",
     "scripts": {
         "dev": "node scripts/buildExternal.js && vite",
