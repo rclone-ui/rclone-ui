@@ -57,6 +57,10 @@ jobs:
           node-version: lts/*
           cache: 'npm'
 
+      - name: Purge cargo
+        run: |
+          rm -rf ~/.cargo/registry ~/.cargo/git ./target || true
+
       - name: install Rust stable (linux only)
         uses: dtolnay/rust-toolchain@stable
         if: matrix.platform == 'ubuntu-22.04' || matrix.platform == 'ubuntu-22.04-arm'
@@ -83,7 +87,7 @@ jobs:
         if: matrix.variant == 'default'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libayatana-appindicator3-dev
           
       - name: install dependencies (linux legacy only)
         if: matrix.variant == 'legacy'
@@ -121,7 +125,7 @@ jobs:
       - name: install dependencies (linux arm only)
         if: matrix.platform == 'ubuntu-22.04-arm'
         run: |
-          sudo apt-get install -y xdg-utils libayatana-appindicator3-dev
+          sudo apt-get install -y xdg-utils 
           
       - name: install dependencies (windows only)
         if: matrix.platform == 'windows-11-arm'
