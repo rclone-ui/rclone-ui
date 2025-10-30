@@ -179,10 +179,10 @@ export async function initTray() {
     try {
         console.log('[initTray]')
 
-        const initialIcon = await resolveResource('icons/favicon/frame_00_delay-0.1s.png')
+        // const initialIcon = await resolveResource('icons/favicon/frame_00_delay-0.1s.png')
         await TrayIcon.new({
             id: 'main-tray',
-            icon: initialIcon,
+            icon: (await resolveResource('icons/favicon/icon.png'))!,
             tooltip: 'Rclone',
             menuOnLeftClick: true,
             action: async (event: TrayIconEvent) => {
