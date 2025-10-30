@@ -77,7 +77,7 @@
 
 ## Roadmap
 > Finalized items have been moved to the "Features" section.
-### [Check out the V3 discussion!](https://github.com/rclone-ui/rclone-ui/issues/37)
+### [Check out the V3 discussion!](https://github.com/rclone-ui/rclone-ui/issues/18)
 
 ## 1 Star = 1 Instant Coffee
 <a href="https://www.star-history.com/#rclone-ui/rclone-ui&Timeline">
