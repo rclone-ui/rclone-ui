@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.7.19"
+version = "2.7.20"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -52,6 +52,3 @@ cocoa = "0.26"
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "5" }
 x11rb = "0.13"
-
-[target.'cfg(not(target_os = "linux"))'.dependencies]
-dark-light = "1.1.1"

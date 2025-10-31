@@ -49,7 +49,7 @@ import {
     MedalIcon,
     PencilIcon,
     PlusIcon,
-    SatelliteDishIcon,
+    SatelliteDish,
     ServerIcon,
     Trash2Icon,
 } from 'lucide-react'
@@ -213,7 +213,7 @@ function Settings() {
                     key="proxy"
                     title={
                         <div className="flex items-center gap-2">
-                            <SatelliteDishIcon className="w-5 h-5" />
+                            <SatelliteDish className="w-5 h-5" />
                             <span>Proxy</span>
                         </div>
                     }
@@ -292,7 +292,11 @@ function GeneralSection() {
     const [isWorkingUpdate, setIsWorkingUpdate] = useState(false)
     const [update, setUpdate] = useState<Update | null>(null)
 
-    const [showServe, setShowServe] = useState(false)
+    const [rcloneVersion, setRcloneVersion] = useState<{ yours: string; latest: string } | null>(
+        null
+    )
+
+    const showServe = rcloneVersion?.yours && compareVersions(rcloneVersion.yours, '1.70.0') === 1
 
     async function updateCallback() {
         if (!update) {
@@ -393,28 +397,19 @@ function GeneralSection() {
         await getCurrentWindow().emit('relaunch-app')
     }
 
-    function updateDisabledActions({
-        name,
-        value,
-    }: { name: (typeof disabledActions)[number]; value: boolean }) {
-        if (value) {
-            setDisabledActions(disabledActions?.filter((action) => action !== name) || [])
-        } else {
-            setDisabledActions([...(disabledActions || []), name])
-        }
-        triggerTrayRebuild()
-    }
-
     useEffect(() => {
         // needed since the first value from the persisted store is undefined
         setPasswordInput(settingsPass || '')
     }, [settingsPass])
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+    useEffect(() => {
+        triggerTrayRebuild()
+    }, [disabledActions])
+
     useEffect(() => {
         getRcloneVersion().then((version) => {
-            if (version?.yours && compareVersions(version.yours, '1.70.0') === 1) {
-                setShowServe(true)
-            }
+            setRcloneVersion(version)
         })
     }, [])
 
@@ -530,66 +525,123 @@ function GeneralSection() {
 
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-mount')}
-                        onValueChange={(value) =>
-                            updateDisabledActions({ name: 'tray-mount', value })
-                        }
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-mount') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-mount'])
+                            }
+                        }}
                     >
                         Show <span className="font-mono text-blue-300">Mount</span> option
                     </Checkbox>
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-sync')}
-                        onValueChange={(value) =>
-                            updateDisabledActions({ name: 'tray-sync', value })
-                        }
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-sync') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-sync'])
+                            }
+                        }}
                     >
                         Show <span className="font-mono text-blue-300">Sync</span> option
                     </Checkbox>
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-copy')}
-                        onValueChange={(value) =>
-                            updateDisabledActions({ name: 'tray-copy', value })
-                        }
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-copy') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-copy'])
+                            }
+                        }}
                     >
                         Show <span className="font-mono text-blue-300">Copy</span> option
                     </Checkbox>
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-move')}
-                        onValueChange={(value) =>
-                            updateDisabledActions({ name: 'tray-move', value })
-                        }
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-move') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-move'])
+                            }
+                        }}
                     >
                         Show <span className="font-mono text-blue-300">Move</span> option
                     </Checkbox>
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-download')}
-                        onValueChange={(value) =>
-                            updateDisabledActions({ name: 'tray-download', value })
-                        }
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter(
+                                        (action) => action !== 'tray-download'
+                                    ) || []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-download'])
+                            }
+                        }}
                     >
                         Show <span className="font-mono text-blue-300">Download</span> option
                     </Checkbox>
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-serve')}
-                        onValueChange={(value) =>
-                            updateDisabledActions({ name: 'tray-serve', value })
-                        }
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-serve') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-serve'])
+                            }
+                        }}
                         isDisabled={!showServe}
                     >
                         Show <span className="font-mono text-blue-300">Serve</span> option
                     </Checkbox>
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-purge')}
-                        onValueChange={(value) =>
-                            updateDisabledActions({ name: 'tray-purge', value })
-                        }
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-purge') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-purge'])
+                            }
+                        }}
                     >
                         Show <span className="font-mono text-blue-300">Purge</span> option
                     </Checkbox>
                     <Checkbox
                         isSelected={!disabledActions?.includes('tray-delete')}
-                        onValueChange={(value) =>
-                            updateDisabledActions({ name: 'tray-delete', value })
-                        }
+                        onValueChange={(value) => {
+                            if (value) {
+                                setDisabledActions(
+                                    disabledActions?.filter((action) => action !== 'tray-delete') ||
+                                        []
+                                )
+                            } else {
+                                setDisabledActions([...(disabledActions || []), 'tray-delete'])
+                            }
+                        }}
                     >
                         Show <span className="font-mono text-blue-300">Delete</span> option
                     </Checkbox>

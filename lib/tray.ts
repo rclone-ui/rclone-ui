@@ -9,7 +9,6 @@ import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { buildMenu } from './menu'
-import { usePersistedStore } from './store'
 import { resetMainWindow } from './window'
 
 export async function triggerTrayRebuild() {
@@ -25,75 +24,19 @@ async function getTray() {
 }
 
 async function resolveTrayIconForTheme() {
-    const existingTheme = usePersistedStore.getState().themeV2
-
-    if ('tray' in existingTheme && existingTheme.tray) {
-        return existingTheme.tray === 'dark'
-            ? 'icons/favicon/icon.png'
-            : 'icons/favicon/icon-light.png'
-    }
-
     let theme: 'light' | 'dark' = 'dark'
-
-    if (['macos', 'windows'].includes(platform())) {
-        try {
-            const detectedTheme = (await invoke<string>('get_system_theme')) as
-                | 'light'
-                | 'dark'
-                | 'unknown'
-
-            const currentWindow = getCurrentWindow()
-            const windowTheme = await currentWindow.theme()
-
-            if (windowTheme !== detectedTheme) {
-                Sentry.captureException(new Error('Window theme mismatch'), {
-                    extra: {
-                        detectedTheme,
-                        windowTheme,
-                        os: platform(),
-                    },
-                })
-            }
-
-            if (detectedTheme === 'unknown') {
-                const answer = await ask(
-                    'Could not determine your system theme, please select the correct one below',
-                    {
-                        title: 'Hmm...',
-                        okLabel: 'Dark',
-                        cancelLabel: 'Light',
-                    }
-                )
-
-                if (answer) {
-                    theme = 'dark'
-                } else {
-                    theme = 'light'
-                }
-            } else {
-                theme = detectedTheme
-            }
-        } catch {}
-    } else {
-        const answer = await ask(
-            'Based on your tray/menubar, how do you want the icon to look?\n\nIf your menubar has a dark background select light, otherwise select dark.',
-            {
-                title: 'Greetings, Linux User',
-                okLabel: 'Dark',
-                cancelLabel: 'Light',
-            }
-        )
-
-        if (answer) {
-            theme = 'dark'
+    try {
+        if (platform() === 'macos') {
+            const t = (await invoke<string>('get_system_theme')) || 'dark'
+            theme = t === 'dark' ? 'dark' : 'light'
         } else {
-            theme = 'light'
+            const currentWindow = getCurrentWindow()
+            const t = await currentWindow.theme()
+            theme = t === 'dark' ? 'dark' : 'light'
         }
-    }
+    } catch {}
 
     console.log('[resolveTrayIconForTheme] theme', theme)
-
-    usePersistedStore.setState({ themeV2: { tray: theme } })
 
     const pickedPath = theme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
     console.log('[resolveTrayIconForTheme] pickedPath', pickedPath)
@@ -179,10 +122,10 @@ export async function initTray() {
     try {
         console.log('[initTray]')
 
-        // const initialIcon = await resolveResource('icons/favicon/frame_00_delay-0.1s.png')
+        const initialIcon = await resolveTrayIconForTheme()
         await TrayIcon.new({
             id: 'main-tray',
-            icon: (await resolveResource('icons/favicon/icon.png'))!,
+            icon: initialIcon!,
             tooltip: 'Rclone',
             menuOnLeftClick: true,
             action: async (event: TrayIconEvent) => {

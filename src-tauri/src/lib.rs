@@ -250,21 +250,96 @@ fn get_uid() -> String {
 
 #[tauri::command]
 fn get_system_theme() -> String {
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
     {
-        match dark_light::detect() {
-            dark_light::Mode::Dark => "dark".to_string(),
-            dark_light::Mode::Light => "light".to_string(),
-            dark_light::Mode::Default => "unknown".to_string(),
+        use std::process::Command;
+        if let Ok(output) = Command::new("defaults")
+            .args(&["read", "-g", "AppleInterfaceStyle"])
+            .output()
+        {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("dark") {
+                    return "dark".to_string();
+                }
+            }
         }
+        return "light".to_string();
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        if let Ok(output) = Command::new("reg").args(&[
+            "query",
+            r"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            "/v",
+            "AppsUseLightTheme",
+        ]).output() {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("0x0") || out.contains("0x00000000") {
+                    return "dark".to_string();
+                }
+                if out.contains("0x1") || out.contains("0x00000001") {
+                    return "light".to_string();
+                }
+            }
+        }
+        return "light".to_string();
     }
 
     #[cfg(target_os = "linux")]
     {
-        "unknown".to_string()
+        use std::process::Command;
+
+        // GNOME color-scheme (prefer-dark)
+        if let Ok(output) = Command::new("gsettings")
+            .args(&["get", "org.gnome.desktop.interface", "color-scheme"])
+            .output()
+        {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("dark") {
+                    return "dark".to_string();
+                }
+            }
+        }
+
+        // GNOME gtk-theme name contains "dark"
+        if let Ok(output) = Command::new("gsettings")
+            .args(&["get", "org.gnome.desktop.interface", "gtk-theme"])
+            .output()
+        {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("dark") {
+                    return "dark".to_string();
+                }
+            }
+        }
+
+        // KDE color scheme via kreadconfig5
+        if let Ok(output) = Command::new("kreadconfig5")
+            .args(&["--group", "General", "--key", "ColorScheme"])
+            .output()
+        {
+            if output.status.success() {
+                let out = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                if out.contains("dark") {
+                    return "dark".to_string();
+                }
+            }
+        }
+
+        return "light".to_string();
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        "dark".to_string()
     }
 }
-
 #[tauri::command]
 fn is_rclone_running(port: Option<u16>) -> bool {
 
@@ -469,103 +544,52 @@ async fn prompt_text(
 
         if is_sensitive {
             // Try zenity password dialog first
-            match std::process::Command::new("zenity")
+            if let Ok(output) = std::process::Command::new("zenity")
                 .args(&["--password", "--title", &title, "--text", &message])
                 .output()
             {
-                Ok(output) => {
-                    if output.status.success() {
-                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !result.is_empty() {
                         return Ok(Some(result));
-                    } else {
-                        // Check if user cancelled (exit code 1) or other error
-                        let exit_code = output.status.code().unwrap_or(-1);
-                        if exit_code == 1 {
-                            // User clicked Cancel
-                            return Ok(None);
-                        }
-                        // For other errors, fall through to try kdialog
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!("zenity password dialog failed (exit {}): {}", exit_code, stderr);
                     }
-                }
-                Err(e) => {
-                    // Command not found or couldn't execute, try kdialog
-                    eprintln!("zenity not available: {}", e);
                 }
             }
 
             // Fallback to kdialog password
-            match std::process::Command::new("kdialog")
+            if let Ok(output) = std::process::Command::new("kdialog")
                 .args(&["--password", &message, "--title", &title])
                 .output()
             {
-                Ok(output) => {
-                    if output.status.success() {
-                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !result.is_empty() {
                         return Ok(Some(result));
-                    } else {
-                        let exit_code = output.status.code().unwrap_or(-1);
-                        if exit_code == 1 {
-                            // User clicked Cancel
-                            return Ok(None);
-                        }
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!("kdialog password dialog failed (exit {}): {}", exit_code, stderr);
                     }
-                }
-                Err(e) => {
-                    eprintln!("kdialog not available: {}", e);
                 }
             }
 
             return Err("No suitable password dialog found. Please install zenity or kdialog.".to_string());
         } else {
             // Try zenity text entry first
-            match std::process::Command::new("zenity")
+            if let Ok(output) = std::process::Command::new("zenity")
                 .args(&["--entry", "--title", &title, "--text", &message, "--entry-text", &default_value])
                 .output()
             {
-                Ok(output) => {
-                    if output.status.success() {
-                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        return Ok(Some(result));
-                    } else {
-                        let exit_code = output.status.code().unwrap_or(-1);
-                        if exit_code == 1 {
-                            // User clicked Cancel
-                            return Ok(None);
-                        }
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!("zenity entry dialog failed (exit {}): {}", exit_code, stderr);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("zenity not available: {}", e);
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    return Ok(Some(result));
                 }
             }
 
             // Fallback to kdialog input box
-            match std::process::Command::new("kdialog")
+            if let Ok(output) = std::process::Command::new("kdialog")
                 .args(&["--inputbox", &message, &default_value, "--title", &title])
                 .output()
             {
-                Ok(output) => {
-                    if output.status.success() {
-                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        return Ok(Some(result));
-                    } else {
-                        let exit_code = output.status.code().unwrap_or(-1);
-                        if exit_code == 1 {
-                            // User clicked Cancel
-                            return Ok(None);
-                        }
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!("kdialog inputbox failed (exit {}): {}", exit_code, stderr);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("kdialog not available: {}", e);
+                if output.status.success() {
+                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    return Ok(Some(result));
                 }
             }
 
