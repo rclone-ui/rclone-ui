@@ -501,22 +501,7 @@ export async function buildMenu() {
         menuItems.push(copyMenuItem)
     }
 
-    if (!persistedStoreState.disabledActions?.includes('tray-sync')) {
-        const syncMenuItem = await MenuItem.new({
-            id: 'sync',
-            text: 'Sync',
-            action: async () => {
-                await openWindow({
-                    name: 'Sync',
-                    url: '/sync',
-                })
-            },
-        })
-        menuItems.push(syncMenuItem)
-    }
-
     if (!persistedStoreState.disabledActions?.includes('tray-download')) {
-        // @ts-ignore added elsewhere
         const downloadMenuItem = await MenuItem.new({
             id: 'download',
             text: 'Download',
@@ -527,10 +512,11 @@ export async function buildMenu() {
                 })
             },
         })
-        // menuItems.push(downloadMenuItem)
+        menuItems.push(downloadMenuItem)
     }
 
     const allowsAdditional =
+        !persistedStoreState.disabledActions?.includes('tray-sync') ||
         !persistedStoreState.disabledActions?.includes('tray-move') ||
         !persistedStoreState.disabledActions?.includes('tray-serve') ||
         !persistedStoreState.disabledActions?.includes('tray-purge') ||
@@ -538,6 +524,20 @@ export async function buildMenu() {
 
     if (allowsAdditional) {
         const commandsSubmenuItems: (MenuItem | Submenu | PredefinedMenuItem)[] = []
+
+        if (!persistedStoreState.disabledActions?.includes('tray-sync')) {
+            const syncMenuItem = await MenuItem.new({
+                id: 'sync',
+                text: 'Sync',
+                action: async () => {
+                    await openWindow({
+                        name: 'Sync',
+                        url: '/sync',
+                    })
+                },
+            })
+            commandsSubmenuItems.push(syncMenuItem)
+        }
 
         if (!persistedStoreState.disabledActions?.includes('tray-move')) {
             const moveMenuItem = await MenuItem.new({
