@@ -453,52 +453,103 @@ async fn prompt_text(
 
         if is_sensitive {
             // Try zenity password dialog first
-            if let Ok(output) = std::process::Command::new("zenity")
+            match std::process::Command::new("zenity")
                 .args(&["--password", "--title", &title, "--text", &message])
                 .output()
             {
-                if output.status.success() {
-                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !result.is_empty() {
+                Ok(output) => {
+                    if output.status.success() {
+                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
                         return Ok(Some(result));
+                    } else {
+                        // Check if user cancelled (exit code 1) or other error
+                        let exit_code = output.status.code().unwrap_or(-1);
+                        if exit_code == 1 {
+                            // User clicked Cancel
+                            return Ok(None);
+                        }
+                        // For other errors, fall through to try kdialog
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        eprintln!("zenity password dialog failed (exit {}): {}", exit_code, stderr);
                     }
+                }
+                Err(e) => {
+                    // Command not found or couldn't execute, try kdialog
+                    eprintln!("zenity not available: {}", e);
                 }
             }
 
             // Fallback to kdialog password
-            if let Ok(output) = std::process::Command::new("kdialog")
+            match std::process::Command::new("kdialog")
                 .args(&["--password", &message, "--title", &title])
                 .output()
             {
-                if output.status.success() {
-                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !result.is_empty() {
+                Ok(output) => {
+                    if output.status.success() {
+                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
                         return Ok(Some(result));
+                    } else {
+                        let exit_code = output.status.code().unwrap_or(-1);
+                        if exit_code == 1 {
+                            // User clicked Cancel
+                            return Ok(None);
+                        }
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        eprintln!("kdialog password dialog failed (exit {}): {}", exit_code, stderr);
                     }
+                }
+                Err(e) => {
+                    eprintln!("kdialog not available: {}", e);
                 }
             }
 
             return Err("No suitable password dialog found. Please install zenity or kdialog.".to_string());
         } else {
             // Try zenity text entry first
-            if let Ok(output) = std::process::Command::new("zenity")
+            match std::process::Command::new("zenity")
                 .args(&["--entry", "--title", &title, "--text", &message, "--entry-text", &default_value])
                 .output()
             {
-                if output.status.success() {
-                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    return Ok(Some(result));
+                Ok(output) => {
+                    if output.status.success() {
+                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                        return Ok(Some(result));
+                    } else {
+                        let exit_code = output.status.code().unwrap_or(-1);
+                        if exit_code == 1 {
+                            // User clicked Cancel
+                            return Ok(None);
+                        }
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        eprintln!("zenity entry dialog failed (exit {}): {}", exit_code, stderr);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("zenity not available: {}", e);
                 }
             }
 
             // Fallback to kdialog input box
-            if let Ok(output) = std::process::Command::new("kdialog")
+            match std::process::Command::new("kdialog")
                 .args(&["--inputbox", &message, &default_value, "--title", &title])
                 .output()
             {
-                if output.status.success() {
-                    let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    return Ok(Some(result));
+                Ok(output) => {
+                    if output.status.success() {
+                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                        return Ok(Some(result));
+                    } else {
+                        let exit_code = output.status.code().unwrap_or(-1);
+                        if exit_code == 1 {
+                            // User clicked Cancel
+                            return Ok(None);
+                        }
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        eprintln!("kdialog inputbox failed (exit {}): {}", exit_code, stderr);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("kdialog not available: {}", e);
                 }
             }
 
