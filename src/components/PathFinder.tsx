@@ -223,6 +223,7 @@ export function PathField({
     setPath,
     label,
     placeholder = 'Enter a remote:/path or local path, or tap to select files',
+    description,
     showSuggestions = true,
     clearable = true,
     showPicker = true,
@@ -233,6 +234,7 @@ export function PathField({
     setPath: (path: string) => void
     label: string
     placeholder?: string
+    description?: string
     showSuggestions?: boolean
     clearable?: boolean
     showPicker?: boolean
@@ -397,6 +399,11 @@ export function PathField({
                     isLoading={isLoading}
                     selectorIcon={showSuggestions ? undefined : null}
                     isClearable={clearable}
+                    description={description}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
                     onClear={() => {
                         setPath('')
                         setSuggestions([])
@@ -429,7 +436,7 @@ export function PathField({
                     type="button"
                     isIconOnly={true}
                     size="lg"
-                    className="w-20 h-18"
+                    className="w-20 h-16"
                     data-focus-visible="false"
                 >
                     <FolderOpen className="w-6 h-6" />
