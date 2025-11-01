@@ -8,6 +8,7 @@ import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { buildMenu } from './menu'
+import { usePersistedStore } from './store'
 import { resetMainWindow } from './window'
 
 export async function triggerTrayRebuild() {
@@ -23,7 +24,10 @@ async function getTray() {
 }
 
 async function resolveTrayIconForTheme() {
-    // const existingTheme = usePersistedStore.getState().themeV2
+    console.log('[resolveTrayIconForTheme]')
+
+    const existingTheme = usePersistedStore.getState().themeV2
+    console.log('[resolveTrayIconForTheme] existingTheme', existingTheme)
 
     // if ('tray' in existingTheme && existingTheme.tray) {
     //     return existingTheme.tray === 'dark'
