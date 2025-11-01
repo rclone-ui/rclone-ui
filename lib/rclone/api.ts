@@ -715,7 +715,7 @@ export async function startDownload({
     fs,
     remote,
     url,
-    autoFilename = true,
+    autoFilename = false,
 }: {
     fs: string // a remote name string e.g. "drive:"
     remote: string // a path within that remote e.g. "dir"

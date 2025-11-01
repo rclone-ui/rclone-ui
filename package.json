@@ -22,6 +22,7 @@
     "dependencies": {
         "@formkit/auto-animate": "^0.9.0",
         "@heroui/react": "^2.7.11",
+        "@mux/mux-player-react": "^3.8.0",
         "@sentry/browser": "^10.8.0",
         "@tauri-apps/api": "~2.8.0",
         "@tauri-apps/plugin-autostart": "^2.5.0",
