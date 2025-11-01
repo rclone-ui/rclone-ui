@@ -29,11 +29,14 @@ async function resolveTrayIconForTheme() {
     const existingTheme = usePersistedStore.getState().themeV2
     console.log('[resolveTrayIconForTheme] existingTheme', existingTheme)
 
-    // if ('tray' in existingTheme && existingTheme.tray) {
-    //     return existingTheme.tray === 'dark'
-    //         ? 'icons/favicon/icon.png'
-    //         : 'icons/favicon/icon-light.png'
-    // }
+    if ('tray' in existingTheme && existingTheme.tray) {
+        const pickedPath =
+            existingTheme.tray === 'dark'
+                ? 'icons/favicon/icon.png'
+                : 'icons/favicon/icon-light.png'
+
+        return await resolveResource(pickedPath)
+    }
 
     let theme: 'light' | 'dark' = 'dark'
 
@@ -63,7 +66,7 @@ async function resolveTrayIconForTheme() {
 
     console.log('[resolveTrayIconForTheme] theme', theme)
 
-    // usePersistedStore.setState({ themeV2: { tray: theme } })
+    usePersistedStore.setState({ themeV2: { tray: theme } })
 
     const pickedPath = theme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
     console.log('[resolveTrayIconForTheme] pickedPath', pickedPath)
