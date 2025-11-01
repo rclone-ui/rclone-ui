@@ -67,15 +67,18 @@ try {
 }
 
 async function waitForHydration() {
-    console.log('waiting for store hydration')
+    console.log('[waitForHydration] waiting for store hydration')
+
     await new Promise((resolve) => setTimeout(resolve, 50))
     if (!usePersistedStore.persist.hasHydrated()) {
         await waitForHydration()
     }
-    console.log('store hydrated')
+    console.log('[waitForHydration] store hydrated')
 }
 
 async function validateInstance() {
+    console.log('[validateInstance]')
+
     const isOnline = navigator.onLine
 
     if (!isOnline && platform() !== 'linux') {
@@ -119,9 +122,13 @@ async function validateInstance() {
 }
 
 async function checkAlreadyRunning() {
+    console.log('[checkAlreadyRunning]')
+
     try {
         const rcPort = 5572
         const running = await invoke<boolean>('is_rclone_running', { port: rcPort })
+        console.log('[checkAlreadyRunning] running', running)
+
         if (running) {
             const confirmed = await ask(
                 'Rclone is already running on this system.\n\nPlease stop it before launching Rclone UI.',
@@ -132,8 +139,14 @@ async function checkAlreadyRunning() {
                     cancelLabel: 'Exit UI',
                 }
             )
+            console.log('[checkAlreadyRunning] confirmed', confirmed)
+
             if (confirmed) {
+                console.log('[checkAlreadyRunning] closing rclone')
+
                 if (platform() === 'windows') {
+                    console.log('[checkAlreadyRunning] windows, showing message')
+
                     await message(
                         "If you're on Windows, you might notice a few powershell/terminal windows opening and closing.\n\nThis is normal and expected, imagine we are playing whack-a-mole with the rclone process to close it.",
                         {
@@ -144,14 +157,16 @@ async function checkAlreadyRunning() {
                     )
                 }
                 const result = await invoke('stop_rclone_processes')
-                console.log('stop_rclone_processes', result)
+                console.log('[checkAlreadyRunning] stop_rclone_processes', result)
                 await new Promise((resolve) => setTimeout(resolve, 1000))
             } else {
+                console.log('[checkAlreadyRunning] exiting')
                 await exit(0)
             }
         }
     } catch (err) {
-        console.error('Failed to check rclone process:', err)
+        console.error('[checkAlreadyRunning] error', err)
+        Sentry.captureException(err)
     }
 }
 
@@ -164,7 +179,10 @@ async function startRclone() {
         useStore.setState({ rcloneLoaded: true })
         useStore.setState({ remotes: remotes })
         return
-    } catch {}
+    } catch (error) {
+        console.error('[startRclone] error', error)
+        Sentry.captureException(error)
+    }
 
     let rclone: Awaited<ReturnType<typeof initRclone>> | null = null
 
@@ -532,33 +550,52 @@ async function handleTask(task: ScheduledTask) {
 }
 
 async function checkVersion() {
+    console.log('[checkVersion]')
+
     try {
+        console.log('[checkVersion] fetching meta.json')
+
         const metaJson = await fetch(
             'https://raw.githubusercontent.com/rclone-ui/rclone-ui/refs/heads/main/meta.json'
         )
+        console.log('[checkVersion] meta.json fetched')
+
         const metaJsonData = await metaJson.json()
+        console.log('[checkVersion] meta.json parsed')
 
         const { minimumVersion, okVersion } = metaJsonData
 
+        console.log('[checkVersion] minimumVersion', minimumVersion)
+        console.log('[checkVersion] okVersion', okVersion)
+
         const currentVersion = await getUiVersion()
+        console.log('[checkVersion] currentVersion', currentVersion)
 
         if (
             compareVersions(currentVersion, minimumVersion) >= 0 &&
             compareVersions(currentVersion, okVersion) >= 0
         ) {
+            console.log('[checkVersion] currentVersion is up to date')
             return
         }
+
+        console.log('[checkVersion] checking for update')
 
         const receivedUpdate = await check({
             allowDowngrades: true,
             timeout: 30000,
         })
 
+        console.log('[checkVersion] update check complete')
+
         if (!receivedUpdate) {
+            console.log('[checkVersion] no update found')
             return
         }
 
         if (compareVersions(currentVersion, minimumVersion) < 0) {
+            console.log('[checkVersion] currentVersion is outdated')
+
             const confirmed = await ask(
                 'You are running an outdated version of Rclone UI. Please update to the latest version.',
                 {
@@ -570,10 +607,15 @@ async function checkVersion() {
             )
 
             if (!confirmed) {
+                console.log('[checkVersion] user cancelled update')
                 return await exit(0)
             }
 
+            console.log('[checkVersion] downloading and installing update')
+
             await receivedUpdate.downloadAndInstall()
+
+            console.log('[checkVersion] update downloaded and installed')
 
             await message('Rclone UI has been updated. Please restart the application.', {
                 title: 'Update Complete',
@@ -581,8 +623,12 @@ async function checkVersion() {
                 okLabel: 'Restart',
             })
 
+            console.log('[checkVersion] relaunching app')
+
             await getCurrentWindow().emit('relaunch-app')
         } else if (compareVersions(currentVersion, okVersion) < 0) {
+            console.log('[checkVersion] checking for update')
+
             const confirmed = await ask(
                 'You are running an outdated version of Rclone UI. Please update to the latest version.',
                 {
@@ -594,10 +640,15 @@ async function checkVersion() {
             )
 
             if (!confirmed) {
+                console.log('[checkVersion] user cancelled update')
                 return
             }
 
+            console.log('[checkVersion] downloading and installing update')
+
             await receivedUpdate.downloadAndInstall()
+
+            console.log('[checkVersion] update downloaded and installed')
 
             await message('Rclone UI has been updated. Please restart the application.', {
                 title: 'Update Complete',
@@ -605,19 +656,31 @@ async function checkVersion() {
                 okLabel: 'Restart',
             })
 
+            console.log('[checkVersion] relaunching app')
+
             await getCurrentWindow().emit('relaunch-app')
         }
-    } catch {}
+    } catch (error) {
+        console.error('[checkVersion] error', error)
+        Sentry.captureException(error)
+    }
 }
 
 async function checkTraySupport() {
+    console.log('[checkTraySupport] platform', platform())
+
     let traySupported = false
 
     try {
         traySupported = await invoke<boolean>('is_tray_supported')
-    } catch {}
+    } catch (error) {
+        console.error('[checkTraySupport] error', error)
+        Sentry.captureException(error)
+    }
 
     if (!traySupported) {
+        console.log('[checkTraySupport] tray not supported')
+
         const confirmed = await ask(
             'Your desktop environment does not appear to have a tray/menubar.\n\nRclone UI requires a tray to run. Do you still wish to continue?',
             {
