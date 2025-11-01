@@ -56,7 +56,7 @@ export async function dialogGetMountPlugin() {
     if (currentPlatform === 'windows') {
         // download winfsp
         const wantsDownload = await ask(
-            "WinFsp is required on Windows to mount remotes. You can continue the operation once you're done with the installation.",
+            'WinFsp is required on Windows to mount remotes. You can continue the operation once you\'re done with the installation.\n\nIf you still see this message, download the WinFsp installer from Github and make sure you toggle "FUSE for Cygwin" during the installation process.',
             {
                 title: 'WinFsp not installed',
                 kind: 'warning',
@@ -66,7 +66,7 @@ export async function dialogGetMountPlugin() {
         )
         if (wantsDownload) {
             const winFspInstallerUrl =
-                'https://github.com/winfsp/winfsp/releases/download/v2.0/winfsp-2.0.23075.msi'
+                'https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi'
             const localPath = `${await downloadDir()}/winfsp-installer.msi`
             const installer = await (await fetch(winFspInstallerUrl)).arrayBuffer()
             await writeFile(localPath, new Uint8Array(installer))
