@@ -1,5 +1,4 @@
 import * as Sentry from '@sentry/browser'
-import { invoke } from '@tauri-apps/api/core'
 import { Menu } from '@tauri-apps/api/menu'
 import { MenuItem } from '@tauri-apps/api/menu'
 import { resolveResource } from '@tauri-apps/api/path'
@@ -9,6 +8,7 @@ import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { buildMenu } from './menu'
+import { usePersistedStore } from './store'
 import { resetMainWindow } from './window'
 
 export async function triggerTrayRebuild() {
@@ -24,19 +24,43 @@ async function getTray() {
 }
 
 async function resolveTrayIconForTheme() {
+    const existingTheme = usePersistedStore.getState().themeV2
+
+    if ('tray' in existingTheme && existingTheme.tray) {
+        return existingTheme.tray === 'dark'
+            ? 'icons/favicon/icon.png'
+            : 'icons/favicon/icon-light.png'
+    }
+
     let theme: 'light' | 'dark' = 'dark'
-    try {
-        if (platform() === 'macos') {
-            const t = (await invoke<string>('get_system_theme')) || 'dark'
-            theme = t === 'dark' ? 'dark' : 'light'
-        } else {
+
+    if (platform() === 'windows') {
+        try {
             const currentWindow = getCurrentWindow()
-            const t = await currentWindow.theme()
-            theme = t === 'dark' ? 'dark' : 'light'
+            const windowTheme = await currentWindow.theme()
+
+            theme = windowTheme === 'dark' ? 'dark' : 'light'
+        } catch {}
+    } else if (platform() !== 'macos') {
+        const answer = await ask(
+            'Based on your tray/menubar, how do you want the icon to look?\n\nIf your menubar has a dark background select light, otherwise select dark.',
+            {
+                title: 'Greetings, Linux User',
+                okLabel: 'Dark',
+                cancelLabel: 'Light',
+            }
+        )
+
+        if (answer) {
+            theme = 'dark'
+        } else {
+            theme = 'light'
         }
-    } catch {}
+    }
 
     console.log('[resolveTrayIconForTheme] theme', theme)
+
+    usePersistedStore.setState({ themeV2: { tray: theme } })
 
     const pickedPath = theme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
     console.log('[resolveTrayIconForTheme] pickedPath', pickedPath)
@@ -119,13 +143,15 @@ export async function showDefaultTray() {
 }
 
 export async function initTray() {
-    try {
-        console.log('[initTray]')
+    console.log('[initTray] platform', platform())
 
+    try {
         const initialIcon = await resolveTrayIconForTheme()
+        console.log('[initTray] initialIcon', initialIcon)
+
         await TrayIcon.new({
             id: 'main-tray',
-            icon: initialIcon!,
+            icon: initialIcon,
             tooltip: 'Rclone',
             menuOnLeftClick: true,
             action: async (event: TrayIconEvent) => {
