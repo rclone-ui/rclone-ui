@@ -8,7 +8,6 @@ import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { buildMenu } from './menu'
-import { usePersistedStore } from './store'
 import { resetMainWindow } from './window'
 
 export async function triggerTrayRebuild() {
@@ -24,13 +23,13 @@ async function getTray() {
 }
 
 async function resolveTrayIconForTheme() {
-    const existingTheme = usePersistedStore.getState().themeV2
+    // const existingTheme = usePersistedStore.getState().themeV2
 
-    if ('tray' in existingTheme && existingTheme.tray) {
-        return existingTheme.tray === 'dark'
-            ? 'icons/favicon/icon.png'
-            : 'icons/favicon/icon-light.png'
-    }
+    // if ('tray' in existingTheme && existingTheme.tray) {
+    //     return existingTheme.tray === 'dark'
+    //         ? 'icons/favicon/icon.png'
+    //         : 'icons/favicon/icon-light.png'
+    // }
 
     let theme: 'light' | 'dark' = 'dark'
 
@@ -60,7 +59,7 @@ async function resolveTrayIconForTheme() {
 
     console.log('[resolveTrayIconForTheme] theme', theme)
 
-    usePersistedStore.setState({ themeV2: { tray: theme } })
+    // usePersistedStore.setState({ themeV2: { tray: theme } })
 
     const pickedPath = theme === 'dark' ? 'icons/favicon/icon.png' : 'icons/favicon/icon-light.png'
     console.log('[resolveTrayIconForTheme] pickedPath', pickedPath)
