@@ -146,9 +146,9 @@ export async function initTray() {
     console.log('[initTray] platform', platform())
 
     try {
-        const initialIcon = await resolveTrayIconForTheme()
-        console.log('[initTray] initialIcon', initialIcon)
+        console.log('[initTray]')
 
+        const initialIcon = await resolveResource('icons/favicon/icon.png')
         await TrayIcon.new({
             id: 'main-tray',
             icon: initialIcon,
