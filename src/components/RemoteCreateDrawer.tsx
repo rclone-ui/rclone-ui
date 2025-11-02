@@ -6,13 +6,11 @@ import {
     Checkbox,
     DrawerContent,
     Input,
-    Select,
-    SelectItem,
 } from '@heroui/react'
 import { message } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { ChevronDown, ChevronUp, ExternalLinkIcon, RefreshCcwIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { type Key, useEffect, useState } from 'react'
 import { createRemote } from '../../lib/rclone/api'
 import { getBackends } from '../../lib/rclone/api'
 import { useStore } from '../../lib/store'
@@ -42,8 +40,8 @@ export default function RemoteCreateDrawer({
           }) || []
         : []
 
-    function handleTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
-        const newType = e.target.value
+    function handleTypeChange(key: Key | null) {
+        const newType = key ? String(key) : undefined
 
         // preserve name when resetting type
         setConfig((prev) => ({ name: prev.name, type: newType }))
@@ -263,7 +261,7 @@ export default function RemoteCreateDrawer({
                                     name="name"
                                     label="name"
                                     labelPlacement="outside"
-                                    placeholder="Remote Name (for your reference)"
+                                    placeholder="Remote name (for your reference)"
                                     value={config.name || ''}
                                     onValueChange={(value) => setConfig({ ...config, name: value })}
                                     isRequired={true}
@@ -273,20 +271,19 @@ export default function RemoteCreateDrawer({
                                     spellCheck="false"
                                 />
 
-                                <Select
+                                <Autocomplete
                                     id="remote-type"
                                     name="type"
                                     label="type"
                                     labelPlacement="outside"
-                                    selectionMode="single"
-                                    placeholder="Select Type"
-                                    selectedKeys={[config.type]}
-                                    onChange={handleTypeChange}
+                                    placeholder="Select type or search"
+                                    selectedKey={config.type ?? null}
+                                    onSelectionChange={handleTypeChange}
                                     isRequired={true}
                                     itemHeight={42}
                                 >
                                     {backends.map((backend) => (
-                                        <SelectItem
+                                        <AutocompleteItem
                                             key={backend.Name}
                                             startContent={
                                                 <img
@@ -302,9 +299,9 @@ export default function RemoteCreateDrawer({
                                                       ' (this is not Google Drive)',
                                                       ''
                                                   ) || backend.Name}
-                                        </SelectItem>
+                                        </AutocompleteItem>
                                     ))}
-                                </Select>
+                                </Autocomplete>
 
                                 {/* Normal Fields */}
                                 {currentBackendFields
