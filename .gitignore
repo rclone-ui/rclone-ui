@@ -28,7 +28,6 @@ dist-ssr
 .cursorignore
 .work
 .work/*
-./scripts/release.md
 src-tauri/binaries/*
 !src-tauri/binaries/.gitkeep
 /public/out.js
