@@ -11,6 +11,68 @@ import { useStore } from '../../lib/store'
 import PathSelector from './PathSelector'
 import RemoteAvatar from './RemoteAvatar'
 
+type PathSuggestion = {
+    IsDir: boolean
+    Name: string
+    Path: string
+    _showAvatar: boolean
+}
+
+function deriveFolderDisplayName(currentPath: string) {
+    const trimmed = currentPath.trim()
+    if (!trimmed) {
+        return ''
+    }
+
+    if (isRemotePath(trimmed)) {
+        const [remote, ...pathParts] = trimmed.split(':/')
+        const remotePath = pathParts.join(':/')
+        const normalized = remotePath.replace(/\\/g, '/').replace(/\/+$/g, '')
+        if (!normalized) {
+            return remote
+        }
+        const segments = normalized.split('/').filter(Boolean)
+        return segments[segments.length - 1] ?? remote
+    }
+
+    const normalized = trimmed.replace(/\\/g, '/').replace(/\/+$/g, '')
+    if (!normalized) {
+        return trimmed || '/'
+    }
+    const segments = normalized.split('/').filter(Boolean)
+    if (segments.length === 0) {
+        return normalized
+    }
+    return segments[segments.length - 1]
+}
+
+function withCurrentFolderSuggestion(suggestions: PathSuggestion[], currentPath?: string) {
+    if (!currentPath) {
+        return suggestions
+    }
+
+    const trimmed = currentPath.trim()
+    if (!trimmed) {
+        return suggestions
+    }
+
+    if (suggestions.some((item) => item.Path === currentPath)) {
+        return suggestions
+    }
+
+    const folderName = deriveFolderDisplayName(trimmed)
+
+    return [
+        {
+            IsDir: true,
+            Name: folderName ? `Root (${folderName})` : 'Root',
+            Path: trimmed,
+            _showAvatar: false,
+        },
+        ...suggestions,
+    ]
+}
+
 export function PathFinder({
     sourcePath = '',
     setSourcePath,
@@ -247,14 +309,7 @@ export function PathField({
 
     const fieldRef = useRef<HTMLInputElement>(null)
 
-    const [suggestions, setSuggestions] = useState<
-        {
-            IsDir: boolean
-            Name: string
-            Path: string
-            _showAvatar: boolean
-        }[]
-    >([])
+    const [suggestions, setSuggestions] = useState<PathSuggestion[]>([])
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const [error, setError] = useState<string | null>(null)
     const [isOpen, setIsOpen] = useState<boolean>(false)
@@ -269,6 +324,7 @@ export function PathField({
 
         let cleanedPath = searchPath
         const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
+        let resolvedAsDirectory = false
 
         try {
             // If path is empty, show list of remotes
@@ -290,6 +346,7 @@ export function PathField({
 
                 try {
                     localEntries = await readDir(cleanedPath)
+                    resolvedAsDirectory = true
                 } catch (err) {
                     // most likely due to the path being a file
                     console.error('Failed to fetch local suggestions:', err)
@@ -304,6 +361,7 @@ export function PathField({
 
                 const localSuggestions = localEntries
                     .filter((entry) => !entry.isSymlink)
+                    .filter((entry) => showFiles || entry.isDirectory)
                     .map((entry) => ({
                         IsDir: entry.isDirectory,
                         Name: entry.name,
@@ -311,7 +369,12 @@ export function PathField({
                         _showAvatar: false,
                     }))
 
-                setSuggestions(localSuggestions)
+                let newSuggestions = localSuggestions
+
+                if (resolvedAsDirectory) {
+                    newSuggestions = withCurrentFolderSuggestion(newSuggestions, searchPath)
+                }
+                setSuggestions(newSuggestions)
                 setIsLoading(false)
                 return
             }
@@ -334,14 +397,16 @@ export function PathField({
                 noMimeType: true,
             })
 
-            const suggestionsWithRemote = items.map((item) => ({
-                IsDir: item.IsDir,
-                Name: item.Path,
-                Path: `${remote}:/${item.Path}`,
-                _showAvatar: false,
-            }))
+            const suggestionsWithRemote = items
+                .filter((item) => showFiles || item.IsDir)
+                .map((item) => ({
+                    IsDir: item.IsDir,
+                    Name: item.Path,
+                    Path: `${remote}:/${item.Path}`,
+                    _showAvatar: false,
+                }))
 
-            setSuggestions(suggestionsWithRemote)
+            setSuggestions(withCurrentFolderSuggestion(suggestionsWithRemote, searchPath))
         } catch (err) {
             console.error('Failed to fetch suggestions:', err)
             const errorMessage = err instanceof Error ? err.message : 'Failed to fetch suggestions'
@@ -491,14 +556,7 @@ export function MultiPathField({
 
     const isMultiple = paths.length > 1
 
-    const [suggestions, setSuggestions] = useState<
-        {
-            IsDir: boolean
-            Name: string
-            Path: string
-            _showAvatar: boolean
-        }[]
-    >([])
+    const [suggestions, setSuggestions] = useState<PathSuggestion[]>([])
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const [error, setError] = useState<string | null>(null)
     const [isOpen, setIsOpen] = useState<boolean>(false)
@@ -511,6 +569,7 @@ export function MultiPathField({
 
         let cleanedPath = path
         const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
+        let resolvedAsDirectory = false
 
         try {
             // If path is empty, show list of remotes
@@ -532,6 +591,7 @@ export function MultiPathField({
 
                 try {
                     localEntries = await readDir(cleanedPath)
+                    resolvedAsDirectory = true
                 } catch (err) {
                     // most likely due to the path being a file
                     console.error('Failed to fetch local suggestions:', err)
@@ -553,7 +613,12 @@ export function MultiPathField({
                         _showAvatar: false,
                     }))
 
-                setSuggestions(localSuggestions)
+                let newSuggestions = localSuggestions
+
+                if (resolvedAsDirectory) {
+                    newSuggestions = withCurrentFolderSuggestion(newSuggestions, path)
+                }
+                setSuggestions(newSuggestions)
                 setIsLoading(false)
                 return
             }
@@ -583,7 +648,7 @@ export function MultiPathField({
                 _showAvatar: false,
             }))
 
-            setSuggestions(suggestionsWithRemote)
+            setSuggestions(withCurrentFolderSuggestion(suggestionsWithRemote, path))
         } catch (err) {
             console.error('Failed to fetch suggestions:', err)
             const errorMessage = err instanceof Error ? err.message : 'Failed to fetch suggestions'
