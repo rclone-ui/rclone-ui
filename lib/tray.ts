@@ -29,7 +29,7 @@ async function resolveTrayIconForTheme() {
     const existingTheme = usePersistedStore.getState().themeV2
     console.log('[resolveTrayIconForTheme] existingTheme', existingTheme)
 
-    if ('tray' in existingTheme && existingTheme.tray) {
+    if (platform() !== 'macos' && 'tray' in existingTheme && existingTheme.tray) {
         const pickedPath =
             existingTheme.tray === 'dark'
                 ? 'icons/favicon/icon.png'
@@ -40,14 +40,15 @@ async function resolveTrayIconForTheme() {
 
     let theme: 'light' | 'dark' = 'dark'
 
-    if (platform() === 'windows') {
+    if (['windows', 'macos'].includes(platform())) {
         try {
             const currentWindow = getCurrentWindow()
             const windowTheme = await currentWindow.theme()
+            console.log('[resolveTrayIconForTheme] windowTheme', windowTheme)
 
             theme = windowTheme === 'dark' ? 'dark' : 'light'
         } catch {}
-    } else if (platform() !== 'macos') {
+    } else {
         const answer = await ask(
             'Based on your tray/menubar, how do you want the icon to look?\n\nIf your menubar has a dark background select light, otherwise select dark.',
             {
