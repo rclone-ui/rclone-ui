@@ -40,7 +40,7 @@
 		<li>✅ Works with your existing rclone installation (or can install rclone for you)</li>
 		<li>✅ File Browser 2.0</li>
 		<li>✅ Proxy support</li>
-		<li>✅ Sync, Copy, Mount, Serve, Move, and more</li>
+		<li>✅ Sync, Download, Copy, Mount, Serve, Move, and more</li>
 		<li>✅ Jobs (see all background operations)</li>
 		<li>✅ Set default flags for each remote separately, based on the operation (mount, copy, etc)</li>
 		<li>✅ Customize the flags when running an operation on a case by case basis (on top of defaults)</li>
@@ -72,8 +72,8 @@
   </keywords>
 	
   <branding>
-    <color type="primary" scheme_preference="light">#016fee</color>
-	<color type="primary" scheme_preference="dark">#093a7b</color>
+    <color type="primary" scheme_preference="light">#0a0325</color>
+	<color type="primary" scheme_preference="dark">#0a0325</color>
   </branding>
 	
   <content_rating type="oars-1.1" />
@@ -85,19 +85,39 @@
   <screenshots>
     <screenshot type="default">
       <image>https://rcloneui.com/flathub-1.png</image>
-      <caption>Copy, Mount, Sync, and more</caption>
+      <caption>Light &amp; Transparent</caption>
     </screenshot>
 	<screenshot>
       <image>https://rcloneui.com/flathub-2.png</image>
+      <caption>Full Fledged Browser</caption>
+    </screenshot>
+	<screenshot>
+      <image>https://rcloneui.com/flathub-3.png</image>
+      <caption>Manage Rclone Configs</caption>
+    </screenshot>
+	<screenshot>
+      <image>https://rcloneui.com/flathub-4.png</image>
+      <caption>Pick From 40+ Remote Storage Providers</caption>
+    </screenshot>
+	<screenshot>
+      <image>https://rcloneui.com/flathub-5.png</image>
+      <caption>Manage Remotes</caption>
+    </screenshot>
+	<screenshot>
+      <image>https://rcloneui.com/flathub-6.png</image>
       <caption>Add/Remove Remotes</caption>
+    </screenshot>
+	<screenshot>
+      <image>https://rcloneui.com/flathub-7.png</image>
+      <caption>Customizable</caption>
     </screenshot>
   </screenshots>
 	
   <releases>
-    <release version="2.7.26" date="2025-10-31">
-      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.7.26</url>
+    <release version="2.7.27" date="2025-11-02">
+      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.7.27</url>
       <description>
-	    <p>2.7.26 Release</p>
+	    <p>2.7.27 Release</p>
     	<ul>
 		  <li>Improved Linux stability and overall performance.</li>
         </ul>
