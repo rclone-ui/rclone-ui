@@ -54,7 +54,14 @@ import {
     Trash2Icon,
 } from 'lucide-react'
 import type React from 'react'
-import { type DetailedHTMLProps, type HTMLAttributes, useEffect, useRef, useState } from 'react'
+import {
+    type DetailedHTMLProps,
+    type HTMLAttributes,
+    startTransition,
+    useEffect,
+    useRef,
+    useState,
+} from 'react'
 import { revokeMachineLicense, validateLicense } from '../../lib/license'
 import {
     deleteRemote,
@@ -907,7 +914,9 @@ function RemotesSection() {
             <RemoteCreateDrawer
                 isOpen={creatingDrawerOpen}
                 onClose={() => {
-                    setCreatingDrawerOpen(false)
+                    startTransition(() => {
+                        setCreatingDrawerOpen(false)
+                    })
                 }}
             />
 
@@ -915,11 +924,13 @@ function RemotesSection() {
                 <RemoteDefaultsDrawer
                     isOpen={defaultsDrawerOpen}
                     onClose={() => {
-                        setDefaultsDrawerOpen(false)
-                        setTimeout(() => {
-                            // allow for drawer effect to happen
-                            setPickedRemote(null)
-                        }, 100)
+                        startTransition(() => {
+                            setDefaultsDrawerOpen(false)
+                            setTimeout(() => {
+                                // allow for drawer effect to happen
+                                setPickedRemote(null)
+                            }, 100)
+                        })
                     }}
                     remoteName={pickedRemote}
                 />

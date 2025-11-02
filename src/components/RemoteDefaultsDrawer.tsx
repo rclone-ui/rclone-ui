@@ -1,4 +1,4 @@
-import { Checkbox } from '@heroui/react'
+import { Checkbox, Tab, Tabs } from '@heroui/react'
 import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@heroui/react'
 import { Accordion, AccordionItem, Avatar, Button, Input } from '@heroui/react'
 import { homeDir } from '@tauri-apps/api/path'
@@ -11,6 +11,7 @@ import {
     FolderOpen,
     FolderSyncIcon,
     HardDriveIcon,
+    ServerCrashIcon,
     WavesLadderIcon,
     WrenchIcon,
 } from 'lucide-react'
@@ -21,9 +22,11 @@ import {
     getCurrentGlobalFlags,
     getFilterFlags,
     getMountFlags,
+    getServeFlags,
     getSyncFlags,
     getVfsFlags,
 } from '../../lib/rclone/api'
+import { SERVE_TYPES } from '../../lib/rclone/constants'
 import { type RemoteConfig, usePersistedStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import { lockWindows, unlockWindows } from '../../lib/window'
@@ -43,6 +46,7 @@ export default function RemoteDefaultsDrawer({
     const mergeRemoteConfig = usePersistedStore((state) => state.mergeRemoteConfig)
 
     const [isSaving, setIsSaving] = useState(false)
+    const [buttonText, setButtonText] = useState('Save Changes')
 
     const [config, setConfig] = useState<RemoteConfig | null>(null)
 
@@ -52,6 +56,9 @@ export default function RemoteDefaultsDrawer({
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
     const [mountOptionsJson, setMountOptionsJson] = useState<string>('{}')
     const [vfsOptionsJson, setVfsOptionsJson] = useState<string>('{}')
+    const [serveOptionsJsonForType, setServeOptionsJsonForType] = useState<Record<string, string>>(
+        {}
+    )
 
     const [globalOptions, setGlobalOptions] = useState<any[]>([])
 
@@ -77,12 +84,24 @@ export default function RemoteDefaultsDrawer({
         console.log('remoteName', remoteName)
         // console.log(JSON.stringify(remoteConfig, null, 2))
 
-        setConfigOptionsJson(JSON.stringify(remoteConfig?.configDefaults, null, 2) || '{}')
-        setCopyOptionsJson(JSON.stringify(remoteConfig?.copyDefaults, null, 2) || '{}')
-        setSyncOptionsJson(JSON.stringify(remoteConfig?.syncDefaults, null, 2) || '{}')
-        setFilterOptionsJson(JSON.stringify(remoteConfig?.filterDefaults, null, 2) || '{}')
-        setMountOptionsJson(JSON.stringify(remoteConfig?.mountDefaults, null, 2) || '{}')
-        setVfsOptionsJson(JSON.stringify(remoteConfig?.vfsDefaults, null, 2) || '{}')
+        setConfigOptionsJson(JSON.stringify(remoteConfig?.configDefaults || {}, null, 2))
+        setCopyOptionsJson(JSON.stringify(remoteConfig?.copyDefaults || {}, null, 2))
+        setSyncOptionsJson(JSON.stringify(remoteConfig?.syncDefaults || {}, null, 2))
+        setFilterOptionsJson(JSON.stringify(remoteConfig?.filterDefaults || {}, null, 2))
+        setMountOptionsJson(JSON.stringify(remoteConfig?.mountDefaults || {}, null, 2))
+        setVfsOptionsJson(JSON.stringify(remoteConfig?.vfsDefaults || {}, null, 2))
+        for (const type of SERVE_TYPES) {
+            setServeOptionsJsonForType((prev) => ({
+                ...prev,
+                [type]: JSON.stringify(
+                    remoteConfig?.serveDefaults?.[
+                        type as keyof typeof remoteConfig.serveDefaults
+                    ] || {},
+                    null,
+                    2
+                ),
+            }))
+        }
     }, [remoteConfigList, remoteName])
 
     async function handleSubmit() {
@@ -97,57 +116,139 @@ export default function RemoteDefaultsDrawer({
             ...config,
         }
 
-        let step = 'Config'
-
-        try {
-            const configOptions = JSON.parse(configOptionsJson)
-            // Extract conditional logic outside try/catch for React Compiler compatibility
-            if (Object.keys(configOptions).length > 0) {
-                newConfig.configDefaults = configOptions
+        const parseJson = <T,>(json: string) => {
+            try {
+                return { ok: true as const, value: JSON.parse(json) as T }
+            } catch (error) {
+                return { ok: false as const, error }
             }
+        }
 
-            step = 'Copy'
-            const copyOptions = JSON.parse(copyOptionsJson)
-            if (Object.keys(copyOptions).length > 0) {
-                newConfig.copyDefaults = copyOptions
+        const parseOptionsOrAbort = async <T,>(json: string, label: string) => {
+            const result = parseJson<T>(json)
+            if (!result.ok) {
+                await message(`Could not update remote, error parsing ${label} options`, {
+                    title: 'Invalid JSON',
+                    kind: 'error',
+                })
+                setIsSaving(false)
+                return null
             }
+            return result.value
+        }
 
-            step = 'Mount'
-            const mountOptions = JSON.parse(mountOptionsJson)
-            if (Object.keys(mountOptions).length > 0) {
-                newConfig.mountDefaults = mountOptions
-            }
+        // react compiler todo: support value blocks
 
-            step = 'Sync'
-            const syncOptions = JSON.parse(syncOptionsJson)
-            if (Object.keys(syncOptions).length > 0) {
-                newConfig.syncDefaults = syncOptions
-            }
-
-            step = 'Filter'
-            const filterOptions = JSON.parse(filterOptionsJson)
-            if (Object.keys(filterOptions).length > 0) {
-                newConfig.filterDefaults = filterOptions
-            }
-
-            step = 'VFS'
-            const vfsOptions = JSON.parse(vfsOptionsJson)
-            if (Object.keys(vfsOptions).length > 0) {
-                newConfig.vfsDefaults = vfsOptions
-            }
-        } catch {
-            await message(`Could not update remote, error parsing ${step} options`, {
-                title: 'Invalid JSON',
-                kind: 'error',
-            })
-            setIsSaving(false)
+        const configOptions = await parseOptionsOrAbort<Record<string, unknown>>(
+            configOptionsJson,
+            'Config'
+        )
+        if (configOptions === null) {
             return
+        }
+        if (Object.keys(configOptions).length > 0) {
+            newConfig.configDefaults = configOptions
+        }
+
+        const copyOptions = await parseOptionsOrAbort<Record<string, unknown>>(
+            copyOptionsJson,
+            'Copy'
+        )
+        if (copyOptions === null) {
+            return
+        }
+        if (Object.keys(copyOptions).length > 0) {
+            newConfig.copyDefaults = copyOptions
+        }
+
+        const mountOptions = await parseOptionsOrAbort<Record<string, unknown>>(
+            mountOptionsJson,
+            'Mount'
+        )
+        if (mountOptions === null) {
+            return
+        }
+        if (Object.keys(mountOptions).length > 0) {
+            newConfig.mountDefaults = mountOptions
+        }
+
+        const syncOptions = await parseOptionsOrAbort<Record<string, unknown>>(
+            syncOptionsJson,
+            'Sync'
+        )
+        if (syncOptions === null) {
+            return
+        }
+        if (Object.keys(syncOptions).length > 0) {
+            newConfig.syncDefaults = syncOptions
+        }
+
+        const filterOptions = await parseOptionsOrAbort<Record<string, unknown>>(
+            filterOptionsJson,
+            'Filter'
+        )
+        if (filterOptions === null) {
+            return
+        }
+        if (Object.keys(filterOptions).length > 0) {
+            newConfig.filterDefaults = filterOptions
+        }
+
+        const vfsOptions = await parseOptionsOrAbort<Record<string, unknown>>(vfsOptionsJson, 'VFS')
+        if (vfsOptions === null) {
+            return
+        }
+        if (Object.keys(vfsOptions).length > 0) {
+            newConfig.vfsDefaults = vfsOptions
+        }
+
+        const serveDefaultsAccumulator: Record<
+            (typeof SERVE_TYPES)[number],
+            Record<string, unknown>
+        > = {
+            ...SERVE_TYPES.reduce(
+                (acc, type) => {
+                    acc[type] = {}
+                    return acc
+                },
+                {} as Record<(typeof SERVE_TYPES)[number], Record<string, unknown>>
+            ),
+        }
+        for (let i = 0; i < SERVE_TYPES.length; i++) {
+            const type = SERVE_TYPES[i]
+            const serveOptionsJsonValue =
+                serveOptionsJsonForType[type as keyof typeof serveOptionsJsonForType]
+            const jsonToParse = serveOptionsJsonValue === undefined ? '{}' : serveOptionsJsonValue
+
+            const serveOptions = await parseOptionsOrAbort<Record<string, unknown>>(
+                jsonToParse,
+                `Serve (${type})`
+            )
+            if (serveOptions === null) {
+                return
+            }
+
+            if (Object.keys(serveOptions).length > 0) {
+                serveDefaultsAccumulator[type] = serveOptions
+            }
+        }
+
+        if (Object.keys(serveDefaultsAccumulator).length > 0) {
+            newConfig.serveDefaults = {
+                ...(newConfig.serveDefaults ?? {}),
+                ...serveDefaultsAccumulator,
+            }
         }
 
         try {
             mergeRemoteConfig(remoteName, newConfig)
             await triggerTrayRebuild()
             setConfig(newConfig)
+            await new Promise((resolve) => setTimeout(resolve, 500))
+            setButtonText('Saved')
+            setTimeout(() => {
+                setButtonText('Save Changes')
+            }, 1200)
         } catch (error) {
             console.error('Failed to update remote:', error)
             await message(error instanceof Error ? error.message : 'Unknown error occurred', {
@@ -582,6 +683,57 @@ export default function RemoteDefaultsDrawer({
                                         getAvailableOptions={getSyncFlags}
                                     />
                                 </AccordionItem>
+
+                                <AccordionItem
+                                    key="serve"
+                                    startContent={
+                                        <Avatar
+                                            radius="lg"
+                                            fallback={
+                                                <ServerCrashIcon className="text-success-foreground" />
+                                            }
+                                            className="bg-cyan-500"
+                                        />
+                                    }
+                                    indicator={<ServerCrashIcon />}
+                                    subtitle={`Default serve flags for ${remoteName}`}
+                                    title="Serve"
+                                >
+                                    <Tabs
+                                        items={SERVE_TYPES.map((type) => ({
+                                            id: type,
+                                            label: type.toUpperCase(),
+                                        }))}
+                                        fullWidth={true}
+                                        variant="bordered"
+                                    >
+                                        {(item) => (
+                                            <Tab key={item.id} title={item.label}>
+                                                <OptionsSection
+                                                    optionsJson={
+                                                        serveOptionsJsonForType?.[
+                                                            item.id as keyof typeof serveOptionsJsonForType
+                                                        ]
+                                                    }
+                                                    setOptionsJson={(optionsJson) =>
+                                                        setServeOptionsJsonForType((prev) => ({
+                                                            ...prev,
+                                                            [item.id]: optionsJson,
+                                                        }))
+                                                    }
+                                                    globalOptions={
+                                                        globalOptions[
+                                                            item.id as keyof typeof globalOptions
+                                                        ]
+                                                    }
+                                                    getAvailableOptions={async () =>
+                                                        await getServeFlags(item.id)
+                                                    }
+                                                />
+                                            </Tab>
+                                        )}
+                                    </Tabs>
+                                </AccordionItem>
                             </Accordion>
                         </DrawerBody>
                         <DrawerFooter>
@@ -599,7 +751,7 @@ export default function RemoteDefaultsDrawer({
                                 onPress={handleSubmit}
                                 data-focus-visible="false"
                             >
-                                Save Changes
+                                {buttonText}
                             </Button>
                         </DrawerFooter>
                     </>

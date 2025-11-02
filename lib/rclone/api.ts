@@ -878,6 +878,10 @@ export async function getServeFlags(type: string) {
     const serveFlags = r[type].map((flag: any) => ({
         ...flag,
         FieldName: flag.Name,
+        DefaultStr:
+            flag.Name === 'addr'
+                ? flag.DefaultStr.replace('[', '').replace(']', '')
+                : flag.DefaultStr,
     }))
 
     return serveFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))

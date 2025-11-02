@@ -5,6 +5,7 @@ import { type StateStorage, createJSONStorage, persist } from 'zustand/middlewar
 import type { ConfigFile } from '../types/config'
 import type { ScheduledTask } from '../types/task'
 import type { Template } from '../types/template'
+import type { SERVE_TYPES } from './rclone/constants'
 
 // const { LazyStore } = window.__TAURI__.store
 const store = new LazyStore('store.json')
@@ -23,6 +24,7 @@ export interface RemoteConfig {
     moveDefaults?: Record<string, any>
     syncDefaults?: Record<string, any>
     configDefaults?: Record<string, any>
+    serveDefaults?: Record<(typeof SERVE_TYPES)[number], Record<string, any>>
     remoteDefaults?: Record<string, any>
 }
 
