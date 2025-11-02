@@ -80,8 +80,8 @@ export async function openFullWindow({
 export async function openWindow({
     name,
     url,
-    width = 820,
-    height = platform() === 'windows' ? 730 : 700,
+    width = 840,
+    height = platform() === 'windows' ? 755 : 725,
 }: {
     name: string
     url: string
