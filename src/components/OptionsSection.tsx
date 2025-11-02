@@ -1,5 +1,5 @@
 import { Chip, Textarea, Tooltip } from '@heroui/react'
-import { LockKeyholeIcon, LockOpenIcon, XIcon } from 'lucide-react'
+import { LockKeyholeIcon, LockOpenIcon } from 'lucide-react'
 import { startTransition, useEffect, useState } from 'react'
 import { replaceSmartQuotes } from '../../lib/format'
 
@@ -54,10 +54,9 @@ export default function OptionsSection({
     return (
         <div className="flex flex-row gap-2 h-[400px]">
             <Textarea
-                // className="w-1/2 "
                 classNames={{
                     'base': 'w-1/2',
-                    inputWrapper: '!h-full',
+                    inputWrapper: '!h-full !ring-0 !outline-none',
                 }}
                 label="Custom Options"
                 description="Tap an option to add it. Scroll to see more. Hover to see details."
@@ -102,12 +101,12 @@ export default function OptionsSection({
                         >
                             {isLocked ? (
                                 <LockKeyholeIcon
-                                    className="w-3 h-3 cursor-pointer"
+                                    className="size-3 !ring-0 !outline-none !cursor-pointer"
                                     onClick={() => setIsLocked(false)}
                                 />
                             ) : (
                                 <LockOpenIcon
-                                    className="w-3 h-3 cursor-pointer"
+                                    className="size-3 !ring-0 !outline-none !cursor-pointer"
                                     onClick={() => setIsLocked(true)}
                                 />
                             )}
@@ -146,6 +145,7 @@ export default function OptionsSection({
                             <Chip
                                 isDisabled={!isJsonValid}
                                 variant={alreadyAdded ? 'flat' : 'solid'}
+                                color={alreadyAdded ? 'primary' : 'default'}
                                 onClick={() => {
                                     startTransition(() => {
                                         if (alreadyAdded) {
@@ -198,13 +198,13 @@ export default function OptionsSection({
                                         setOptionsJson(JSON.stringify(newOptions, null, 2))
                                     })
                                 }}
-                                className="cursor-pointer"
+                                classNames={{
+                                    base: alreadyAdded
+                                        ? 'border-primary border-1 text-primary-900'
+                                        : undefined,
+                                    content: '!cursor-pointer',
+                                }}
                                 size="sm"
-                                endContent={
-                                    alreadyAdded ? (
-                                        <XIcon className="w-3.5 h-3.5 mr-1 stroke-1" />
-                                    ) : undefined
-                                }
                             >
                                 {option.Name}
                             </Chip>
