@@ -366,7 +366,7 @@ async function parseRemotes(remotes: string[]) {
             // console.log('[parseRemotes] Adding Stop Serve (' + currentServe.Addr.split(':')[0] + ') for ', remote)
             const stopServeMenuItem = await MenuItem.new({
                 id: `stop-serve-${currentServe.id}`,
-                text: 'Stop Serve',
+                text: 'Stop Serve (' + currentServe.id.split('-')[0]?.toUpperCase() + ')',
                 action: async () => {
                     try {
                         await showLoadingTray()

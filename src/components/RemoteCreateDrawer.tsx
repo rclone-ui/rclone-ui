@@ -103,6 +103,7 @@ export default function RemoteCreateDrawer({
                                 // console.log(value)
                                 setConfig({ ...config, [option.Name]: value })
                             }}
+                            allowsCustomValue={true}
                         >
                             {(item) => (
                                 <AutocompleteItem

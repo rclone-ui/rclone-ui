@@ -107,6 +107,7 @@ export default function RemoteEditDrawer({
                             placeholder={option.Help.split('\n')[0]}
                             description={option.Help.split('\n').slice(1).join('\n')}
                             isDisabled={option.Name === 'provider'}
+                            allowsCustomValue={true}
                         >
                             {(item) => (
                                 <AutocompleteItem

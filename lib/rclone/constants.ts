@@ -79,3 +79,5 @@ export const SUPPORTED_BACKENDS = [
     'yandex',
     'zoho',
 ]
+
+export const SERVE_TYPES = ['dlna', 'ftp', 'sftp', 'http', 'nfs', 'restic', 's3', 'webdav'] as const

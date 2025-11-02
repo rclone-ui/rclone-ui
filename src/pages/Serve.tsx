@@ -8,49 +8,74 @@ import {
     PlayIcon,
     ServerCrashIcon,
     WavesLadderIcon,
+    WrenchIcon,
     XIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { getRemoteName } from '../../lib/format'
 import {
+    getConfigFlags,
     getCurrentGlobalFlags,
     getFilterFlags,
     getServeFlags,
     getVfsFlags,
     startServe,
 } from '../../lib/rclone/api'
-import { RCLONE_VFS_DEFAULTS } from '../../lib/rclone/constants'
-import { usePersistedStore, useStore } from '../../lib/store'
+import { RCLONE_CONFIG_DEFAULTS, SERVE_TYPES } from '../../lib/rclone/constants'
+import { usePersistedStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import type { FlagValue } from '../../types/rclone'
 import CommandInfo from '../components/CommandInfo'
 import OptionsSection from '../components/OptionsSection'
+import { PathField } from '../components/PathFinder'
 
-const SERVE_TYPES = ['dlna', 'ftp', 'sftp', 'http', 'nfs', 'restic', 's3', 'webdav'] as const
+function serializeOptions(
+    dictionary: { Name: string; FieldName: string }[],
+    input: Record<string, FlagValue>
+) {
+    const params = {} as Record<string, FlagValue>
+    for (const [key, value] of Object.entries(input) as [string, FlagValue][]) {
+        const flag = dictionary.find((flag) => flag.FieldName === key)
+        if (flag) {
+            params[flag.Name] = value
+        }
+    }
+    return params
+}
 
 export default function Serve() {
-    const remotes = useStore((state) => state.remotes)
-    const [remote, setRemote] = useState<string | undefined>(undefined)
+    const [searchParams] = useSearchParams()
+
+    const [source, setSource] = useState<string | undefined>(
+        searchParams.get('initialSource') || undefined
+    )
     const [type, setType] = useState<(typeof SERVE_TYPES)[number] | undefined>(undefined)
 
     const [isServing, setIsServing] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [jsonError, setJsonError] = useState<'mount' | 'vfs' | 'filter' | 'config' | null>(null)
+    const [jsonError, setJsonError] = useState<'serve' | 'vfs' | 'filter' | 'config' | null>(null)
 
     const [serveOptionsLocked, setServeOptionsLocked] = useState(false)
     const [serveOptions, setServeOptions] = useState<Record<string, FlagValue>>({})
     const [serveOptionsJson, setServeOptionsJson] = useState<string>('{}')
 
     const [vfsOptionsLocked, setVfsOptionsLocked] = useState(false)
-    const [_, setVfsOptions] = useState<Record<string, FlagValue>>({})
+    const [vfsOptions, setVfsOptions] = useState<Record<string, FlagValue>>({})
     const [vfsOptionsJson, setVfsOptionsJson] = useState<string>('{}')
+    const [vfsFlags, setVfsFlags] = useState<Awaited<ReturnType<typeof getVfsFlags>>>([])
 
     const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
     const [filterOptions, setFilterOptions] = useState<Record<string, FlagValue>>({})
     const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
 
-    // const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
-    // const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
-    // const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+    const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
+    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
+    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+
+    useEffect(() => {
+        console.log('serializeOptions', serializeOptions(vfsFlags, vfsOptions))
+    }, [vfsFlags, vfsOptions])
 
     const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
 
@@ -63,46 +88,99 @@ export default function Serve() {
     useEffect(() => {
         const storeData = usePersistedStore.getState()
 
-        if (!remote) return
+        const sourceRemoteName = getRemoteName(source)
 
-        const remoteConfig = storeData.remoteConfigList?.[remote]
+        let mergedFilterDefaults = {}
+        let mergedConfigDefaults = {}
+        let mergedVfsDefaults = {}
 
-        if (!vfsOptionsLocked) {
-            if (remoteConfig?.vfsDefaults && Object.keys(remoteConfig.vfsDefaults).length > 0) {
-                setVfsOptionsJson(JSON.stringify(remoteConfig.vfsDefaults, null, 2))
+        // Helper function to merge defaults from a remote
+        const mergeRemoteDefaults = (remote: string | null) => {
+            if (!remote) return
+
+            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
+
+            if (remoteConfig.vfsDefaults) {
+                mergedVfsDefaults = {
+                    ...mergedVfsDefaults,
+                    ...remoteConfig.vfsDefaults,
+                }
+            }
+
+            if (remoteConfig.filterDefaults) {
+                mergedFilterDefaults = {
+                    ...mergedFilterDefaults,
+                    ...remoteConfig.filterDefaults,
+                }
+            }
+
+            if (remoteConfig.configDefaults) {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...remoteConfig.configDefaults,
+                }
             } else {
-                setVfsOptionsJson(JSON.stringify(RCLONE_VFS_DEFAULTS, null, 2))
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...RCLONE_CONFIG_DEFAULTS,
+                }
             }
         }
 
-        if (
-            remoteConfig?.filterDefaults &&
-            Object.keys(remoteConfig.filterDefaults).length > 0 &&
-            !filterOptionsLocked
-        ) {
-            setFilterOptionsJson(JSON.stringify(remoteConfig.filterDefaults, null, 2))
+        // Only merge defaults for remote paths
+        if (sourceRemoteName) mergeRemoteDefaults(sourceRemoteName)
+
+        if (Object.keys(mergedVfsDefaults).length > 0 && !vfsOptionsLocked) {
+            setVfsOptionsJson(JSON.stringify(mergedVfsDefaults, null, 2))
         }
 
-        // if (!configOptionsLocked) {
-        //     if (
-        //         storeData.remoteConfigList?.[remote]?.configDefaults &&
-        //         Object.keys(storeData.remoteConfigList?.[remote]?.configDefaults).length > 0
-        //     ) {
-        //         setConfigOptionsJson(
-        //             JSON.stringify(storeData.remoteConfigList[remote].configDefaults, null, 2)
-        //         )
-        //     } else {
-        //         setConfigOptionsJson(JSON.stringify(RCLONE_CONFIG_DEFAULTS, null, 2))
-        //     }
-        // }
-    }, [remote])
+        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
+            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
+        }
+
+        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
+            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
+        }
+    }, [source])
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
+    useEffect(() => {
+        const storeData = usePersistedStore.getState()
+
+        const sourceRemoteName = getRemoteName(source)
+
+        let mergedServeDefaults = {}
+
+        // Helper function to merge defaults from a remote
+        const mergeRemoteDefaults = (remote: string | null) => {
+            if (!remote) return
+            if (!type) return
+
+            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
+
+            if (remoteConfig.serveDefaults?.[type]) {
+                mergedServeDefaults = {
+                    ...mergedServeDefaults,
+                    ...remoteConfig.serveDefaults?.[type],
+                }
+            }
+        }
+
+        // Only merge defaults for remote paths
+        if (sourceRemoteName) mergeRemoteDefaults(sourceRemoteName)
+
+        if (Object.keys(mergedServeDefaults).length > 0 && !serveOptionsLocked) {
+            setServeOptionsJson(JSON.stringify(mergedServeDefaults, null, 2))
+        }
+    }, [source, type])
 
     useEffect(() => {
         getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
+        getVfsFlags().then((flags) => setVfsFlags(flags))
     }, [])
 
     useEffect(() => {
-        let step: 'mount' | 'vfs' | 'filter' | 'config' = 'mount'
+        let step: 'serve' | 'vfs' | 'filter' | 'config' = 'serve'
         try {
             setServeOptions(JSON.parse(serveOptionsJson))
 
@@ -112,27 +190,32 @@ export default function Serve() {
             step = 'filter'
             setFilterOptions(JSON.parse(filterOptionsJson))
 
-            // step = 'config'
-            // setConfigOptions(JSON.parse(configOptionsJson))
+            step = 'config'
+            setConfigOptions(JSON.parse(configOptionsJson))
 
             setJsonError(null)
         } catch (error) {
             setJsonError(step)
-            console.error(`[Mount] Error parsing ${step} options:`, error)
+            console.error(`[Serve] Error parsing ${step} options:`, error)
         }
-    }, [serveOptionsJson, vfsOptionsJson, filterOptionsJson])
+    }, [serveOptionsJson, vfsOptionsJson, filterOptionsJson, configOptionsJson])
 
     async function handleStartServe() {
-        if (!remote || !type) return
+        if (!source || !type) return
 
         setIsLoading(true)
 
         try {
+            const vfsParams = serializeOptions(vfsFlags, vfsOptions)
+
             await startServe({
                 type,
-                fs: `${remote}:/`,
+                // fs: `${remote}:/`,
+                fs: source,
                 _filter: filterOptions as any,
+                _config: configOptions as any,
                 ...serveOptions,
+                ...vfsParams,
             })
 
             setIsServing(true)
@@ -140,9 +223,9 @@ export default function Serve() {
             await triggerTrayRebuild()
             setIsLoading(false)
         } catch (err) {
-            console.error('[Mount] Failed to start mount:', err)
+            console.error('[Serve] Failed to start serve:', err)
             const errorMessage =
-                err instanceof Error ? err.message : 'Failed to start mount operation'
+                err instanceof Error ? err.message : 'Failed to start serve operation'
             await message(errorMessage, {
                 title: 'Error',
                 kind: 'error',
@@ -154,26 +237,21 @@ export default function Serve() {
     const buttonText = (() => {
         if (isLoading) return 'STARTING...'
         if (isServing) return 'STARTED'
-        if (!remote) return 'Please select a remote'
+        if (!source) return 'Please select a source'
         if (!type) return 'Please select a serve type'
-
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-
         if (!('addr' in serveOptions)) return 'Specify a listen address in the Serve options'
         return 'START SERVE'
     })()
 
-    console.log('serveOptions', serveOptions)
-
     const buttonIcon = (() => {
         if (isLoading || isServing) return
-        if (!remote || !type) return <FoldersIcon className="w-5 h-5" />
+        if (!source || !type) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-4 h-4 mt-0.5" />
         if (!('addr' in serveOptions)) return <AlertOctagonIcon className="w-4 h-4 mt-0.5" />
         return <PlayIcon className="w-4 h-4 fill-current" />
     })()
 
-    console.log('type', type)
     return (
         <div className="flex flex-col h-screen gap-10">
             <CommandInfo
@@ -182,23 +260,15 @@ export default function Serve() {
                 }
             />
             <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
-                <Select
-                    selectedKeys={remote ? [remote] : []}
-                    onSelectionChange={(keys) => {
-                        setRemote(keys.currentKey as string)
-                    }}
-                    size="lg"
-                    placeholder="Select a remote"
-                    label="Remote"
-                    labelPlacement="outside"
-                    classNames={{}}
-                >
-                    {remotes.map((remote) => (
-                        <SelectItem key={remote} textValue={remote}>
-                            {remote}
-                        </SelectItem>
-                    ))}
-                </Select>
+                <PathField
+                    path={source || ''}
+                    setPath={setSource}
+                    label="Source"
+                    description="Select the source remote or manually enter a path"
+                    placeholder="Enter a remote:/path as source"
+                    showPicker={true}
+                    showFiles={false}
+                />
 
                 <Select
                     selectedKeys={type ? [type] : []}
@@ -223,9 +293,11 @@ export default function Serve() {
                             key="serve"
                             startContent={
                                 <Avatar
-                                    color="success"
                                     radius="lg"
-                                    fallback={<ServerCrashIcon />}
+                                    fallback={
+                                        <ServerCrashIcon className="text-success-foreground" />
+                                    }
+                                    className="bg-cyan-500"
                                 />
                             }
                             indicator={<ServerCrashIcon />}
@@ -259,7 +331,7 @@ export default function Serve() {
                             globalOptions={
                                 currentGlobalOptions['vfs' as keyof typeof currentGlobalOptions]
                             }
-                            getAvailableOptions={getVfsFlags}
+                            getAvailableOptions={async () => vfsFlags}
                             isLocked={vfsOptionsLocked}
                             setIsLocked={setVfsOptionsLocked}
                         />
@@ -284,7 +356,7 @@ export default function Serve() {
                             setIsLocked={setFilterOptionsLocked}
                         />
                     </AccordionItem>
-                    {/* <AccordionItem
+                    <AccordionItem
                         key="config"
                         startContent={
                             <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
@@ -300,11 +372,10 @@ export default function Serve() {
                             optionsJson={configOptionsJson}
                             setOptionsJson={setConfigOptionsJson}
                             getAvailableOptions={getConfigFlags}
-                            rows={10}
                             isLocked={configOptionsLocked}
                             setIsLocked={setConfigOptionsLocked}
                         />
-                    </AccordionItem> */}
+                    </AccordionItem>
                 </Accordion>
             </div>
 
@@ -316,7 +387,7 @@ export default function Serve() {
                             size="lg"
                             color="primary"
                             onPress={() => {
-                                setRemote(undefined)
+                                setSource(undefined)
                                 setType(undefined)
                                 setIsServing(false)
                             }}
@@ -342,7 +413,14 @@ export default function Serve() {
                         size="lg"
                         fullWidth={true}
                         color="primary"
-                        isDisabled={isLoading || !!jsonError || !remote || !type || isServing}
+                        isDisabled={
+                            isLoading ||
+                            !!jsonError ||
+                            !source ||
+                            !type ||
+                            isServing ||
+                            !('addr' in serveOptions)
+                        }
                         isLoading={isLoading}
                         endContent={buttonIcon}
                         className="max-w-2xl gap-2"
