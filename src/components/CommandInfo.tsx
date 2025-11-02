@@ -24,7 +24,7 @@ export default function CommandInfo({ content }: { content: string }) {
                 }
                 classNames={{
                     base: '-mx-2 bg-primary-100 rounded-b-large px-8 whitespace-pre-wrap text-primary-900',
-                    trigger: 'pb-1.5 pt-1 !cursor-pointer',
+                    trigger: 'pb-1.5 pt-1 !cursor-pointer !outline-none !ring-0',
                     title: 'text-small !cursor-pointer text-primary-700 font-light',
                 }}
                 indicator={<InfoIcon className="text-primary-800 size-3.5" />}

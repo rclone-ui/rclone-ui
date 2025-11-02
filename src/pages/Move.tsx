@@ -31,6 +31,7 @@ import {
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
+import CommandInfo from '../components/CommandInfo'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { MultiPathFinder } from '../components/PathFinder'
@@ -535,7 +536,15 @@ export default function Move() {
     })()
 
     return (
-        <div className="flex flex-col h-screen gap-10 pt-10">
+        <div className="flex flex-col h-screen gap-10">
+            <CommandInfo
+                content={`Moves the contents of the source directory to the destination directory. Rclone will error if the source and destination overlap and the remote does not support a server-side directory move operation.
+					
+Can also be used to move a single file to a different remote.
+
+Rclone will sync the modification times of files and directories if the backend supports it.`}
+            />
+
             {/* Main Content */}
             <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Paths Display */}

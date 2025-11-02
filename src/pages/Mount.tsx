@@ -29,6 +29,7 @@ import { dialogGetMountPlugin } from '../../lib/rclone/mount'
 import { needsMountPlugin } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
+import CommandInfo from '../components/CommandInfo'
 import OptionsSection from '../components/OptionsSection'
 import { PathFinder } from '../components/PathFinder'
 
@@ -263,7 +264,15 @@ export default function Mount() {
     })()
 
     return (
-        <div className="flex flex-col h-screen gap-10 pt-10">
+        <div className="flex flex-col h-screen gap-10">
+            <CommandInfo
+                content={`Mount allows Linux, FreeBSD, macOS and Windows users to mount any of rclone's cloud storage systems as a file system with FUSE.
+					
+On Linux/macOS/FreeBSD the mount point must be a empty directory.
+
+On Windows, when mounting as a fixed disk drive you can either mount to an unused drive letter, or to a path representing a nonexistent subdirectory of an existing parent directory or drive. Using the special value "*" in the Destination field will tell rclone to automatically assign the next available drive letter, starting with Z: and moving backward.`}
+            />
+
             {/* Main Content */}
             <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Paths Display */}

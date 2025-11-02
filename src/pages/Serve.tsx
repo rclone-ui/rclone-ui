@@ -22,6 +22,7 @@ import { RCLONE_VFS_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore, useStore } from '../../lib/store'
 import { triggerTrayRebuild } from '../../lib/tray'
 import type { FlagValue } from '../../types/rclone'
+import CommandInfo from '../components/CommandInfo'
 import OptionsSection from '../components/OptionsSection'
 
 const SERVE_TYPES = ['dlna', 'ftp', 'sftp', 'http', 'nfs', 'restic', 's3', 'webdav'] as const
@@ -174,7 +175,12 @@ export default function Serve() {
 
     console.log('type', type)
     return (
-        <div className="flex flex-col h-screen gap-10 pt-10">
+        <div className="flex flex-col h-screen gap-10">
+            <CommandInfo
+                content={
+                    'Serve allows you to serve the contents of a remote as a file server of a specific protocol/type.'
+                }
+            />
             <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 <Select
                     selectedKeys={remote ? [remote] : []}

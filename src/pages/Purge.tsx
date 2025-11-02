@@ -22,6 +22,7 @@ import {
 } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
+import CommandInfo from '../components/CommandInfo'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
@@ -249,7 +250,12 @@ export default function Purge() {
     })()
 
     return (
-        <div className="flex flex-col h-screen gap-10 pt-10">
+        <div className="flex flex-col h-screen gap-10">
+            <CommandInfo
+                content={`Remove the path and all of its contents.
+					
+Note that this does not obey include/exclude filters — everything will be removed.`}
+            />
             {/* Main Content */}
             <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Path Display */}

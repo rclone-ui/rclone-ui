@@ -30,6 +30,7 @@ import {
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
+import CommandInfo from '../components/CommandInfo'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { MultiPathFinder } from '../components/PathFinder'
@@ -524,7 +525,12 @@ export default function Copy() {
     }
 
     return (
-        <div className="flex flex-col h-screen gap-10 pt-10">
+        <div className="flex flex-col h-screen gap-10">
+            <CommandInfo
+                content={`Copy the source to the destination. Does not transfer files that are identical on source and destination, testing by size and modification time or MD5SUM. Doesn't delete files from the destination. If you want to also delete files from destination, to make it match source, use the SYNC command instead.
+
+Note that it is always the contents of the directory that is synced, not the directory itself. So when source:path is a directory, it's the contents of source:path that are copied, not the directory name and contents.`}
+            />
             {/* Main Content */}
             <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Paths Display */}

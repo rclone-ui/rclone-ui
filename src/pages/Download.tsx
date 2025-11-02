@@ -5,6 +5,7 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { DownloadIcon, FoldersIcon, XIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { startDownload } from '../../lib/rclone/api'
+import CommandInfo from '../components/CommandInfo'
 import { PathField } from '../components/PathFinder'
 
 function isValidUrl(url: string) {
@@ -194,7 +195,17 @@ export default function Download() {
     }, [url])
 
     return (
-        <div className="flex flex-col h-screen gap-2 pt-10">
+        <div className="flex flex-col h-screen gap-2">
+            <CommandInfo
+                content={`Download a URL's content and copy it to the destination without saving it in temporary storage, using the copyurl command.
+					
+Supports Youtube, TikTok, SoundCloud, Google Drive, etc. as well as regular URLs.
+
+If you can't get Download to work then make sure the site works with curl directly.`}
+            />
+
+            <div className="w-full h-5" />
+
             {/* Main Content */}
             <div className="flex flex-col flex-1 w-full max-w-3xl gap-4 mx-auto">
                 <Input
@@ -267,7 +278,7 @@ export default function Download() {
                             muted={true}
                             // controls={true}
                             src={downloadData.url}
-                            className="object-contain w-full h-64"
+                            className="object-contain w-full h-64 mx-10 overflow-hidden rounded-large"
                         />
                     )}
 

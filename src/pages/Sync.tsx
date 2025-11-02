@@ -30,6 +30,7 @@ import {
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
+import CommandInfo from '../components/CommandInfo'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { PathFinder } from '../components/PathFinder'
@@ -336,7 +337,21 @@ export default function Sync() {
     }, [syncOptionsJson, filterOptionsJson, configOptionsJson, remoteOptionsJson])
 
     return (
-        <div className="flex flex-col h-screen gap-10 pt-10">
+        <div className="flex flex-col h-screen gap-10">
+            <CommandInfo
+                content={`Sync the source to the destination, changing the destination only. Doesn't transfer files that are identical on source and destination, testing by size and modification time or MD5SUM. Destination is updated to match source, including deleting files if necessary (except duplicate objects, see below). If you don't want to delete files from destination, use the COPY command instead.
+					
+Files in the destination won't be deleted if there were any errors at any point. Duplicate objects (files with the same name, on those providers that support it) are not yet handled.
+
+It is always the contents of the directory that is synced, not the directory itself. So when source:path is a directory, it's the contents of source:path that are copied, not the directory name and contents.
+
+If dest:path doesn't exist, it is created and the source:path contents go there.
+
+It is not possible to sync overlapping remotes. However, you may exclude the destination from the sync with a filter rule or by putting an exclude-if-present file inside the destination directory and sync to a destination that is inside the source directory.
+
+Rclone will sync the modification times of files and directories if the backend supports it.`}
+            />
+
             {/* Main Content */}
             <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
                 {/* Paths Display */}

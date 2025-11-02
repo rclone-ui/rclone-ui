@@ -24,6 +24,7 @@ import {
 } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../lib/store'
+import CommandInfo from '../components/CommandInfo'
 import CronEditor from '../components/CronEditor'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
@@ -289,7 +290,13 @@ export default function Delete() {
     })()
 
     return (
-        <div className="flex flex-col h-screen gap-10 pt-10">
+        <div className="flex flex-col h-screen gap-10">
+            <CommandInfo
+                content={`Remove the files in path. Unlike purge it obeys include/exclude filters so can be used to selectively delete files.
+
+Delete only deletes files but leaves the directory structure alone. If you want to delete a directory and all of its contents use the PURGE command.`}
+            />
+
             {/* Main Content */}
             <div
                 className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto"
