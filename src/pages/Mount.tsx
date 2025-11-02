@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { getRemoteName } from '../../lib/format'
 import { isDirectoryEmpty } from '../../lib/fs'
 import {
     getConfigFlags,
@@ -24,7 +25,7 @@ import {
     getVfsFlags,
     mountRemote,
 } from '../../lib/rclone/api'
-import { RCLONE_CONFIG_DEFAULTS, RCLONE_VFS_DEFAULTS } from '../../lib/rclone/constants'
+import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { dialogGetMountPlugin } from '../../lib/rclone/mount'
 import { needsMountPlugin } from '../../lib/rclone/mount'
 import { usePersistedStore } from '../../lib/store'
@@ -67,54 +68,70 @@ export default function Mount() {
     useEffect(() => {
         const storeData = usePersistedStore.getState()
 
-        const remote = source?.split(':')[0]
+        const sourceRemoteName = getRemoteName(source)
 
-        if (!remote) return
+        let mergedFilterDefaults = {}
+        let mergedConfigDefaults = {}
+        let mergedVfsDefaults = {}
+        let mergedMountDefaults = {}
 
-        if (
-            storeData.remoteConfigList?.[remote]?.mountDefaults &&
-            Object.keys(storeData.remoteConfigList?.[remote]?.mountDefaults).length > 0 &&
-            !mountOptionsLocked
-        ) {
-            setMountOptionsJson(
-                JSON.stringify(storeData.remoteConfigList[remote].mountDefaults, null, 2)
-            )
-        }
+        // Helper function to merge defaults from a remote
+        const mergeRemoteDefaults = (remote: string | null) => {
+            if (!remote) return
 
-        if (!vfsOptionsLocked) {
-            if (
-                storeData.remoteConfigList?.[remote]?.vfsDefaults &&
-                Object.keys(storeData.remoteConfigList?.[remote]?.vfsDefaults).length > 0
-            ) {
-                setVfsOptionsJson(
-                    JSON.stringify(storeData.remoteConfigList[remote].vfsDefaults, null, 2)
-                )
+            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
+
+            if (remoteConfig.mountDefaults) {
+                mergedMountDefaults = {
+                    ...mergedMountDefaults,
+                    ...remoteConfig.mountDefaults,
+                }
+            }
+
+            if (remoteConfig.vfsDefaults) {
+                mergedVfsDefaults = {
+                    ...mergedVfsDefaults,
+                    ...remoteConfig.vfsDefaults,
+                }
+            }
+
+            if (remoteConfig.filterDefaults) {
+                mergedFilterDefaults = {
+                    ...mergedFilterDefaults,
+                    ...remoteConfig.filterDefaults,
+                }
+            }
+
+            if (remoteConfig.configDefaults) {
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...remoteConfig.configDefaults,
+                }
             } else {
-                setVfsOptionsJson(JSON.stringify(RCLONE_VFS_DEFAULTS, null, 2))
+                mergedConfigDefaults = {
+                    ...mergedConfigDefaults,
+                    ...RCLONE_CONFIG_DEFAULTS,
+                }
             }
         }
 
-        if (
-            storeData.remoteConfigList?.[remote]?.filterDefaults &&
-            Object.keys(storeData.remoteConfigList?.[remote]?.filterDefaults).length > 0 &&
-            !filterOptionsLocked
-        ) {
-            setFilterOptionsJson(
-                JSON.stringify(storeData.remoteConfigList[remote].filterDefaults, null, 2)
-            )
+        // Only merge defaults for remote paths
+        if (sourceRemoteName) mergeRemoteDefaults(sourceRemoteName)
+
+        if (Object.keys(mergedMountDefaults).length > 0 && !mountOptionsLocked) {
+            setMountOptionsJson(JSON.stringify(mergedMountDefaults, null, 2))
         }
 
-        if (!configOptionsLocked) {
-            if (
-                storeData.remoteConfigList?.[remote]?.configDefaults &&
-                Object.keys(storeData.remoteConfigList?.[remote]?.configDefaults).length > 0
-            ) {
-                setConfigOptionsJson(
-                    JSON.stringify(storeData.remoteConfigList[remote].configDefaults, null, 2)
-                )
-            } else {
-                setConfigOptionsJson(JSON.stringify(RCLONE_CONFIG_DEFAULTS, null, 2))
-            }
+        if (Object.keys(mergedVfsDefaults).length > 0 && !vfsOptionsLocked) {
+            setVfsOptionsJson(JSON.stringify(mergedVfsDefaults, null, 2))
+        }
+
+        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
+            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
+        }
+
+        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
+            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
         }
     }, [source])
 
