@@ -23,12 +23,22 @@
     <img alt="Downloads" src="https://img.shields.io/badge/DOWNLOADS-blue?style=for-the-badge&label=Tap%20to%20see" />
   </a>
  &nbsp;
-   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
-  </a>
- &nbsp;
   <a href="https://tauri.app/?ref=rclone-ui">
     <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
+  </a>
+</p>
+
+<p align="center">
+   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#package-managers">
+    <img alt="Choco" src="https://img.shields.io/badge/Choco-42345f?style=for-the-badge&logo=chocolatey" />
+  </a>
+ &nbsp;
+   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#package-managers">
+    <img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" />
+  </a>
+ &nbsp;
+   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#package-managers">
+    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
   </a>
 </p>
 
@@ -44,7 +54,7 @@
 ### 🖥️ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)
 ### ✅ Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
 ### 🔗 Add/Edit/Remove Remotes
-### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount, etc
+### ⚡️ Sync, BiSync, Bisync, Copy, Move, Delete, Purge, Serve, Mount, etc
 ### ⭐️ Save time by setting default flags for each Remote separately, for each operation (Mount, Sync, Copy, etc)
 ### 🎛️ Customize the flags (parameters) when running an operation, on a case by case basis
 ### 📚 Embedded documentation for each flag, no need to google what everything does!
@@ -68,6 +78,7 @@
 - Brew **`brew install --cask rclone-ui`**
 - Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
+- WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
 
 ## Downloads
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)

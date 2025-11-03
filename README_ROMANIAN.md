@@ -22,13 +22,23 @@
   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
     <img alt="Downloads" src="https://img.shields.io/badge/DESCARCA-blue?style=for-the-badge&label=Apasa%20aici" />
   </a>
- &nbsp;
-   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
-  </a>
- &nbsp;
+  &nbsp;
   <a href="https://tauri.app/?ref=rclone-ui">
     <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
+  </a>
+</p>
+
+<p align="center">
+   <a href="#package-managers">
+    <img alt="Choco" src="https://img.shields.io/badge/Choco-42345f?style=for-the-badge&logo=chocolatey" />
+  </a>
+ &nbsp;
+   <a href="#package-managers">
+    <img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" />
+  </a>
+ &nbsp;
+   <a href="#package-managers">
+    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
   </a>
 </p>
 
@@ -44,7 +54,7 @@
 ### 🖥️ Toate Platformele: Windows, Linux, macOS (x64, Arm și Apple Silicon)
 ### ✅ Funcționează cu instalarea ta existentă de rclone (sau îl poate instala pentru tine) și îl menține up-to-date (cu aprobarea ta)
 ### 🔗 Adaugă/Editează/Șterge Remotes
-### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount etc.
+### ⚡️ Sync, Bisync, Copy, Move, Delete, Purge, Serve, Mount etc.
 ### ⭐️ Economisește timp setând default flags pentru fiecare Remote, separat pentru fiecare operațiune (Mount, Sync, Copy etc.)
 ### 🎛️ Personalizează flags când rulezi o operațiune, de la caz la caz
 ### 📚 Documentație integrată pentru fiecare flag — nu mai trebuie să dai search pe Google ca să afli ce face!
@@ -64,10 +74,11 @@
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
 ## Package Managers
-- Flathub **`flatpak install com.rcloneui.RcloneUI`** or **[from the store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
+- Flathub **`flatpak install com.rcloneui.RcloneUI`** sau **[din magazin](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
 - Brew **`brew install --cask rclone-ui`**
 - Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
+- WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
 
 ## Descarcă
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)

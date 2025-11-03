@@ -19,16 +19,26 @@
     <img alt="Latest Release" src="https://img.shields.io/github/actions/workflow/status/rclone-ui/rclone-ui/release.yml?style=for-the-badge" />
   </a>
   &nbsp;
-  <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
+  <a href="#downloads-hoist-the-booty">
     <img alt="Downloads" src="https://img.shields.io/badge/DOWNLOADS-blue?style=for-the-badge&label=Tap%20to%20see" />
   </a>
- &nbsp;
-   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
-  </a>
- &nbsp;
+  &nbsp;
   <a href="https://tauri.app/?ref=rclone-ui">
     <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
+  </a>
+</p>
+
+<p align="center">
+   <a href="#package-mangarrs">
+    <img alt="Choco" src="https://img.shields.io/badge/Choco-42345f?style=for-the-badge&logo=chocolatey" />
+  </a>
+ &nbsp;
+   <a href="#package-mangarrs">
+    <img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" />
+  </a>
+ &nbsp;
+   <a href="#package-mangarrs">
+    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
   </a>
 </p>
 
@@ -44,7 +54,7 @@
 ### 🖥️ Runs on all decks — Windows, Linux, macOS (x64, Arm, an’ Apple Silicon)
 ### ✅ Sails with yer existing rclone (or we’ll fetch it fer ye) an’ keeps it shipshape (with yer aye-aye)
 ### 🔗 Add/Edit/Remove (Scuttle) Remotes
-### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount—pillagin’ made easy
+### ⚡️ Sync, Bisync, Copy, Move, Delete, Purge, Serve, Mount—pillagin’ made easy
 ### ⭐️ Save precious time by settin’ default flags per Remote, per operation (Mount, Sync, Copy, an’ the like)
 ### 🎛️ Tweak the flags (parrrrrameters) fer each voyage as ye see fit
 ### 📚 Flag lore be embedded—no need t’ consult the oracle o’ Google!
@@ -64,10 +74,11 @@
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
 ## Package Mangarrs
-- Flathub **`flatpak install com.rcloneui.RcloneUI`** or **[from th’ store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
+- Flathub **`flatpak install com.rcloneui.RcloneUI`** or **[from th' store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
 - Brew **`brew install --cask rclone-ui`**
 - Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
+- WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
 
 ## Downloads (hoist the booty!)
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)

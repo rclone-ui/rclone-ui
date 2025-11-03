@@ -22,13 +22,23 @@
   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
     <img alt="下载" src="https://img.shields.io/badge/下载-blue?style=for-the-badge&label=Tap%20to%20see" />
   </a>
- &nbsp;
-   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
-  </a>
- &nbsp;
+  &nbsp;
   <a href="https://tauri.app/?ref=rclone-ui">
     <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
+  </a>
+</p>
+
+<p align="center">
+   <a href="#包管理器">
+    <img alt="Choco" src="https://img.shields.io/badge/Choco-42345f?style=for-the-badge&logo=chocolatey" />
+  </a>
+ &nbsp;
+   <a href="#包管理器">
+    <img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" />
+  </a>
+ &nbsp;
+   <a href="#包管理器">
+    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
   </a>
 </p>
 
@@ -68,6 +78,7 @@
 - Brew **`brew install --cask rclone-ui`**
 - Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
+- WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
 
 ## 下载
 - **Windows**（**[Arm](https://get.rcloneui.com/win-arm)**、**[x64](https://get.rcloneui.com/win)**）

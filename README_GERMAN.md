@@ -22,13 +22,23 @@
   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
     <img alt="Aufladen" src="https://img.shields.io/badge/AUFLADEN-blue?style=for-the-badge&label=Tap%20to%20see" />
   </a>
- &nbsp;
-   <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
-  </a>
- &nbsp;
+  &nbsp;
   <a href="https://tauri.app/?ref=rclone-ui">
     <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
+  </a>
+</p>
+
+<p align="center">
+   <a href="#package-managers">
+    <img alt="Choco" src="https://img.shields.io/badge/Choco-42345f?style=for-the-badge&logo=chocolatey" />
+  </a>
+ &nbsp;
+   <a href="#package-managers">
+    <img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" />
+  </a>
+ &nbsp;
+   <a href="#package-managers">
+    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
   </a>
 </p>
 
@@ -44,7 +54,7 @@
 ### 🖥️ Cross-platform: Windows, Linux, macOS (x64, Arm und Apple Silicon)
 ### ✅ Funktioniert mit deiner bestehenden rclone-Installation (oder kann rclone für dich installieren) und hält sie auf Wunsch aktuell
 ### 🔗 Remotes hinzufügen/bearbeiten/entfernen
-### ⚡️ Sync, Copy, Move, Delete, Purge, Serve, Mount, etc.
+### ⚡️ Sync, Bisync, Copy, Move, Delete, Purge, Serve, Mount, etc.
 ### ⭐️ Zeit sparen durch Default Flags pro Remote und pro Operation (Mount, Sync, Copy, etc.)
 ### 🎛️ Flags (Parameter) bei Bedarf pro Run/Case anpassen
 ### 📚 Eingebettete Doku zu jedem Flag – kein Googeln nötig!
@@ -64,10 +74,11 @@
 <img src=".github/rclone-2.png" alt="Rclone UI">
 
 ## Package Managers
-- Flathub **`flatpak install com.rcloneui.RcloneUI`** or **[from the store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
+- Flathub **`flatpak install com.rcloneui.RcloneUI`** oder **[aus dem Store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
 - Brew **`brew install --cask rclone-ui`**
 - Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
+- WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
 
 ## Downloads
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
