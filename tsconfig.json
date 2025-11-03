@@ -1,4 +1,5 @@
 {
+    "references": [{ "path": "./tsconfig.node.json" }],
     "compilerOptions": {
         "target": "ES2020",
         "useDefineForClassFields": true,
@@ -20,6 +21,5 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true
     },
-    "include": ["src", "lib"],
-    "references": [{ "path": "./tsconfig.node.json" }]
+    "include": ["src", "lib"]
 }
