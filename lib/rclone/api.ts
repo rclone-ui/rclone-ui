@@ -586,6 +586,62 @@ export async function startMove({
     return r.jobid
 }
 
+export async function startBisync({
+    path1,
+    path2,
+    _config,
+    _filter,
+    remoteOptions,
+    outerOptions,
+}: {
+    path1: string
+    path2: string
+    _config?: Record<string, FlagValue>
+    _filter?: Record<string, FlagValue>
+    remoteOptions?: Record<string, FlagValue>
+    outerOptions?: Record<string, FlagValue>
+}) {
+    console.log('[startBisync]', path1, path2)
+
+    const params = new URLSearchParams()
+    params.set('path1', path1)
+    params.set('path2', path2)
+    params.set('_async', 'true')
+
+    if (_config && Object.keys(_config).length > 0) {
+        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    }
+
+    if (_filter && Object.keys(_filter).length > 0) {
+        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    }
+
+    if (remoteOptions && Object.keys(remoteOptions).length > 0) {
+        for (const [key, value] of Object.entries(remoteOptions)) {
+            params.set(key, value.toString())
+        }
+    }
+
+    if (outerOptions && Object.keys(outerOptions).length > 0) {
+        for (const [key, value] of Object.entries(outerOptions)) {
+            params.set(key, value.toString())
+        }
+    }
+
+    const r = await fetch(`http://localhost:5572/sync/bisync?${params.toString()}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+    }).then((res) => res.json() as Promise<{ jobid: string }>)
+
+    console.log('[startBisync] operation started:', r)
+
+    if (!r.jobid) {
+        throw new Error('Failed to start bisync job')
+    }
+
+    return r.jobid
+}
+
 export async function startSync({
     srcFs,
     dstFs,

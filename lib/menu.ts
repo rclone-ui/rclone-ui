@@ -518,6 +518,7 @@ export async function buildMenu() {
     const allowsAdditional =
         !persistedStoreState.disabledActions?.includes('tray-sync') ||
         !persistedStoreState.disabledActions?.includes('tray-move') ||
+        !persistedStoreState.disabledActions?.includes('tray-bisync') ||
         !persistedStoreState.disabledActions?.includes('tray-serve') ||
         !persistedStoreState.disabledActions?.includes('tray-purge') ||
         !persistedStoreState.disabledActions?.includes('tray-delete')
@@ -551,6 +552,20 @@ export async function buildMenu() {
                 },
             })
             commandsSubmenuItems.push(moveMenuItem)
+        }
+
+        if (!persistedStoreState.disabledActions?.includes('tray-bisync')) {
+            const bisyncMenuItem = await MenuItem.new({
+                id: 'bisync',
+                text: 'Bisync',
+                action: async () => {
+                    await openWindow({
+                        name: 'Bisync',
+                        url: '/bisync',
+                    })
+                },
+            })
+            commandsSubmenuItems.push(bisyncMenuItem)
         }
 
         const rcloneVersion = await getRcloneVersion()

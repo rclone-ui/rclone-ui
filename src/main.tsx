@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import './global.css'
 import { HeroUIProvider } from '@heroui/react'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
+import Bisync from './pages/Bisync'
 import Copy from './pages/Copy'
 import Cron from './pages/Cron'
 import Delete from './pages/Delete'
@@ -78,6 +79,10 @@ const router = createBrowserRouter([
     {
         path: '/serve',
         element: <Serve />,
+    },
+    {
+        path: '/bisync',
+        element: <Bisync />,
     },
     {
         path: '/mount',

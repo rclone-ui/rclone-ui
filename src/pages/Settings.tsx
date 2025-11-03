@@ -560,6 +560,14 @@ function GeneralSection() {
                         Show <span className="font-mono text-blue-300">Copy</span> option
                     </Checkbox>
                     <Checkbox
+                        isSelected={!disabledActions?.includes('tray-bisync')}
+                        onValueChange={(value) =>
+                            updateDisabledActions({ name: 'tray-bisync', value })
+                        }
+                    >
+                        Show <span className="font-mono text-blue-300">Bisync</span> option
+                    </Checkbox>
+                    <Checkbox
                         isSelected={!disabledActions?.includes('tray-move')}
                         onValueChange={(value) =>
                             updateDisabledActions({ name: 'tray-move', value })

@@ -25,6 +25,7 @@ export interface RemoteConfig {
     syncDefaults?: Record<string, any>
     configDefaults?: Record<string, any>
     serveDefaults?: Record<(typeof SERVE_TYPES)[number], Record<string, any>>
+    bisyncDefaults?: Record<string, any>
     remoteDefaults?: Record<string, any>
 }
 
@@ -58,6 +59,7 @@ type SupportedAction =
     | 'tray-copy'
     | 'tray-serve'
     | 'tray-move'
+    | 'tray-bisync'
     | 'tray-delete'
     | 'tray-purge'
     | 'tray-download'
