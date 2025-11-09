@@ -182,10 +182,10 @@ export default function RemoteCreateDrawer({
         e.preventDefault()
         setIsSaving(true)
 
-        const formData = new FormData(e.currentTarget)
-        const data: Record<string, string | boolean> = {}
+        // take data from config state, not form
+        const data = structuredClone(config)
 
-        for (const [key, value] of formData.entries()) {
+        for (const [key, value] of Object.entries(data)) {
             if (value.toString().trim() === '') continue
             if (
                 e.currentTarget[key] instanceof HTMLInputElement &&
