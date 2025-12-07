@@ -7,11 +7,14 @@ import { copyFile, exists, mkdir, readTextFile, remove } from '@tauri-apps/plugi
 import { writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
-import { exit } from '@tauri-apps/plugin-process'
+import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { Command } from '@tauri-apps/plugin-shell'
+import { useHostStore } from '../../store/host'
+import { useStore } from '../../store/memory'
+import { usePersistedStore } from '../../store/persisted'
 import { getConfigParentFolder } from '../format'
-import { usePersistedStore, useStore } from '../store'
 import { openSmallWindow } from '../window'
+import { ensureEncryptedConfigEnv } from './cli'
 import {
     createConfigFile,
     getConfigPath,
@@ -25,7 +28,7 @@ import {
 export async function initRclone(args: string[]) {
     console.log('[initRclone] starting with args:', args)
 
-    const system = await isSystemRcloneInstalled()
+    const system = !(await invoke<boolean>('is_flathub')) && (await isSystemRcloneInstalled())
     console.log('[initRclone] system rclone installed:', system)
     let internal = await isInternalRcloneInstalled()
     console.log('[initRclone] internal rclone installed:', internal)
@@ -33,8 +36,7 @@ export async function initRclone(args: string[]) {
     // rclone not available, let's download it
     if (!system && !internal) {
         console.log('[initRclone] no rclone installation found, provisioning...')
-        useStore.setState({ startupDisplayed: true })
-        useStore.setState({ startupStatus: 'initializing' })
+        useStore.setState({ startupDisplayed: true, startupStatus: 'initializing' })
         await openSmallWindow({
             name: 'Startup',
             url: '/startup',
@@ -46,6 +48,7 @@ export async function initRclone(args: string[]) {
             useStore.setState({ startupStatus: 'fatal' })
             return
         }
+
         console.log('[initRclone] provision succeeded')
         useStore.setState({ startupStatus: 'initialized' })
 
@@ -92,7 +95,7 @@ export async function initRclone(args: string[]) {
                     console.log('[initRclone] user skipping version:', skipping)
                     if (skipping) {
                         console.log('[initRclone] saving skipped version:', rcloneVersion!.yours)
-                        usePersistedStore.setState({ lastSkippedVersion: rcloneVersion!.yours })
+                        useHostStore.setState({ lastSkippedVersion: rcloneVersion!.yours })
                     }
                 } else {
                     console.log('[initRclone] system rclone updated successfully')
@@ -119,12 +122,14 @@ export async function initRclone(args: string[]) {
             console.error('[initRclone] failed to update rclone', error)
             useStore.setState({ startupStatus: 'error' })
         }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000))
     }
 
-    const persistedState = usePersistedStore.getState()
-    let configFiles = persistedState.configFiles || []
+    const hostState = useHostStore.getState()
+    let configFiles = hostState.configFiles || []
     console.log('[initRclone] loaded config files count:', configFiles.length)
-    let activeConfigFile = persistedState.activeConfigFile
+    let activeConfigFile = hostState.activeConfigFile
     console.log('[initRclone] active config file:', activeConfigFile?.id)
 
     if (system) {
@@ -135,18 +140,24 @@ export async function initRclone(args: string[]) {
         console.log('[initRclone] created system config file')
     }
 
+    const existingDefaultConfig = configFiles.find((config) => config.id === 'default')
     configFiles = configFiles.filter((config) => config.id !== 'default')
     console.log('[initRclone] filtered config files, remaining count:', configFiles.length)
-    configFiles.unshift({
-        id: 'default',
-        label: 'Default config',
-        sync: undefined,
-        isEncrypted: false,
-        pass: undefined,
-        passCommand: undefined,
-    })
+
+    const defaultConfig = existingDefaultConfig
+        ? existingDefaultConfig
+        : {
+              id: 'default',
+              label: 'Default config',
+              sync: undefined,
+              isEncrypted: false,
+              pass: undefined,
+              passCommand: undefined,
+          }
+
+    configFiles.unshift(defaultConfig)
     console.log('[initRclone] added default config to list')
-    usePersistedStore.setState({ configFiles })
+    useHostStore.setState({ configFiles })
 
     if (!activeConfigFile) {
         console.log('[initRclone] no active config file, setting default')
@@ -157,7 +168,7 @@ export async function initRclone(args: string[]) {
         }
 
         console.log('[initRclone] set active config file to:', activeConfigFile.id)
-        usePersistedStore.setState({ activeConfigFile })
+        useHostStore.setState({ activeConfigFile })
     }
 
     if (internal && activeConfigFile.id === 'default') {
@@ -196,12 +207,12 @@ export async function initRclone(args: string[]) {
                 await getConfigPath({ id: 'default', validate: true })
             )
             console.log('[initRclone] switched to default config')
-            usePersistedStore.setState({ activeConfigFile: configFiles[0] })
+            useHostStore.setState({ activeConfigFile: configFiles[0] })
         }
     }
 
-    let password: string | null = activeConfigFile.pass || activeConfigFile.passCommand || null
-    console.log('[initRclone] password configured:', !!password)
+    const passwordConfigured = activeConfigFile.pass || activeConfigFile.passCommand || null
+    console.log('[initRclone] password configured:', !!passwordConfigured)
     try {
         console.log('[initRclone] reading config file', configPath)
         const configContent = await readTextFile(configPath)
@@ -211,39 +222,26 @@ export async function initRclone(args: string[]) {
 
         if (isEncrypted) {
             console.log('[initRclone] config file is encrypted')
-            if (password) {
-                console.log('[initRclone] using existing password')
+            if (passwordConfigured) {
+                console.log('[initRclone] using existing password configuration')
             } else {
-                console.log('[initRclone] prompting user for password')
-                password = await promptForConfigPassword(activeConfigFile.label)
-                console.log('[initRclone] password received:', !!password)
+                console.log('[initRclone] no stored password configured')
+            }
 
-                if (!password) {
-                    console.error('[initRclone] no password provided, exiting')
-                    await message('Password is required for encrypted configurations.', {
-                        title: 'Password Required',
-                        kind: 'error',
-                        okLabel: 'OK',
-                    })
-                    await exit(0)
-                    return
-                }
+            if (!activeConfigFile.isEncrypted) {
+                console.log('[initRclone] updating config file encryption flag')
+                const updatedConfigFile = { ...activeConfigFile, isEncrypted: true }
+                const updatedConfigFiles = configFiles.map((config) =>
+                    config.id === activeConfigFile!.id ? updatedConfigFile : config
+                )
+                useHostStore.setState({
+                    configFiles: updatedConfigFiles,
+                    activeConfigFile: updatedConfigFile,
+                })
+                console.log('[initRclone] saved updated encryption flag')
 
-                if (!activeConfigFile.isEncrypted) {
-                    console.log('[initRclone] updating config file encryption flag')
-                    const updatedConfigFile = { ...activeConfigFile, isEncrypted: true }
-                    const updatedConfigFiles = configFiles.map((config) =>
-                        config.id === activeConfigFile!.id ? updatedConfigFile : config
-                    )
-                    usePersistedStore.setState({
-                        configFiles: updatedConfigFiles,
-                        activeConfigFile: updatedConfigFile,
-                    })
-                    console.log('[initRclone] saved updated encryption flag')
-
-                    // Update activeConfigFile reference for the rest of the function
-                    activeConfigFile = updatedConfigFile
-                }
+                // Update activeConfigFile reference for the rest of the function
+                activeConfigFile = updatedConfigFile
             }
         } else if (activeConfigFile.isEncrypted) {
             console.log('[initRclone] config file is not encrypted, clearing encryption flag')
@@ -251,7 +249,7 @@ export async function initRclone(args: string[]) {
             const updatedConfigFiles = configFiles.map((config) =>
                 config.id === activeConfigFile!.id ? updatedConfigFile : config
             )
-            usePersistedStore.setState({
+            useHostStore.setState({
                 configFiles: updatedConfigFiles,
                 activeConfigFile: updatedConfigFile,
             })
@@ -279,11 +277,11 @@ export async function initRclone(args: string[]) {
         env: {},
     }
 
-    if (persistedState.proxy) {
-        console.log('[initRclone] proxy configured:', persistedState.proxy.url)
+    if (hostState.proxy) {
+        console.log('[initRclone] proxy configured:', hostState.proxy.url)
         try {
             console.log('[initRclone] testing proxy connection')
-            await invoke<string>('test_proxy_connection', { proxy_url: persistedState.proxy.url })
+            await invoke<string>('test_proxy_connection', { proxy_url: hostState.proxy.url })
             console.log('[initRclone] proxy connection successful')
         } catch (error) {
             console.error('[initRclone] proxy connection failed:', error)
@@ -305,34 +303,60 @@ export async function initRclone(args: string[]) {
             }
         }
         console.log('[initRclone] setting proxy environment variables')
-        extraParams.env.http_proxy = persistedState.proxy.url
-        extraParams.env.https_proxy = persistedState.proxy.url
-        extraParams.env.HTTP_PROXY = persistedState.proxy.url
-        extraParams.env.HTTPS_PROXY = persistedState.proxy.url
-        extraParams.env.no_proxy = persistedState.proxy.ignoredHosts.join(',')
-        extraParams.env.NO_PROXY = persistedState.proxy.ignoredHosts.join(',')
+        extraParams.env.http_proxy = hostState.proxy.url
+        extraParams.env.https_proxy = hostState.proxy.url
+        extraParams.env.HTTP_PROXY = hostState.proxy.url
+        extraParams.env.HTTPS_PROXY = hostState.proxy.url
+        extraParams.env.no_proxy = hostState.proxy.ignoredHosts.join(',')
+        extraParams.env.NO_PROXY = hostState.proxy.ignoredHosts.join(',')
         console.log(
             '[initRclone] proxy env vars set, ignored hosts:',
-            persistedState.proxy.ignoredHosts.length
+            hostState.proxy.ignoredHosts.length
         )
-    }
-
-    if (activeConfigFile.isEncrypted) {
-        console.log('[initRclone] setting encryption environment variables')
-        extraParams.env.RCLONE_ASK_PASSWORD = 'false'
-        if (activeConfigFile.passCommand) {
-            console.log('[initRclone] using passCommand for decryption')
-            extraParams.env.RCLONE_CONFIG_PASS_COMMAND = activeConfigFile.passCommand
-        } else {
-            console.log('[initRclone] using password for decryption')
-            extraParams.env.RCLONE_CONFIG_PASS = activeConfigFile.pass || password!
-        }
     }
 
     if (internal || activeConfigFile.id !== 'default') {
         console.log('[initRclone] setting custom config path:', configFolderPath)
         extraParams.env.RCLONE_CONFIG_DIR = configFolderPath
         extraParams.env.RCLONE_CONFIG = `${configFolderPath}${sep()}rclone.conf`
+    }
+
+    const commandName = system ? 'rclone-system' : internal ? 'rclone-internal' : null
+
+    if (activeConfigFile.isEncrypted && commandName) {
+        console.log('[initRclone] ensuring encrypted configuration access')
+        try {
+            await ensureEncryptedConfigEnv(
+                activeConfigFile,
+                extraParams.env,
+                true,
+                commandName,
+                `Please enter the current password for "${activeConfigFile.label}"`
+            )
+        } catch (error) {
+            if (error instanceof Error && error.message === 'Password prompt cancelled by user.') {
+                console.error('[initRclone] password prompt cancelled by user')
+                const response = await message(
+                    'Password is required for encrypted configurations.',
+                    {
+                        title: 'Password Required',
+                        kind: 'error',
+                        buttons: {
+                            cancel: 'Close',
+                            ok: 'Try Again',
+                        },
+                    }
+                )
+                console.log('[initRclone] message response:', response)
+                if (response === 'Try Again') {
+                    await relaunch()
+                    return
+                }
+                await exit(0)
+                return
+            }
+            throw error
+        }
     }
 
     console.log('[initRclone] extraParams', extraParams)
@@ -575,31 +599,4 @@ export async function provisionRclone() {
     console.log('[provisionRclone] rclone has been installed successfully')
 
     return true
-}
-
-/**
- * Prompts the user for a password for an encrypted configuration
- * @param configLabel - The label of the configuration file
- * @returns Promise<string | null> - The password entered by the user, or null if cancelled
- */
-async function promptForConfigPassword(configLabel: string): Promise<string | null> {
-    console.log('[promptForConfigPassword] prompting for config:', configLabel)
-    try {
-        const result = await invoke<string | null>('prompt_password', {
-            title: 'Rclone UI',
-            message: `Please enter the password for the encrypted configuration "${configLabel}".`,
-        })
-        console.log('[promptForConfigPassword] received result type:', typeof result)
-
-        if (typeof result === 'string') {
-            console.log('[promptForConfigPassword] password received, length:', result.length)
-            return result.trim()
-        }
-
-        console.log('[promptForConfigPassword] no password received (cancelled or empty)')
-        return null
-    } catch (error) {
-        console.error('[promptForConfigPassword] Error prompting for password:', error)
-        return null
-    }
 }

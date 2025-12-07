@@ -25,4 +25,4 @@ export interface Backend {
     Prefix: string
 }
 
-export type FlagValue = string | number | boolean | string[]
+export type FlagValue = string | number | boolean | string[] | null

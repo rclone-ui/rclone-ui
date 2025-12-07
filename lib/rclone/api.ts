@@ -1,1091 +1,1252 @@
 import * as Sentry from '@sentry/browser'
-import { fetch } from '@tauri-apps/plugin-http'
+import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
+import pRetry from 'p-retry'
+import { useHostStore } from '../../store/host'
+import type { JobItem } from '../../types/jobs'
 import type { FlagValue } from '../../types/rclone'
-import { useStore } from '../store'
+import { getFsInfo } from '../format'
+import { restartActiveRclone, runRcloneCli } from './cli'
+import rclone from './client'
 import { parseRcloneOptions } from './common'
-import { SUPPORTED_BACKENDS } from './constants'
 
-/* UTILS */
+const RE_BACKSLASH = /\\/g
+const RE_PATH_SEPARATOR = /[/\\]/
+const RE_WINDOWS_EXTENDED_PATH = /(\/\/\?\/|\\\\\?\\)/
+const RE_WINDOWS_DRIVE_ROOT = /^:local:[a-zA-Z]:\/$/
 
-function getAuthHeader() {
-    return
-
-    // biome-ignore lint/correctness/noUnreachable: <explanation>
-    if (platform() === 'macos') {
-        return
+function serializeOptions(
+    remotePath: string,
+    options: {
+        remote?: Record<string, FlagValue>
+        global?: Record<string, FlagValue>
     }
-
-    const state = useStore.getState()
-
-    if (!state.rcloneAuthHeader) {
-        throw new Error('Rclone auth header is not set')
-    }
-
-    return { Authorization: state.rcloneAuthHeader }
-}
-
-/* DATA */
-export async function getVersion() {
-    console.log('[getVersion]')
-
-    const r = await fetch('http://localhost:5572/core/version', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
-        })
-        .then(
-            (res) =>
-                res.json() as Promise<{
-                    version: `v${string}`
-                    decomposed: [number, number, number]
-                    isGit: boolean
-                    isBeta: boolean
-                    os: string
-                    arch: string
-                    goVersion: string
-                    linking: string
-                    goTags: string
-                }>
-        )
-
-    console.log('[getVersion] r', r)
-
-    return r
-}
-
-export async function listRemotes() {
-    console.log('[listRemotes]')
-
-    const r = await fetch('http://localhost:5572/config/listremotes', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
-        })
-        .then((res) => res.json() as Promise<{ remotes: string[] }>)
-
-    if (typeof r?.remotes === 'undefined') {
-        throw new Error('Failed to fetch remotes')
-    }
-
-    return r.remotes || []
-}
-
-export async function getRemote(remote: string) {
-    console.log('[getRemote]', remote)
-
-    const r = await fetch(`http://localhost:5572/config/get?name=${remote}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then(
-        (res) =>
-            res.json() as Promise<
-                { type: string; provider?: string } & Record<string, string | number | boolean>
-            >
-    )
-
-    // console.log(JSON.stringify(r, null, 2))
-
-    return r
-}
-
-export async function updateRemote(
-    remote: string,
-    parameters: Record<string, string | number | boolean>
 ) {
-    console.log('[updateRemote]', remote, parameters)
+    console.log('[serializeRemoteOptions] ', remotePath)
 
-    const options = new URLSearchParams()
-    options.set('name', remote)
-    options.set('parameters', JSON.stringify(parameters))
+    const { remoteName, filePath, dirPath, type, root } = getFsInfo(remotePath)
 
-    await fetch(`http://localhost:5572/config/update?${options.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
+    console.log('[serializeRemoteOptions] ', remotePath, 'remoteName', remoteName)
+    console.log('[serializeRemoteOptions] ', remotePath, 'filePath', filePath)
+    console.log('[serializeRemoteOptions] ', remotePath, 'dirPath', dirPath)
+    console.log('[serializeRemoteOptions] ', remotePath, 'type', type)
+    console.log('[serializeRemoteOptions] ', remotePath, 'root', root)
 
-    // console.log(JSON.stringify(r, null, 2))
-}
+    let serialized = `${remoteName}`
 
-export async function createRemote(
-    name: string,
-    type: string,
-    parameters: Record<string, string | number | boolean>
-) {
-    console.log('[createRemote]', name, type, parameters)
-
-    const options = new URLSearchParams()
-    options.set('name', name)
-    options.set('type', type)
-    options.set('parameters', JSON.stringify(parameters))
-
-    console.log('[createRemote] params', options.toString())
-
-    await fetch(`http://localhost:5572/config/create?${options.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-
-    // console.log(JSON.stringify(r, null, 2))
-}
-
-export async function deleteRemote(remote: string) {
-    console.log('[deleteRemote]', remote)
-
-    await fetch(`http://localhost:5572/config/delete?name=${remote}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-
-    // console.log(JSON.stringify(r, null, 2))
-}
-
-export async function cleanupRemote(remote: string) {
-    console.log('[cleanupRemote]', remote)
-
-    const r = await fetch(`http://localhost:5572/operations/cleanup?fs=${remote}&_async=true`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-
-    if (!r.ok) {
-        throw new Error('Failed to start cleanup job')
+    if (
+        Object.keys(options.remote || {}).length > 0 ||
+        Object.keys(options.global || {}).length > 0
+    ) {
+        serialized += ','
     }
 
-    // console.log(JSON.stringify(r, null, 2))
-}
-
-export async function listMounts() {
-    console.log('[listMounts]')
-
-    const r = await fetch('http://localhost:5572/mount/listmounts', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then(
-        (res) =>
-            res.json() as Promise<{
-                mountPoints: {
-                    Fs: string
-                    MountPoint: string
-                    MountedOn: string
-                }[]
-            }>
-    )
-
-    if (!Array.isArray(r?.mountPoints)) {
-        throw new Error('Failed to get mount points')
+    if (options.remote && Object.keys(options.remote).length > 0) {
+        serialized += Object.entries(options.remote)
+            .map(([key, value]) => `${key}="${value}"`)
+            .join(',')
     }
 
-    return r.mountPoints
-}
+    if (options.global && Object.keys(options.global).length > 0) {
+        serialized += Object.entries(options.global)
+            .map(([key, value]) => `global.${key}="${value}"`)
+            .join(',')
+    }
 
-export async function getBackends() {
-    console.log('[getBackends]')
+    serialized += ':'
 
-    const providers = await fetch('http://localhost:5572/config/providers', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .then((res) => res.json() as Promise<any>)
-        .then((r) => r.providers)
-
-    return providers.filter((b: any) => SUPPORTED_BACKENDS.includes(b.Prefix))
-}
-
-export interface ListOptions {
-    recurse?: boolean
-    noModTime?: boolean
-    showEncrypted?: boolean
-    showOrigIDs?: boolean
-    showHash?: boolean
-    noMimeType?: boolean
-    dirsOnly?: boolean
-    filesOnly?: boolean
-    metadata?: boolean
-    hashTypes?: string[]
-}
-
-export async function listPath(remote: string, path: string = '', options: ListOptions = {}) {
-    console.log('[listPath]', remote, path, options)
-
-    const params = new URLSearchParams()
-    params.set('fs', `${remote}:`)
-    params.set('remote', path)
-
-    // Add optional parameters
-    for (const [key, value] of Object.entries(options)) {
-        if (Array.isArray(value)) {
-            for (const v of value) {
-                params.append(key, v)
-            }
-        } else if (value !== undefined) {
-            params.set(key, value.toString())
+    if (remoteName === ':local') {
+        if (RE_WINDOWS_DRIVE_ROOT.test(root)) {
+            const driveLetter = root.slice(7)
+            console.log(
+                '[serializeRemoteOptions] ',
+                remotePath,
+                'adding Windows drive',
+                driveLetter
+            )
+            serialized += driveLetter
+        } else {
+            console.log('[serializeRemoteOptions] ', remotePath, 'adding / for Unix local')
+            serialized += '/'
         }
     }
 
-    const response = await fetch(`http://localhost:5572/operations/list?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then(
-        (res) =>
-            res.json() as Promise<{
-                list: {
-                    Hashes?: Record<string, string>
-                    ID?: string
-                    OrigID?: string
-                    IsBucket?: boolean
-                    IsDir: boolean
-                    MimeType?: string
-                    ModTime?: string
-                    Name: string
-                    Encrypted?: string
-                    EncryptedPath?: string
-                    Path: string
-                    Size?: number
-                    Tier?: string
-                }[]
-            }>
-    )
+    if (type === 'folder') {
+        serialized += dirPath
+    } else {
+        serialized += filePath
+    }
 
-    return response?.list || []
+    console.log('[serializeRemoteOptions] ', remotePath, 'serialized', serialized)
+
+    return serialized
+}
+
+async function hasStat(path: string) {
+    try {
+        const { root, filePath } = getFsInfo(path)
+        const r = await rclone('/operations/stat', {
+            params: {
+                query: {
+                    fs: root === ':local:' ? ':local:/' : root,
+                    remote: filePath,
+                },
+            },
+        })
+        if (!r || !r.item) {
+            return false
+        }
+        return true
+    } catch {
+        return false
+    }
+}
+
+export async function startCopy({
+    sources,
+    destination,
+    options,
+}: {
+    sources: string[]
+    destination: string
+    options: {
+        copy?: Record<string, FlagValue>
+        config?: Record<string, FlagValue>
+        filter?: Record<string, FlagValue>
+        remotes?: Record<string, Record<string, FlagValue>>
+    }
+}) {
+    for (const source of sources) {
+        const sourceExists = await hasStat(source)
+        if (!sourceExists) {
+            throw new Error(`Source does not exist, ${source} is missing`)
+        }
+    }
+
+    if (
+        sources.length > 1 &&
+        options.filter &&
+        ('include' in options.filter || 'include_from' in options.filter)
+    ) {
+        throw new Error('Include rules are not supported with multiple sources')
+    }
+
+    const mergedOptions = {
+        ...(options.config || {}),
+        ...(options.copy || {}),
+        ...(options.filter || {}),
+    }
+
+    const pendingJobs: Parameters<typeof startBatch>[0] = []
+    const handledSourcePaths: Record<string, true> = {}
+    const folderSources = sources.filter((path) => path.endsWith('/') || path.endsWith('\\'))
+
+    console.log('[Copy] ======DST INFO====== ', destination, ' ====================')
+    const {
+        root: dstRoot,
+        dirPath: dstDirPath,
+        fullDirPath: dstFullDirPath,
+        remoteName: dstRemoteName,
+    } = getFsInfo(destination)
+
+    console.log('[Copy] ======DST INFO====== ', destination, ' ====================')
+
+    const dstOptions =
+        options.remotes && dstRemoteName && dstRemoteName in options.remotes
+            ? (JSON.parse(options.remotes[dstRemoteName] as unknown as string) as any)
+            : undefined
+
+    for (const source of sources) {
+        console.log('[Copy] ======START====== ', source, ' ====================')
+        if (handledSourcePaths[source]) {
+            console.log('[Copy] skipping because source is already handled', source)
+            continue
+        }
+
+        handledSourcePaths[source] = true
+
+        console.log('[Copy] ======SRC INFO====== ', source, ' ====================')
+
+        const {
+            root: srcRoot,
+            filePath: srcFilePath,
+            fullDirPath: srcFullDirPath,
+            type: srcType,
+            name: srcName,
+            remoteName: srcRemoteName,
+        } = getFsInfo(source)
+
+        console.log('[Copy] ======SRC INFO====== ', source, ' ====================')
+
+        const srcOptions =
+            options.remotes && srcRemoteName && srcRemoteName in options.remotes
+                ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+                : undefined
+
+        if (srcType === 'folder') {
+            const jobParams: Parameters<typeof startBatch>[0][number] = {
+                _path: 'sync/copy',
+                srcFs: serializeOptions(srcFullDirPath, {
+                    remote: srcOptions,
+                    global: mergedOptions,
+                }),
+                dstFs: serializeOptions(`${dstFullDirPath}${srcName}`, {
+                    remote: dstOptions,
+                }),
+                createEmptySrcDirs: true,
+            }
+
+            pendingJobs.push(jobParams)
+            continue
+        }
+
+        if (folderSources.some((folder) => source.startsWith(folder))) {
+            console.log(
+                '[Copy] skipping because source or parent folder is already handled',
+                source
+            )
+            continue
+        }
+
+        console.log('[Copy] ', source, 'srcRoot', srcRoot, srcFilePath)
+        console.log('[Copy] ', destination, 'dstRoot', dstRoot, dstDirPath)
+
+        const jobParams: Parameters<typeof startBatch>[0][number] = {
+            _path: 'operations/copyfile',
+            srcFs: serializeOptions(srcRoot, {
+                remote: srcOptions,
+                global: mergedOptions,
+            }),
+            srcRemote: srcFilePath,
+            dstFs: serializeOptions(dstRoot, {
+                remote: dstOptions,
+            }),
+            dstRemote: `${dstDirPath === '/' ? '' : dstDirPath}${srcName}`,
+        }
+
+        pendingJobs.push(jobParams)
+    }
+
+    return startBatch(pendingJobs)
+}
+
+export async function startMove({
+    sources,
+    destination,
+    options,
+}: {
+    sources: string[]
+    destination: string
+    options: {
+        move?: Record<string, FlagValue>
+        config?: Record<string, FlagValue>
+        filter?: Record<string, FlagValue>
+        remotes?: Record<string, Record<string, FlagValue>>
+    }
+}) {
+    for (const source of sources) {
+        const sourceExists = await hasStat(source)
+        if (!sourceExists) {
+            throw new Error(`Source does not exist, ${source} is missing`)
+        }
+    }
+
+    if (
+        sources.length > 1 &&
+        options.filter &&
+        ('include' in options.filter || 'include_from' in options.filter)
+    ) {
+        throw new Error('Include rules are not supported with multiple sources')
+    }
+
+    const mergedOptions = {
+        ...(options.config || {}),
+        ...(options.move || {}),
+        ...(options.filter || {}),
+    }
+
+    const pendingJobs: Parameters<typeof startBatch>[0] = []
+    const handledSourcePaths: Record<string, true> = {}
+    const folderSources = sources.filter((path) => path.endsWith('/') || path.endsWith('\\'))
+
+    const {
+        root: dstRoot,
+        dirPath: dstDirPath,
+        fullDirPath: dstFullDirPath,
+        remoteName: dstRemoteName,
+    } = getFsInfo(destination)
+
+    const dstOptions =
+        options.remotes && dstRemoteName && dstRemoteName in options.remotes
+            ? (JSON.parse(options.remotes[dstRemoteName] as unknown as string) as any)
+            : undefined
+
+    for (const source of sources) {
+        if (handledSourcePaths[source]) {
+            console.log('[Move] skipping because source is already handled', source)
+            continue
+        }
+
+        handledSourcePaths[source] = true
+
+        const {
+            root: srcRoot,
+            filePath: srcFilePath,
+            fullDirPath: srcFullDirPath,
+            type: srcType,
+            name: srcName,
+            remoteName: srcRemoteName,
+        } = getFsInfo(source)
+
+        const srcOptions =
+            options.remotes && srcRemoteName && srcRemoteName in options.remotes
+                ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+                : undefined
+
+        if (srcType === 'folder') {
+            const jobParams: Parameters<typeof startBatch>[0][number] = {
+                _path: 'sync/move',
+                srcFs: serializeOptions(srcFullDirPath, {
+                    remote: srcOptions,
+                    global: mergedOptions,
+                }),
+                dstFs: serializeOptions(`${dstFullDirPath}${srcName}`, {
+                    remote: dstOptions,
+                }),
+                createEmptySrcDirs: true,
+            }
+
+            pendingJobs.push(jobParams)
+            continue
+        }
+
+        if (folderSources.some((folder) => source.startsWith(folder))) {
+            console.log(
+                '[Move] skipping because source or parent folder is already handled',
+                source
+            )
+            continue
+        }
+
+        const jobParams: Parameters<typeof startBatch>[0][number] = {
+            _path: 'operations/movefile',
+            srcFs: serializeOptions(srcRoot, {
+                remote: srcOptions,
+                global: mergedOptions,
+            }),
+            srcRemote: srcFilePath,
+            dstFs: serializeOptions(dstRoot, {
+                remote: dstOptions,
+            }),
+            dstRemote: `${dstDirPath === '/' ? '' : dstDirPath}${srcName}`,
+        }
+
+        pendingJobs.push(jobParams)
+    }
+
+    return startBatch(pendingJobs)
 }
 
 /* JOBS */
-export async function listJobs() {
-    console.log('[listJobs]')
-
-    const allStats = await fetch('http://localhost:5572/core/stats', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as any)
-
-    const transferring = allStats?.transferring
-
-    const transferredStats = await fetch('http://localhost:5572/core/transferred', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as any)
+async function fetchTransferred() {
+    const transferredStats = await rclone('/core/transferred')
 
     const transferred = transferredStats?.transferred
 
+    return transferred
+}
+
+async function fetchJob(jobId: number, transferred: Awaited<ReturnType<typeof fetchTransferred>>) {
+    const job = await rclone('/core/stats', {
+        params: {
+            query: {
+                group: `job/${jobId}`,
+            },
+        },
+    })
+
+    const jobStatus = await rclone('/job/status', {
+        params: {
+            query: {
+                jobid: jobId,
+            },
+        },
+    })
+
+    let hasError = !!jobStatus?.error
+
+    if (
+        !hasError &&
+        jobStatus.output &&
+        typeof jobStatus.output === 'object' &&
+        'results' in jobStatus.output &&
+        Array.isArray(jobStatus.output.results)
+    ) {
+        hasError = jobStatus.output.results.some((result: any) => !!result?.error)
+    }
+
+    const relatedItems = transferred.filter((t) => t.group === `job/${jobId}`)
+    if (relatedItems.length === 0) {
+        console.log('[fetchJob] relatedItems not found', jobId)
+        return null
+    }
+
+    console.log('[fetchJob] relatedItems', JSON.stringify(relatedItems, null, 2))
+
+    const sources = new Set<string>()
+
+    if (relatedItems.length === 1) {
+        if (relatedItems[0].srcFs) {
+            const combinedSource = `${relatedItems[0].srcFs}${relatedItems[0].name}`
+
+            sources.add(
+                platform() === 'windows'
+                    ? combinedSource.replace(RE_WINDOWS_EXTENDED_PATH, '')
+                    : combinedSource
+            )
+        }
+    } else {
+        for (const item of relatedItems) {
+            if (item.srcFs) {
+                sources.add(
+                    platform() === 'windows'
+                        ? item.srcFs.replace(RE_WINDOWS_EXTENDED_PATH, '')
+                        : item.srcFs
+                )
+            }
+        }
+    }
+
+    if (sources.size === 0 && !hasError) {
+        console.log('[fetchJob] source or hasError not found', jobId)
+        return null
+    }
+
+    return {
+        id: jobId,
+        bytes: job.bytes,
+        totalBytes: job.totalBytes,
+        speed: job.speed,
+
+        done: job.bytes === job.totalBytes,
+        progress: Math.round((job.bytes / job.totalBytes) * 100),
+        hasError: hasError,
+
+        sources: Array.from(sources),
+    }
+}
+
+export async function listTransfers() {
+    console.log('[listTransfers]')
+
+    const allStats = await rclone('/core/stats')
+
+    const transferring = allStats?.transferring
+
+    const transferred = await fetchTransferred()
+
     const jobs = {
-        active: [] as any[],
-        inactive: [] as any[],
+        active: [] as JobItem[],
+        inactive: [] as JobItem[],
     }
 
     const activeJobIds = new Set(
         transferring
-            ?.filter((t: any) => t.group.startsWith('job/'))
-            .map((t: any) => Number(t.group.split('/')[1]))
-            .sort((a: number, b: number) => a - b)
+            ?.filter((t) => t.group?.startsWith('job/'))
+            .map((t) => Number(t.group!.split('/')[1]))
+            .sort((a, b) => a - b)
     )
-    console.log('[listJobs] activeJobIds', activeJobIds.size)
+    console.log('[listTransfers] activeJobIds', activeJobIds.size)
 
     const isWindows = platform() === 'windows'
-    console.log('[listJobs] isWindows', isWindows)
+    console.log('[listTransfers] isWindows', isWindows)
 
     for (const jobId of activeJobIds) {
-        const job = await fetch(`http://localhost:5572/core/stats?group=job/${jobId}`, {
-            method: 'POST',
-            headers: getAuthHeader(),
-        }).then((res) => res.json() as Promise<any>)
-
-        const srcFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.srcFs
-        const dstFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.dstFs
-
-        if (!srcFs) {
-            console.log('[listJobs] srcFs not found', jobId)
-            continue
+        const job = await fetchJob(jobId, transferred)
+        if (job) {
+            jobs.active.push({
+                ...job,
+                type: 'active',
+            })
         }
-
-        jobs.active.push({
-            id: jobId,
-            bytes: job.bytes,
-            totalBytes: job.totalBytes,
-            speed: job.speed,
-
-            done: job.bytes === job.totalBytes,
-            progress: Math.round((job.bytes / job.totalBytes) * 100),
-            fatal: job.fatalError,
-
-            srcFs: isWindows ? srcFs.replace(/^(\/\/\?\/|\\\\\?\\)/, '') : srcFs,
-            dstFs: isWindows ? dstFs.replace(/^(\/\/\?\/|\\\\\?\\)/, '') : dstFs,
-        })
     }
 
     const inactiveJobIds = new Set(
         transferred
-            ?.filter((t: any) => t.group.startsWith('job/'))
-            .map((t: any) => Number(t.group.split('/')[1]))
-            .filter((id: number) => !activeJobIds.has(id))
-            .sort((a: number, b: number) => a - b)
+            ?.filter((t) => t.group?.startsWith('job/'))
+            .map((t) => Number(t.group!.split('/')[1]))
+            .filter((id) => !activeJobIds.has(id))
+            .sort((a, b) => a - b)
     )
 
     for (const jobId of inactiveJobIds) {
-        const job = await fetch(`http://localhost:5572/core/stats?group=job/${jobId}`, {
-            method: 'POST',
-            headers: getAuthHeader(),
-        }).then((res) => res.json() as Promise<any>)
-
-        const srcFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.srcFs
-        const dstFs = transferred.find((t: any) => t.group === `job/${jobId}`)?.dstFs
-
-        if (!srcFs) {
-            console.log('[listJobs] srcFs not found', jobId)
-            continue
+        const job = await fetchJob(jobId, transferred)
+        if (job) {
+            jobs.inactive.push({
+                ...job,
+                speed: 0,
+                type: 'inactive',
+            })
         }
-
-        jobs.inactive.push({
-            id: jobId,
-            bytes: job.bytes,
-            totalBytes: job.totalBytes,
-            speed: 0,
-
-            done: job.bytes === job.totalBytes,
-            progress: Math.round((job.bytes / job.totalBytes) * 100),
-            fatal: job.fatalError,
-
-            srcFs: isWindows ? srcFs.replace(/^(\/\/\?\/|\\\\\?\\)/, '') : srcFs,
-            dstFs: isWindows ? dstFs.replace(/^(\/\/\?\/|\\\\\?\\)/, '') : dstFs,
-        })
     }
 
     return jobs
 }
 
-export async function stopJob(jobId: number) {
-    console.log('[stopJob]', jobId)
-
-    await fetch(`http://localhost:5572/job/stopgroup?group=job/${jobId}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-}
-
 /* OPERATIONS */
-export async function mountRemote({
-    remotePath,
-    mountPoint,
-    mountOptions,
-    vfsOptions,
-    _filter,
-    _config,
+export async function startMount({
+    source,
+    destination,
+    options,
 }: {
-    remotePath: string
-    mountPoint: string
-    mountOptions?: Record<string, string | number | boolean | string[]>
-    vfsOptions?: Record<string, string | number | boolean | string[]>
-    _filter?: Record<string, string | number | boolean | string[]>
-    _config?: Record<string, string | number | boolean | string[]>
+    source: string
+    destination: string
+    options: {
+        mount?: Record<string, FlagValue>
+        vfs?: Record<string, FlagValue>
+        filter?: Record<string, FlagValue>
+        config?: Record<string, FlagValue>
+        remotes?: Record<string, Record<string, FlagValue>>
+    }
 }) {
-    console.log('[mountRemote]', remotePath, mountPoint)
+    const currentPlatform = platform()
+    const needsVolumeName = ['windows', 'macos'].includes(currentPlatform)
+    const mountOptions = { ...(options.mount || {}) }
 
-    const options = new URLSearchParams()
-    options.set('fs', remotePath)
-    options.set('mountPoint', mountPoint)
+    const hasVolumeName = 'volname' in mountOptions && mountOptions.volname && destination !== '*'
+    if (!hasVolumeName && needsVolumeName) {
+        const segments = source.split(RE_PATH_SEPARATOR).filter(Boolean)
+        console.log('[Mount] segments', segments)
 
-    if (mountOptions && Object.keys(mountOptions).length > 0) {
-        options.set('mountOpt', JSON.stringify(parseRcloneOptions(mountOptions)))
+        const sourcePath = segments.length === 1 ? segments[0].replace(/:/g, '') : segments.pop()
+        console.log('[Mount] sourcePath', sourcePath)
+
+        mountOptions.volname = `${sourcePath}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
     }
 
-    if (vfsOptions && Object.keys(vfsOptions).length > 0) {
-        options.set('vfsOpt', JSON.stringify(parseRcloneOptions(vfsOptions)))
+    const mergedOptions = {
+        ...mountOptions,
+        ...(options.config || {}),
+        ...(options.vfs || {}),
+        ...(options.filter || {}),
     }
 
-    if (_filter && Object.keys(_filter).length > 0) {
-        options.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    const { fullDirPath: srcFullDirPath, remoteName: srcRemoteName } = getFsInfo(source)
+
+    const srcOptions =
+        options.remotes && srcRemoteName && srcRemoteName in options.remotes
+            ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+            : undefined
+
+    if (destination === '*' && currentPlatform === 'windows') {
+        await pRetry(
+            async () =>
+                await rclone('/mount/mount', {
+                    params: {
+                        query: {
+                            fs: serializeOptions(srcFullDirPath, {
+                                global: mergedOptions,
+                                remote: srcOptions,
+                            }),
+                            mountPoint: '*',
+                            mount: 'nfsmount',
+                        },
+                    },
+                }),
+            {
+                retries: 3,
+            }
+        )
     }
 
-    if (_config && Object.keys(_config).length > 0) {
-        options.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    const {
+        root: dstRoot,
+        filePath: dstFilePath,
+        fullDirPath: dstFullDirPath,
+    } = getFsInfo(destination)
+
+    const dstFs = dstRoot === ':local:' ? ':local:/' : dstRoot
+    const dstFilePathNormalized = dstFilePath.replace(RE_BACKSLASH, '/')
+
+    let directoryExists: boolean | undefined
+
+    try {
+        const r = await pRetry(
+            async () =>
+                await rclone('/operations/stat', {
+                    params: {
+                        query: {
+                            fs: dstFs,
+                            remote: dstFilePathNormalized,
+                        },
+                    },
+                }),
+            {
+                retries: 3,
+            }
+        )
+        if (!r || !r.item) {
+            directoryExists = false
+        } else {
+            if (!r.item.IsDir) {
+                throw new Error('The selected directory is not a directory')
+            }
+            directoryExists = true
+        }
+    } catch (err) {
+        console.error('[Mount] Error checking if directory exists:', err)
     }
+    console.log('[Mount] directoryExists', directoryExists)
 
-    const r = await fetch(`http://localhost:5572/mount/mount?${options.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .then((res) => res.json() as Promise<{ remotes: string[] } | Promise<{ error: string }>>)
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
-        })
+    const isPlatformWindows = platform() === 'windows'
 
-    if ('error' in r) {
-        throw new Error(r.error)
-    }
+    if (directoryExists) {
+        let isEmpty = false
+        try {
+            const { list } = await pRetry(
+                async () =>
+                    await rclone('/operations/list', {
+                        params: {
+                            query: {
+                                fs: dstRoot === ':local:' ? ':local:/' : dstRoot,
+                                remote: dstFilePath,
+                            },
+                        },
+                    }),
+                {
+                    retries: 3,
+                }
+            )
+            isEmpty = !list || list.length === 0
+        } catch (err) {
+            console.error('[Mount] Error checking if directory is empty:', err)
+        }
 
-    return
-}
+        if (!isEmpty) {
+            throw new Error('The selected directory must be empty to mount a remote.')
+        }
 
-export async function unmountRemote({
-    mountPoint,
-}: {
-    mountPoint: string
-}) {
-    console.log('[unmountRemote]', mountPoint)
-
-    const options = new URLSearchParams()
-    options.set('mountPoint', mountPoint)
-
-    const r = await fetch(`http://localhost:5572/mount/unmount?${options.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .then((res) => res.json())
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
-        })
-
-    if ('error' in r) {
-        throw new Error(r.error)
-    }
-
-    return
-}
-
-export async function unmountAllRemotes() {
-    console.log('[unmountAllRemotes]')
-
-    const r = await fetch('http://localhost:5572/mount/unmountall', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .then((res) => res.json())
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
-        })
-
-    if ('error' in r) {
-        throw new Error(r.error)
-    }
-
-    return
-}
-
-export async function startCopy({
-    srcFs,
-    dstFs,
-    _config,
-    _filter,
-    remoteOptions,
-}: {
-    srcFs: string
-    dstFs: string
-    _config?: Record<string, string | number | boolean | string[]>
-    _filter?: Record<string, string | number | boolean | string[]>
-    remoteOptions?: Record<string, string | number | boolean | string[]>
-}) {
-    console.log('[startCopy]', srcFs, dstFs)
-
-    const params = new URLSearchParams()
-    params.set('srcFs', srcFs)
-    params.set('dstFs', dstFs)
-    // params.set('b2_disable_checksum', 'true')
-    params.set('_async', 'true')
-
-    if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
-    }
-
-    if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
-    }
-
-    if (remoteOptions && Object.keys(remoteOptions).length > 0) {
-        for (const [key, value] of Object.entries(remoteOptions)) {
-            params.set(key, value.toString())
+        if (isPlatformWindows) {
+            try {
+                await pRetry(
+                    async () =>
+                        await rclone('/operations/rmdir', {
+                            params: {
+                                query: {
+                                    fs: dstRoot === ':local:' ? ':local:/' : dstRoot,
+                                    remote: dstFilePath,
+                                },
+                            },
+                        }),
+                    {
+                        retries: 3,
+                    }
+                )
+            } catch (err) {
+                console.error('[Mount] Error removing directory:', err)
+            }
+        }
+    } else if (!isPlatformWindows) {
+        try {
+            await pRetry(
+                async () =>
+                    await rclone('/operations/mkdir', {
+                        params: {
+                            query: {
+                                fs: dstRoot === ':local:' ? ':local:/' : dstRoot,
+                                remote: dstFilePath,
+                            },
+                        },
+                    }),
+                {
+                    retries: 3,
+                }
+            )
+        } catch (error) {
+            console.error('[Mount] Error creating directory:', error)
+            throw new Error('Failed to create mount directory. Try creating it manually first.')
         }
     }
 
-    const r = await fetch(`http://localhost:5572/sync/copy?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<{ jobid: string }>)
-
-    console.log('[startCopy] operation started:', r)
-
-    if (!r.jobid) {
-        throw new Error('Failed to start copy job')
-    }
-
-    return r.jobid
-}
-
-export async function startMove({
-    srcFs,
-    dstFs,
-    createEmptySrcDirs,
-    deleteEmptyDstDirs,
-    _config,
-    _filter,
-    remoteOptions,
-}: {
-    srcFs: string
-    dstFs: string
-    createEmptySrcDirs?: boolean // create empty src directories on destination if set
-    deleteEmptyDstDirs?: boolean // delete empty src directories if set
-    _config?: Record<string, string | number | boolean | string[]>
-    _filter?: Record<string, string | number | boolean | string[]>
-    remoteOptions?: Record<string, string | number | boolean | string[]>
-}) {
-    console.log('[startMove]', srcFs, dstFs, createEmptySrcDirs, deleteEmptyDstDirs)
-
-    const params = new URLSearchParams()
-    params.set('srcFs', srcFs)
-    params.set('dstFs', dstFs)
-
-    if (createEmptySrcDirs) {
-        params.set('createEmptySrcDirs', 'true')
-    }
-
-    if (deleteEmptyDstDirs) {
-        params.set('deleteEmptyDstDirs', 'true')
-    }
-
-    // params.set('b2_disable_checksum', 'true')
-    params.set('_async', 'true')
-
-    if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
-    }
-
-    if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
-    }
-
-    if (remoteOptions && Object.keys(remoteOptions).length > 0) {
-        for (const [key, value] of Object.entries(remoteOptions)) {
-            params.set(key, value.toString())
+    await pRetry(
+        async () =>
+            await rclone('/mount/mount', {
+                params: {
+                    query: {
+                        fs: serializeOptions(srcFullDirPath, {
+                            global: mergedOptions,
+                            remote: srcOptions,
+                        }),
+                        mountPoint:
+                            platform() === 'windows'
+                                ? dstFullDirPath.replace(':local:', '').replace(RE_BACKSLASH, '/')
+                                : dstFullDirPath.replace(':local:', '/'),
+                        mount: 'nfsmount',
+                    },
+                },
+            }),
+        {
+            retries: 3,
         }
-    }
-
-    const r = await fetch(`http://localhost:5572/sync/move?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<{ jobid: string }>)
-
-    console.log('[startMove] operation started:', r)
-
-    if (!r.jobid) {
-        throw new Error('Failed to start move job')
-    }
-
-    return r.jobid
+    )
 }
 
 export async function startBisync({
-    path1,
-    path2,
-    _config,
-    _filter,
-    remoteOptions,
-    outerOptions,
+    source,
+    destination,
+    options,
 }: {
-    path1: string
-    path2: string
-    _config?: Record<string, FlagValue>
-    _filter?: Record<string, FlagValue>
-    remoteOptions?: Record<string, FlagValue>
-    outerOptions?: Record<string, FlagValue>
+    source: string
+    destination: string
+    options: {
+        config?: Record<string, FlagValue>
+        bisync?: Record<string, FlagValue>
+        filter?: Record<string, FlagValue>
+        remotes?: Record<string, Record<string, FlagValue>>
+        outer?: Record<string, FlagValue>
+    }
 }) {
-    console.log('[startBisync]', path1, path2)
-
-    const params = new URLSearchParams()
-    params.set('path1', path1)
-    params.set('path2', path2)
-    params.set('_async', 'true')
-
-    if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    const sourceExists = await hasStat(source)
+    if (!sourceExists) {
+        throw new Error(`Source does not exist, ${source} is missing`)
     }
 
-    if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    const mergedOptions = {
+        ...(options.config || {}),
+        ...(options.bisync || {}),
+        ...(options.filter || {}),
     }
 
-    if (remoteOptions && Object.keys(remoteOptions).length > 0) {
-        for (const [key, value] of Object.entries(remoteOptions)) {
-            params.set(key, value.toString())
+    const { fullDirPath: srcFullDirPath, remoteName: srcRemoteName } = getFsInfo(source)
+    const { fullDirPath: dstFullDirPath, remoteName: dstRemoteName } = getFsInfo(destination)
+
+    const srcOptions =
+        options.remotes && srcRemoteName && srcRemoteName in options.remotes
+            ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+            : undefined
+
+    const dstOptions =
+        options.remotes && dstRemoteName && dstRemoteName in options.remotes
+            ? (JSON.parse(options.remotes[dstRemoteName] as unknown as string) as any)
+            : undefined
+
+    const r = await pRetry(
+        async () =>
+            await rclone('/sync/bisync', {
+                params: {
+                    query: {
+                        path1: serializeOptions(srcFullDirPath, {
+                            global: mergedOptions,
+                            remote: srcOptions,
+                        }),
+                        path2: serializeOptions(dstFullDirPath, {
+                            remote: dstOptions,
+                        }),
+                        _async: true,
+                        ...(options.outer && Object.keys(options.outer).length > 0
+                            ? Object.fromEntries(
+                                  Object.entries(options.outer).map(([key, value]) => [
+                                      key,
+                                      Array.isArray(value) ? value.join(',') : value,
+                                  ])
+                              )
+                            : {}),
+                    },
+                },
+            }),
+        {
+            retries: 3,
         }
+    )
+
+    if (!r?.jobid) {
+        console.error('Failed to start job: missing jobid', r)
+        throw new Error('Failed to start operation')
     }
 
-    if (outerOptions && Object.keys(outerOptions).length > 0) {
-        for (const [key, value] of Object.entries(outerOptions)) {
-            params.set(key, value.toString())
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    const jobStatus = await pRetry(
+        async () =>
+            await rclone('/job/status', {
+                params: {
+                    query: {
+                        jobid: r.jobid!,
+                    },
+                },
+            }),
+        {
+            retries: 3,
         }
+    ).catch(null)
+
+    console.log('jobStatus', JSON.stringify(jobStatus, null, 2))
+
+    if (!jobStatus) {
+        console.error('Failed to start job:', r.jobid)
+        throw new Error('Failed to start operation')
     }
 
-    const r = await fetch(`http://localhost:5572/sync/bisync?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<{ jobid: string }>)
-
-    console.log('[startBisync] operation started:', r)
-
-    if (!r.jobid) {
-        throw new Error('Failed to start bisync job')
+    if (jobStatus.error) {
+        console.error('Failed to start job:', r.jobid, jobStatus.error)
+        throw new Error(jobStatus.error)
     }
 
     return r.jobid
 }
 
 export async function startSync({
-    srcFs,
-    dstFs,
-    _config,
-    _filter,
-    remoteOptions,
+    source,
+    destination,
+    options,
 }: {
-    srcFs: string
-    dstFs: string
-    _config?: Record<string, string | number | boolean | string[]>
-    _filter?: Record<string, string | number | boolean | string[]>
-    remoteOptions?: Record<string, string | number | boolean | string[]>
+    source: string
+    destination: string
+    options: {
+        config?: Record<string, FlagValue>
+        sync?: Record<string, FlagValue>
+        filter?: Record<string, FlagValue>
+        remotes?: Record<string, Record<string, FlagValue>>
+    }
 }) {
-    console.log('[startSync]', srcFs, dstFs)
-
-    const params = new URLSearchParams()
-    params.set('srcFs', srcFs)
-    params.set('dstFs', dstFs)
-    // params.set('b2_disable_checksum', 'true')
-    params.set('_async', 'true')
-
-    if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    const sourceExists = await hasStat(source)
+    if (!sourceExists) {
+        throw new Error(`Source does not exist, ${source} is missing`)
     }
 
-    if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    const mergedOptions = {
+        ...(options.config || {}),
+        ...(options.sync || {}),
+        ...(options.filter || {}),
     }
 
-    if (remoteOptions && Object.keys(remoteOptions).length > 0) {
-        for (const [key, value] of Object.entries(remoteOptions)) {
-            params.set(key, value.toString())
+    const { fullDirPath: srcFullDirPath, remoteName: srcRemoteName } = getFsInfo(source)
+    const { fullDirPath: dstFullDirPath, remoteName: dstRemoteName } = getFsInfo(destination)
+
+    const srcOptions =
+        options.remotes && srcRemoteName && srcRemoteName in options.remotes
+            ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+            : undefined
+
+    const dstOptions =
+        options.remotes && dstRemoteName && dstRemoteName in options.remotes
+            ? (JSON.parse(options.remotes[dstRemoteName] as unknown as string) as any)
+            : undefined
+
+    const r = await pRetry(
+        async () =>
+            await rclone('/sync/sync', {
+                params: {
+                    query: {
+                        srcFs: serializeOptions(srcFullDirPath, {
+                            global: mergedOptions,
+                            remote: srcOptions,
+                        }),
+                        dstFs: serializeOptions(dstFullDirPath, {
+                            remote: dstOptions,
+                        }),
+                        createEmptySrcDirs: true,
+                        _async: true,
+                    },
+                },
+            }),
+        {
+            retries: 3,
         }
+    )
+
+    if (!r?.jobid) {
+        console.error('Failed to start job: missing jobid', r)
+        throw new Error('Failed to start operation')
     }
 
-    const r = await fetch(`http://localhost:5572/sync/sync?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<{ jobid: string }>)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    console.log('[startSync] operation started:', r)
+    const jobStatus = await pRetry(
+        async () =>
+            await rclone('/job/status', {
+                params: {
+                    query: {
+                        jobid: r.jobid!,
+                    },
+                },
+            }),
+        {
+            retries: 3,
+        }
+    ).catch(null)
 
-    if (!r.jobid) {
-        throw new Error('Failed to start sync job')
+    console.log('jobStatus', JSON.stringify(jobStatus, null, 2))
+
+    if (!jobStatus) {
+        console.error('Failed to start job:', r.jobid)
+        throw new Error('Failed to start operation')
     }
+
+    if (jobStatus.error) {
+        console.error('Failed to start job:', r.jobid, jobStatus.error)
+        throw new Error(jobStatus.error)
+    }
+
+    return r.jobid
 }
 
 export async function startDelete({
-    fs,
-    rmDirs,
-    _filter,
-    _config,
+    sources,
+    options,
 }: {
-    fs: string
-    rmDirs?: boolean // delete empty src directories if set
-    _filter?: Record<string, string | number | boolean | string[]>
-    _config?: Record<string, string | number | boolean | string[]>
+    sources: string[]
+    options: {
+        filter?: Record<string, FlagValue>
+        config?: Record<string, FlagValue>
+        remotes?: Record<string, Record<string, FlagValue>>
+    }
 }) {
-    console.log('[startDelete]', fs, rmDirs)
-
-    const params = new URLSearchParams()
-    params.set('fs', fs)
-
-    if (rmDirs) {
-        params.set('rmDirs', 'true')
+    for (const source of sources) {
+        const sourceExists = await hasStat(source)
+        if (!sourceExists) {
+            throw new Error(`Source does not exist, ${source} is missing`)
+        }
     }
 
-    params.set('_async', 'true')
-
-    if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    if (
+        sources.length > 1 &&
+        options.filter &&
+        ('include' in options.filter || 'include_from' in options.filter)
+    ) {
+        throw new Error('Include rules are not supported with multiple sources')
     }
 
-    if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    const mergedOptions = {
+        ...(options.config || {}),
+        ...(options.filter || {}),
     }
 
-    const r = await fetch(`http://localhost:5572/operations/delete?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
+    const pendingJobs: Parameters<typeof startBatch>[0] = []
+    const handledSourcePaths: Record<string, true> = {}
+    const folderSources = sources.filter((path) => path.endsWith('/') || path.endsWith('\\'))
 
-    console.log('[startDelete] operation started:', r)
+    for (const source of sources) {
+        if (handledSourcePaths[source]) {
+            console.log('[Delete] skipping because source is already handled', source)
+            continue
+        }
 
-    if (!r.ok) {
-        throw new Error('Failed to start delete job')
+        handledSourcePaths[source] = true
+
+        const {
+            root: srcRoot,
+            filePath: srcFilePath,
+            type: srcType,
+            remoteName: srcRemoteName,
+        } = getFsInfo(source)
+
+        const srcOptions =
+            options.remotes && srcRemoteName && srcRemoteName in options.remotes
+                ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+                : undefined
+
+        if (srcType === 'folder') {
+            const jobParams: Parameters<typeof startBatch>[0][number] = {
+                _path: 'operations/delete',
+                fs: serializeOptions(source, {
+                    global: mergedOptions,
+                    remote: srcOptions,
+                }),
+            }
+            pendingJobs.push(jobParams)
+            continue
+        }
+
+        if (folderSources.some((folder) => source.startsWith(folder))) {
+            console.log(
+                '[Delete] skipping because source or parent folder is already handled',
+                source
+            )
+            continue
+        }
+
+        const jobParams: Parameters<typeof startBatch>[0][number] = {
+            _path: 'operations/deletefile',
+            fs: serializeOptions(srcRoot, {
+                global: mergedOptions,
+                remote: srcOptions,
+            }),
+            remote: srcFilePath,
+        }
+        pendingJobs.push(jobParams)
     }
+
+    return startBatch(pendingJobs)
 }
 
 export async function startPurge({
-    fs,
-    remote,
-    _filter,
-    _config,
+    sources,
+    options,
 }: {
-    fs: string // a remote name string e.g. "drive:"
-    remote: string // a path within that remote e.g. "dir"
-    _filter?: Record<string, string | number | boolean | string[]>
-    _config?: Record<string, string | number | boolean | string[]>
+    sources: string[]
+    options: {
+        config?: Record<string, FlagValue>
+        remotes?: Record<string, Record<string, FlagValue>>
+    }
 }) {
-    const params = new URLSearchParams()
-    params.set('fs', fs)
-    params.set('remote', remote)
-    params.set('_async', 'true')
-
-    if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    for (const source of sources) {
+        const sourceExists = await hasStat(source)
+        if (!sourceExists) {
+            throw new Error(`Source does not exist, ${source} is missing`)
+        }
     }
 
-    if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
+    const pendingJobs: Parameters<typeof startBatch>[0] = []
+    const handledSourcePaths: Record<string, true> = {}
+
+    for (const source of sources) {
+        if (handledSourcePaths[source]) {
+            console.log('[Purge] skipping because source is already handled', source)
+            continue
+        }
+
+        handledSourcePaths[source] = true
+
+        const {
+            root: srcRoot,
+            dirPath: srcDirPath,
+            type: srcType,
+            remoteName: srcRemoteName,
+        } = getFsInfo(source)
+
+        if (srcType !== 'folder') {
+            throw new Error('Only folders can be purged')
+        }
+
+        const srcOptions =
+            options.remotes && srcRemoteName && srcRemoteName in options.remotes
+                ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+                : undefined
+
+        const jobParams: Parameters<typeof startBatch>[0][number] = {
+            _path: 'operations/purge',
+            fs: serializeOptions(srcRoot, {
+                global: options.config,
+                remote: srcOptions,
+            }),
+            remote: srcDirPath,
+        }
+        pendingJobs.push(jobParams)
     }
 
-    const r = await fetch(`http://localhost:5572/operations/purge?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-
-    console.log('[startPurge] operation started:', r)
-
-    if (!r.ok) {
-        throw new Error('Failed to start purge job')
-    }
-}
-
-export async function startDownload({
-    fs,
-    remote,
-    url,
-    autoFilename = false,
-}: {
-    fs: string // a remote name string e.g. "drive:"
-    remote: string // a path within that remote e.g. "dir"
-    url: string // string, URL to read from
-    autoFilename?: boolean // boolean, set to true to retrieve destination file name from url
-}) {
-    const params = new URLSearchParams()
-    params.set('fs', fs)
-    params.set('remote', remote)
-    params.set('url', url)
-    params.set('autoFilename', autoFilename.toString())
-    params.set('_async', 'true')
-
-    const r = await fetch(`http://localhost:5572/operations/copyurl?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-
-    console.log('[startDownload] operation started:', r)
-
-    if (!r.ok) {
-        throw new Error('Failed to start download job')
-    }
-}
-
-/* FLAGS */
-export async function getCurrentGlobalFlags() {
-    console.log('[getCurrentGlobalFlags]')
-
-    const r = await fetch('http://localhost:5572/options/get', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    return r
-}
-
-export async function getCopyFlags() {
-    console.log('[getCopyFlags]')
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const mainFlags = r.main
-
-    const copyFlags = mainFlags
-        .filter((flag: any) => flag?.Groups?.includes('Copy'))
-        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-
-    return copyFlags
-}
-
-export async function getSyncFlags() {
-    console.log('[getSyncFlags]')
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const mainFlags = r.main
-
-    const syncFlags = mainFlags
-        .filter((flag: any) => flag?.Groups?.includes('Copy') || flag?.Groups?.includes('Sync'))
-        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-
-    return syncFlags
-}
-
-export async function getFilterFlags() {
-    console.log('[getFilterFlags]')
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const filterFlags = r.filter
-
-    // ignore "Metadata" fields as they have the same FieldNames as the normal non-metadata filters
-    const filteredFlags = filterFlags
-        .filter((flag: any) => !flag.Groups.includes('Metadata'))
-        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-
-    return filteredFlags
-}
-
-export async function getVfsFlags() {
-    console.log('[getVfsFlags]')
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const vfsFlags = r.vfs
-
-    const IGNORED_FLAGS = ['NONE']
-
-    const filteredFlags = vfsFlags
-        .filter((flag: any) => !IGNORED_FLAGS.includes(flag.Name))
-        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-
-    return filteredFlags
-}
-
-export async function getMountFlags() {
-    console.log('[getMountFlags]')
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const mountFlags = r.mount
-
-    const IGNORED_FLAGS = ['debug_fuse', 'daemon', 'daemon_timeout']
-
-    const filteredFlags = mountFlags
-        .filter((flag: any) => !IGNORED_FLAGS.includes(flag.Name))
-        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-
-    return filteredFlags
-}
-
-export async function getConfigFlags() {
-    console.log('[getConfigFlags]')
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const mainFlags = r.main
-
-    const copyFlags = mainFlags
-        .filter(
-            (flag: any) =>
-                flag?.Groups?.includes('Performance') ||
-                flag?.Groups?.includes('Listing') ||
-                flag?.Groups?.includes('Networking') ||
-                flag?.Groups?.includes('Check') ||
-                flag?.Name === 'use_server_modtime'
-        )
-        .sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-
-    return copyFlags
-}
-
-export async function getServeFlags(type: string) {
-    console.log('[getServeFlags] ', type)
-
-    const r = await fetch('http://localhost:5572/options/info', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    }).then((res) => res.json() as Promise<any>)
-
-    const serveFlags = r[type].map((flag: any) => ({
-        ...flag,
-        FieldName: flag.Name,
-        DefaultStr:
-            flag.Name === 'addr'
-                ? flag.DefaultStr.replace('[', '').replace(']', '')
-                : flag.DefaultStr,
-    }))
-
-    return serveFlags.sort((a: any, b: any) => a.Name.localeCompare(b.Name))
-}
-
-/* SERVE */
-export interface ServeListItem {
-    id: string
-    addr: string
-    params: {
-        fs: string
-        type: string
-        opt?: Record<string, unknown>
-        vfsOpt?: Record<string, unknown>
-    }
-}
-
-export async function listServes() {
-    console.log('[listServes]')
-
-    const r = await fetch('http://localhost:5572/serve/list', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .then(
-            (res) =>
-                res.json() as Promise<{
-                    list: ServeListItem[]
-                }>
-        )
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
-        })
-
-    if (!Array.isArray(r?.list)) {
-        throw new Error('[listServes] Failed to get running serves')
-    }
-
-    return r.list
+    return startBatch(pendingJobs)
 }
 
 export async function startServe({
-    // type,
-    // fs,
-    // addr,
+    type,
+    fs,
+    addr,
     _filter,
     _config,
     ...props
 }: {
-    // type: string
-    // fs: string
-    // addr: string
-    // options?: Record<string, string | number | boolean | string[]>
+    type: string
+    fs: string
+    addr: string
     _filter?: Record<string, FlagValue>
     _config?: Record<string, FlagValue>
 } & Record<string, FlagValue>) {
-    console.log('[startServe] ', props)
+    return rclone('/serve/start', {
+        params: {
+            query: {
+                type,
+                fs,
+                addr,
+                _filter:
+                    _filter && Object.keys(_filter).length > 0
+                        ? JSON.stringify(parseRcloneOptions(_filter))
+                        : undefined,
+                _config:
+                    _config && Object.keys(_config).length > 0
+                        ? JSON.stringify(parseRcloneOptions(_config))
+                        : undefined,
+                ...(props && Object.keys(props).length > 0
+                    ? Object.fromEntries(
+                          Object.entries(props).map(([key, value]) => [
+                              key,
+                              Array.isArray(value) ? value.join(',') : value,
+                          ])
+                      )
+                    : {}),
+            },
+        },
+    })
+}
 
-    const params = new URLSearchParams()
-    // params.set('type', type)
-    // params.set('fs', fs)
-    // params.set('user', 'usr')
-    // params.set('pass', 'pas')
+export async function startBatch(inputs: ({ _path: string } & Record<string, any>)[]) {
+    console.log('[startBatch] inputs', inputs)
 
-    for (const [key, value] of Object.entries(props)) {
-        if (Array.isArray(value)) {
-            for (const v of value) params.append(key, String(v))
-        } else if (value !== undefined) {
-            params.set(key, String(value))
+    const r = await pRetry(
+        async () =>
+            await rclone('/job/batch', {
+                body: {
+                    inputs,
+                    _async: true,
+                },
+            }),
+        {
+            retries: 3,
+        }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    const jobStatus = await pRetry(
+        async () =>
+            await rclone('/job/status', {
+                params: {
+                    query: {
+                        jobid: r.jobid,
+                    },
+                },
+            }),
+        {
+            retries: 3,
+        }
+    ).catch(null)
+
+    console.log('jobStatus', JSON.stringify(jobStatus, null, 2))
+
+    if (!jobStatus) {
+        console.error('Failed to start job:', r.jobid)
+        throw new Error('Failed to start operation')
+    }
+
+    const output = jobStatus.output as any
+    if (
+        output?.results &&
+        Array.isArray(output.results) &&
+        output.results.length === inputs.length
+    ) {
+        const results = output.results
+        const allFailed = results.every((res: any) => res.error)
+
+        if (allFailed) {
+            const errorMessages = results
+                .map((res: any) => {
+                    const path = res.input?.srcRemote || res.input?.dstRemote || 'unknown'
+                    return `${path}: ${res.error}`
+                })
+                .join('\n')
+
+            console.error('All batch operations failed:', errorMessages)
+            throw new Error(errorMessages)
         }
     }
 
-    // if (options && Object.keys(options).length > 0) {
-    //     const parsed = parseRcloneOptions(options)
-    //     for (const [key, value] of Object.entries(parsed)) {
-    //         if (Array.isArray(value)) {
-    //             for (const v of value) params.append(key, String(v))
-    //         } else if (value !== undefined) {
-    //             params.set(key, String(value))
-    //         }
-    //     }
+    if (jobStatus.error) {
+        console.error('Failed to start job:', r.jobid, jobStatus.error)
+        throw new Error(jobStatus.error)
+    }
+
+    return r.jobid
+}
+
+/* PASSWORD */
+export async function removeConfigPassword() {
+    console.log('[removeConfigPassword]')
+
+    const state = useHostStore.getState()
+    const activeConfig = state.activeConfigFile
+
+    if (!activeConfig || !activeConfig.id) {
+        throw new Error('No active configuration selected.')
+    }
+
+    if (!activeConfig.isEncrypted) {
+        throw new Error('Configuration is not encrypted.')
+    }
+
+    try {
+        await runRcloneCli(['config', 'encryption', 'remove'])
+        state.updateConfigFile(activeConfig.id, {
+            isEncrypted: false,
+            pass: undefined,
+            passCommand: undefined,
+        })
+        console.log('[removeConfigPassword] restarting rclone')
+        await restartActiveRclone()
+    } catch (error) {
+        Sentry.captureException(error)
+        await message(error instanceof Error ? error.message : 'Failed to disable encryption.', {
+            title: 'Config Encryption',
+            kind: 'error',
+            okLabel: 'OK',
+        })
+        throw error
+    }
+}
+
+export async function setConfigPassword(options: {
+    password: string
+    persist?: boolean
+}) {
+    console.log('[setConfigPassword]')
+
+    const state = useHostStore.getState()
+    const activeConfig = state.activeConfigFile
+
+    if (!activeConfig || !activeConfig.id) {
+        throw new Error('No active configuration selected.')
+    }
+
+    // if (!activeConfig.isEncrypted) {
+    //     throw new Error('Configuration is not encrypted.')
     // }
 
-    if (_filter && Object.keys(_filter).length > 0) {
-        params.set('_filter', JSON.stringify(parseRcloneOptions(_filter)))
+    const password = options.password
+
+    if (!password) {
+        throw new Error('Password is required to update encryption.')
     }
 
-    if (_config && Object.keys(_config).length > 0) {
-        params.set('_config', JSON.stringify(parseRcloneOptions(_config)))
-    }
-
-    const r = await fetch(`http://localhost:5572/serve/start?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .then((res) => res.json() as Promise<{ addr: string; id: string } | { error: string }>)
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
+    try {
+        await runRcloneCli(['config', 'encryption', 'set'], [password, password])
+        state.updateConfigFile(activeConfig.id, {
+            isEncrypted: true,
+            pass: options.persist ? password : undefined,
+            passCommand: undefined,
         })
 
-    if ('error' in r) {
-        throw new Error(r.error)
-    }
-
-    return r
-}
-
-export async function stopServe(id: string) {
-    console.log('[stopServe] ', id)
-
-    const params = new URLSearchParams()
-    params.set('id', id)
-
-    const r = await fetch(`http://localhost:5572/serve/stop?${params.toString()}`, {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .then((res) => res.json())
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
-        })
-
-    if ('error' in r) {
-        throw new Error(r.error)
+        console.log('[setConfigPassword] restarting rclone')
+        await restartActiveRclone()
+    } catch (error) {
+        Sentry.captureException(error)
+        await message(
+            error instanceof Error ? error.message : 'Failed to update encryption password.',
+            {
+                title: 'Config Encryption',
+                kind: 'error',
+                okLabel: 'OK',
+            }
+        )
+        throw error
     }
 }
 
-export async function stopAllServes() {
-    console.log('[stopAllServes]')
+/* OTHERS */
+export async function fetchServeList() {
+    try {
+        const response = await rclone('/serve/list')
+        return response.list
+    } catch (error) {
+        console.error('[fetchServeList] failed to fetch active serves', error)
+        return []
+    }
+}
 
-    const r = await fetch('http://localhost:5572/serve/stopall', {
-        method: 'POST',
-        headers: getAuthHeader(),
-    })
-        .then((res) => res.json())
-        .catch((e) => {
-            Sentry.captureException(e)
-            console.log('error', e)
-            throw e
-        })
-
-    if ('error' in r) {
-        throw new Error(r.error)
+export async function fetchMountList() {
+    try {
+        const response = await rclone('/mount/listmounts')
+        return response.mountPoints
+    } catch (error) {
+        console.error('[fetchMountList] failed to fetch active mounts', error)
+        return []
     }
 }

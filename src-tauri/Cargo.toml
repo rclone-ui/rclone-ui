@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.8.1"
+version = "3.0.0"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -33,22 +33,29 @@ tauri-plugin-store = "2.4.1"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-notification = { version = "2.3.3", features = [ "windows7-compat" ] }
 tauri-plugin-os = "2.3.2"
+tauri-plugin-global-shortcut = "2.3.1"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 zip = "0.6.6"
 machine-uid = "0.5.4"
 tauri-plugin-sentry = "0.5.0"
 sentry = "0.42"
 tauri-plugin-autostart = "2.5.1"
-tauri-plugin-single-instance = "2.3.6"
+tauri-plugin-single-instance = { version = "2.3.6", features = ["deep-link"] }
 tauri-plugin-updater = "2.9.0"
 tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-prevent-default = "3"
 reqwest = { version = "0.11", features = ["json"] }
 sysinfo = "0.37"
+tinyfiledialogs = "3.9.1"
+tauri-plugin-deep-link = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
+objc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "5" }
 x11rb = "0.13"
+
+[patch.crates-io]
+tao = { git = "https://github.com/tauri-apps/tao", branch = "fix-windows-white-flash" }

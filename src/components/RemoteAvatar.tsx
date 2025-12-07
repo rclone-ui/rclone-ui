@@ -1,18 +1,32 @@
-import { useEffect, useState } from 'react'
-import { getRemote } from '../../lib/rclone/api'
+import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import rclone from '../../lib/rclone/client'
 
 export default function RemoteAvatar({ remote, size = 4 }: { remote: string; size?: number }) {
-    const [remoteData, setRemoteData] = useState<{ type: string; provider?: string } | null>(null)
+    const remoteConfigQuery = useQuery({
+        queryKey: ['remote', remote, 'config'],
+        queryFn: async () => {
+            return await rclone('/config/get', {
+                params: {
+                    query: {
+                        name: remote,
+                    },
+                },
+            })
+        },
+    })
 
-    const avatarSrc = remoteData
-        ? remoteData.provider && !remoteData.type
-            ? `/icons/providers/${remoteData.provider}.png`
-            : `/icons/backends/${remoteData.type}.png`
-        : undefined
+    const info = useMemo(() => remoteConfigQuery.data ?? null, [remoteConfigQuery.data])
 
-    useEffect(() => {
-        getRemote(remote).then(setRemoteData)
-    }, [remote])
+    const avatarSrc = useMemo(
+        () =>
+            info
+                ? info.provider && !info.type
+                    ? `/icons/providers/${info.provider}.png`
+                    : `/icons/backends/${info.type}.png`
+                : undefined,
+        [info]
+    )
 
     return (
         <div className={`min-w-${size} min-h-${size}`}>

@@ -14,10 +14,12 @@
             "complexity": {
                 "all": true,
                 "noUselessTypeConstraint": "off",
-                "useSimplifiedLogicExpression": "off"
+                "useSimplifiedLogicExpression": "off",
+                "noExcessiveCognitiveComplexity": "off"
             },
             "correctness": {
-                "all": true
+                "all": true,
+                "useImportExtensions": "off"
             },
             "performance": {
                 "all": true

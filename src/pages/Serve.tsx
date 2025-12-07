@@ -1,212 +1,84 @@
-import { Accordion, AccordionItem, Avatar, Button, Select, SelectItem } from '@heroui/react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import {
+    Accordion,
+    AccordionItem,
+    Avatar,
+    Button,
+    ButtonGroup,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownTrigger,
+    Select,
+    SelectItem,
+    Tooltip,
+} from '@heroui/react'
+import * as Sentry from '@sentry/browser'
+import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { platform } from '@tauri-apps/plugin-os'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
     AlertOctagonIcon,
+    ClockIcon,
     FilterIcon,
     FoldersIcon,
     PlayIcon,
     ServerCrashIcon,
     WavesLadderIcon,
     WrenchIcon,
-    XIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getRemoteName } from '../../lib/format'
-import {
-    getConfigFlags,
-    getCurrentGlobalFlags,
-    getFilterFlags,
-    getServeFlags,
-    getVfsFlags,
-    startServe,
-} from '../../lib/rclone/api'
+import { getOptionsSubtitle } from '../../lib/flags'
+import { useFlags } from '../../lib/hooks'
+import { startServe } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS, SERVE_TYPES } from '../../lib/rclone/constants'
-import { usePersistedStore } from '../../lib/store'
-import { triggerTrayRebuild } from '../../lib/tray'
 import type { FlagValue } from '../../types/rclone'
-import CommandInfo from '../components/CommandInfo'
+import CommandInfoButton from '../components/CommandInfoButton'
+import CommandsDropdown from '../components/CommandsDropdown'
+import OperationWindowContent from '../components/OperationWindowContent'
+import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
-
-function serializeOptions(
-    dictionary: { Name: string; FieldName: string }[],
-    input: Record<string, FlagValue>
-) {
-    const params = {} as Record<string, FlagValue>
-    for (const [key, value] of Object.entries(input) as [string, FlagValue][]) {
-        const flag = dictionary.find((flag) => flag.FieldName === key)
-        if (flag) {
-            params[flag.Name] = value
-        }
-    }
-    return params
-}
+import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Serve() {
     const [searchParams] = useSearchParams()
+    const { globalFlags, filterFlags, configFlags, vfsFlags, serveFlags } = useFlags()
 
     const [source, setSource] = useState<string | undefined>(
-        searchParams.get('initialSource') || undefined
+        searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
     )
-    const [type, setType] = useState<(typeof SERVE_TYPES)[number] | undefined>(undefined)
+    const [type, setType] = useState<(typeof SERVE_TYPES)[number] | undefined>(
+        searchParams.get('initialType')
+            ? (searchParams.get('initialType')! as (typeof SERVE_TYPES)[number])
+            : undefined
+    )
 
-    const [isServing, setIsServing] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
     const [jsonError, setJsonError] = useState<'serve' | 'vfs' | 'filter' | 'config' | null>(null)
 
     const [serveOptionsLocked, setServeOptionsLocked] = useState(false)
     const [serveOptions, setServeOptions] = useState<Record<string, FlagValue>>({})
-    const [serveOptionsJson, setServeOptionsJson] = useState<string>('{}')
+    const [serveOptionsJsonString, setServeOptionsJsonString] = useState<string>('{}')
 
     const [vfsOptionsLocked, setVfsOptionsLocked] = useState(false)
     const [vfsOptions, setVfsOptions] = useState<Record<string, FlagValue>>({})
-    const [vfsOptionsJson, setVfsOptionsJson] = useState<string>('{}')
-    const [vfsFlags, setVfsFlags] = useState<Awaited<ReturnType<typeof getVfsFlags>>>([])
+    const [vfsOptionsJsonString, setVfsOptionsJsonString] = useState<string>('{}')
 
     const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
     const [filterOptions, setFilterOptions] = useState<Record<string, FlagValue>>({})
-    const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
+    const [filterOptionsJsonString, setFilterOptionsJsonString] = useState<string>('{}')
 
     const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
-    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
-    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+    const [configOptions, setConfigOptions] = useState<Record<string, FlagValue>>({})
+    const [configOptionsJsonString, setConfigOptionsJsonString] = useState<string>('{}')
 
-    useEffect(() => {
-        console.log('serializeOptions', serializeOptions(vfsFlags, vfsOptions))
-    }, [vfsFlags, vfsOptions])
-
-    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
-
-    const getAvailableOptions = async () => {
-        if (!type) return []
-        return getServeFlags(type)
-    }
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
-    useEffect(() => {
-        const storeData = usePersistedStore.getState()
-
-        const sourceRemoteName = getRemoteName(source)
-
-        let mergedFilterDefaults = {}
-        let mergedConfigDefaults = {}
-        let mergedVfsDefaults = {}
-
-        // Helper function to merge defaults from a remote
-        const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote) return
-
-            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
-
-            if (remoteConfig.vfsDefaults) {
-                mergedVfsDefaults = {
-                    ...mergedVfsDefaults,
-                    ...remoteConfig.vfsDefaults,
-                }
+    const startServeMutation = useMutation({
+        mutationFn: async () => {
+            if (!source || !type) {
+                throw new Error('Please select both a source and serve type')
             }
-
-            if (remoteConfig.filterDefaults) {
-                mergedFilterDefaults = {
-                    ...mergedFilterDefaults,
-                    ...remoteConfig.filterDefaults,
-                }
-            }
-
-            if (remoteConfig.configDefaults) {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...remoteConfig.configDefaults,
-                }
-            } else {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...RCLONE_CONFIG_DEFAULTS,
-                }
-            }
-        }
-
-        // Only merge defaults for remote paths
-        if (sourceRemoteName) mergeRemoteDefaults(sourceRemoteName)
-
-        if (Object.keys(mergedVfsDefaults).length > 0 && !vfsOptionsLocked) {
-            setVfsOptionsJson(JSON.stringify(mergedVfsDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
-            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
-            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
-        }
-    }, [source])
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
-    useEffect(() => {
-        const storeData = usePersistedStore.getState()
-
-        const sourceRemoteName = getRemoteName(source)
-
-        let mergedServeDefaults = {}
-
-        // Helper function to merge defaults from a remote
-        const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote) return
-            if (!type) return
-
-            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
-
-            if (remoteConfig.serveDefaults?.[type]) {
-                mergedServeDefaults = {
-                    ...mergedServeDefaults,
-                    ...remoteConfig.serveDefaults?.[type],
-                }
-            }
-        }
-
-        // Only merge defaults for remote paths
-        if (sourceRemoteName) mergeRemoteDefaults(sourceRemoteName)
-
-        if (Object.keys(mergedServeDefaults).length > 0 && !serveOptionsLocked) {
-            setServeOptionsJson(JSON.stringify(mergedServeDefaults, null, 2))
-        }
-    }, [source, type])
-
-    useEffect(() => {
-        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
-        getVfsFlags().then((flags) => setVfsFlags(flags))
-    }, [])
-
-    useEffect(() => {
-        let step: 'serve' | 'vfs' | 'filter' | 'config' = 'serve'
-        try {
-            setServeOptions(JSON.parse(serveOptionsJson))
-
-            step = 'vfs'
-            setVfsOptions(JSON.parse(vfsOptionsJson))
-
-            step = 'filter'
-            setFilterOptions(JSON.parse(filterOptionsJson))
-
-            step = 'config'
-            setConfigOptions(JSON.parse(configOptionsJson))
-
-            setJsonError(null)
-        } catch (error) {
-            setJsonError(step)
-            console.error(`[Serve] Error parsing ${step} options:`, error)
-        }
-    }, [serveOptionsJson, vfsOptionsJson, filterOptionsJson, configOptionsJson])
-
-    async function handleStartServe() {
-        if (!source || !type) return
-
-        setIsLoading(true)
-
-        try {
-            const vfsParams = serializeOptions(vfsFlags, vfsOptions)
 
             await startServe({
                 type,
@@ -214,52 +86,86 @@ export default function Serve() {
                 fs: source,
                 _filter: filterOptions as any,
                 _config: configOptions as any,
-                ...serveOptions,
-                ...vfsParams,
+                ...(serveOptions as { addr: string } & Record<string, FlagValue>),
+                ...(vfsOptions as Record<string, FlagValue>),
             })
-
-            setIsServing(true)
-
-            await triggerTrayRebuild()
-            setIsLoading(false)
-        } catch (err) {
-            console.error('[Serve] Failed to start serve:', err)
-            const errorMessage =
-                err instanceof Error ? err.message : 'Failed to start serve operation'
-            await message(errorMessage, {
-                title: 'Error',
+        },
+        onError: async (error) => {
+            console.error('[Serve] Failed to start serve:', error)
+            Sentry.captureException(error)
+            await message(error instanceof Error ? error.message : 'Failed to start serve', {
+                title: 'Serve',
                 kind: 'error',
             })
-            setIsLoading(false)
-        }
-    }
+        },
+    })
 
-    const buttonText = (() => {
-        if (isLoading) return 'STARTING...'
-        if (isServing) return 'STARTED'
+    useEffect(() => {
+        startTransition(() => {
+            setConfigOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.config, null, 2))
+            setVfsOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.vfs, null, 2))
+        })
+    }, [])
+
+    useEffect(() => {
+        let step: 'serve' | 'vfs' | 'filter' | 'config' = 'serve'
+        try {
+            const parsedServe = JSON.parse(serveOptionsJsonString) as Record<string, FlagValue>
+
+            step = 'vfs'
+            const parsedVfs = JSON.parse(vfsOptionsJsonString) as Record<string, FlagValue>
+
+            step = 'filter'
+            const parsedFilter = JSON.parse(filterOptionsJsonString) as Record<string, FlagValue>
+
+            step = 'config'
+            const parsedConfig = JSON.parse(configOptionsJsonString) as Record<string, FlagValue>
+
+            startTransition(() => {
+                setServeOptions(parsedServe)
+                setVfsOptions(parsedVfs)
+                setFilterOptions(parsedFilter)
+                setConfigOptions(parsedConfig)
+                setJsonError(null)
+            })
+        } catch (error) {
+            setJsonError(step)
+            console.error(`[Serve] Error parsing ${step} options:`, error)
+        }
+    }, [
+        serveOptionsJsonString,
+        vfsOptionsJsonString,
+        filterOptionsJsonString,
+        configOptionsJsonString,
+    ])
+
+    const buttonText = useMemo(() => {
+        if (startServeMutation.isPending) return 'STARTING...'
         if (!source) return 'Please select a source'
         if (!type) return 'Please select a serve type'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
         if (!('addr' in serveOptions)) return 'Specify a listen address in the Serve options'
         return 'START SERVE'
-    })()
+    }, [startServeMutation.isPending, source, type, jsonError, serveOptions])
 
-    const buttonIcon = (() => {
-        if (isLoading || isServing) return
+    const buttonIcon = useMemo(() => {
+        if (startServeMutation.isPending || startServeMutation.isSuccess) return
         if (!source || !type) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-4 h-4 mt-0.5" />
         if (!('addr' in serveOptions)) return <AlertOctagonIcon className="w-4 h-4 mt-0.5" />
         return <PlayIcon className="w-4 h-4 fill-current" />
-    })()
+    }, [
+        startServeMutation.isPending,
+        startServeMutation.isSuccess,
+        source,
+        type,
+        jsonError,
+        serveOptions,
+    ])
 
     return (
         <div className="flex flex-col h-screen gap-10">
-            <CommandInfo
-                content={
-                    'Serve allows you to serve the contents of a remote as a file server of a specific protocol/type.'
-                }
-            />
-            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
+            <OperationWindowContent>
                 <PathField
                     path={source || ''}
                     setPath={setSource}
@@ -287,7 +193,12 @@ export default function Serve() {
                     ))}
                 </Select>
 
-                <Accordion>
+                <Accordion
+                    keepContentMounted={true}
+                    dividerProps={{
+                        className: 'opacity-50',
+                    }}
+                >
                     {type ? (
                         <AccordionItem
                             key="serve"
@@ -301,16 +212,14 @@ export default function Serve() {
                                 />
                             }
                             indicator={<ServerCrashIcon />}
-                            subtitle="Tap to see Serve options for the current operation"
                             title="Serve"
+                            subtitle={getOptionsSubtitle(Object.keys(serveOptions).length)}
                         >
                             <OptionsSection
-                                optionsJson={serveOptionsJson}
-                                setOptionsJson={setServeOptionsJson}
-                                globalOptions={
-                                    currentGlobalOptions[type as keyof typeof currentGlobalOptions]
-                                }
-                                getAvailableOptions={getAvailableOptions}
+                                optionsJson={serveOptionsJsonString}
+                                setOptionsJson={setServeOptionsJsonString}
+                                globalOptions={globalFlags?.[type] || {}}
+                                availableOptions={serveFlags[type] || []}
                                 isLocked={serveOptionsLocked}
                                 setIsLocked={setServeOptionsLocked}
                             />
@@ -322,16 +231,14 @@ export default function Serve() {
                             <Avatar color="warning" radius="lg" fallback={<WavesLadderIcon />} />
                         }
                         indicator={<WavesLadderIcon />}
-                        subtitle="Tap to see VFS options for the current operation"
                         title="VFS"
+                        subtitle={getOptionsSubtitle(Object.keys(vfsOptions).length)}
                     >
                         <OptionsSection
-                            optionsJson={vfsOptionsJson}
-                            setOptionsJson={setVfsOptionsJson}
-                            globalOptions={
-                                currentGlobalOptions['vfs' as keyof typeof currentGlobalOptions]
-                            }
-                            getAvailableOptions={async () => vfsFlags}
+                            optionsJson={vfsOptionsJsonString}
+                            setOptionsJson={setVfsOptionsJsonString}
+                            globalOptions={globalFlags?.vfs || {}}
+                            availableOptions={vfsFlags || []}
                             isLocked={vfsOptionsLocked}
                             setIsLocked={setVfsOptionsLocked}
                         />
@@ -342,16 +249,14 @@ export default function Serve() {
                             <Avatar color="danger" radius="lg" fallback={<FilterIcon />} />
                         }
                         indicator={<FilterIcon />}
-                        subtitle="Tap to toggle filtering options for this operation"
                         title="Filters"
+                        subtitle={getOptionsSubtitle(Object.keys(filterOptions).length)}
                     >
                         <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
-                            }
-                            optionsJson={filterOptionsJson}
-                            setOptionsJson={setFilterOptionsJson}
-                            getAvailableOptions={getFilterFlags}
+                            globalOptions={globalFlags?.filter || {}}
+                            optionsJson={filterOptionsJsonString}
+                            setOptionsJson={setFilterOptionsJsonString}
+                            availableOptions={filterFlags || []}
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
                         />
@@ -362,74 +267,264 @@ export default function Serve() {
                             <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
                         }
                         indicator={<WrenchIcon />}
-                        subtitle="Tap to toggle config options for this operation"
                         title="Config"
+                        subtitle={getOptionsSubtitle(Object.keys(configOptions).length)}
                     >
                         <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
-                            }
-                            optionsJson={configOptionsJson}
-                            setOptionsJson={setConfigOptionsJson}
-                            getAvailableOptions={getConfigFlags}
+                            globalOptions={globalFlags?.main || {}}
+                            optionsJson={configOptionsJsonString}
+                            setOptionsJson={setConfigOptionsJsonString}
+                            availableOptions={configFlags || []}
                             isLocked={configOptionsLocked}
                             setIsLocked={setConfigOptionsLocked}
                         />
                     </AccordionItem>
                 </Accordion>
-            </div>
+            </OperationWindowContent>
 
-            <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-5 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
-                {isServing ? (
-                    <>
-                        <Button
-                            fullWidth={true}
-                            size="lg"
-                            color="primary"
-                            onPress={() => {
-                                setSource(undefined)
-                                setType(undefined)
-                                setIsServing(false)
-                            }}
-                            data-focus-visible="false"
+            <OperationWindowFooter>
+                <TemplatesDropdown
+                    isDisabled={!!jsonError}
+                    operation="serve"
+                    onSelect={(groupedOptions, shouldMerge) => {
+                        startTransition(() => {
+                            if (shouldMerge) {
+                                if (groupedOptions.serve && type)
+                                    setServeOptions({
+                                        ...serveOptions,
+                                        ...groupedOptions.serve[type],
+                                    })
+                                if (groupedOptions.vfs)
+                                    setVfsOptions({ ...vfsOptions, ...groupedOptions.vfs })
+                                if (groupedOptions.filter)
+                                    setFilterOptions({ ...filterOptions, ...groupedOptions.filter })
+                                if (groupedOptions.config)
+                                    setConfigOptions({ ...configOptions, ...groupedOptions.config })
+                            } else {
+                                if (groupedOptions.serve && type)
+                                    setServeOptions(groupedOptions.serve[type])
+                                if (groupedOptions.vfs) setVfsOptions(groupedOptions.vfs)
+                                if (groupedOptions.filter) setFilterOptions(groupedOptions.filter)
+                                if (groupedOptions.config) setConfigOptions(groupedOptions.config)
+                            }
+                        })
+                    }}
+                    getOptions={() => ({
+                        ...serveOptions,
+                        ...vfsOptions,
+                        ...filterOptions,
+                        ...configOptions,
+                    })}
+                />
+                <AnimatePresence mode="wait" initial={false}>
+                    {startServeMutation.isSuccess ? (
+                        <motion.div
+                            key="started-buttons"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1 gap-2"
                         >
-                            RESET
-                        </Button>
+                            <Dropdown shadow={platform() === 'windows' ? 'none' : undefined}>
+                                <DropdownTrigger>
+                                    <Button
+                                        fullWidth={true}
+                                        size="lg"
+                                        color="primary"
+                                        data-focus-visible="false"
+                                    >
+                                        NEW SERVE
+                                    </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu>
+                                    <DropdownItem
+                                        key="reset-source-type"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setSource(undefined)
+                                                setType(undefined)
+                                                setJsonError(null)
+                                                startServeMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Source & Type
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-options"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setServeOptionsJsonString('{}')
+                                                setVfsOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.vfs,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setFilterOptionsJsonString('{}')
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setJsonError(null)
+                                                startServeMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Options
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-all"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setSource(undefined)
+                                                setType(undefined)
+                                                setServeOptionsJsonString('{}')
+                                                setVfsOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.vfs,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setFilterOptionsJsonString('{}')
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setServeOptionsLocked(false)
+                                                setVfsOptionsLocked(false)
+                                                setFilterOptionsLocked(false)
+                                                setConfigOptionsLocked(false)
+                                                setJsonError(null)
+                                                startServeMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset All
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="start-button"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1"
+                        >
+                            <Button
+                                onPress={() => setTimeout(() => startServeMutation.mutate(), 100)}
+                                size="lg"
+                                fullWidth={true}
+                                color="primary"
+                                isDisabled={
+                                    startServeMutation.isPending ||
+                                    !!jsonError ||
+                                    !source ||
+                                    !type ||
+                                    startServeMutation.isSuccess ||
+                                    !('addr' in serveOptions)
+                                }
+                                isLoading={startServeMutation.isPending}
+                                endContent={buttonIcon}
+                                className="max-w-2xl gap-2"
+                                data-focus-visible="false"
+                            >
+                                {buttonText}
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <ButtonGroup variant="flat">
+                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
                         <Button
                             size="lg"
+                            type="button"
+                            color="primary"
                             isIconOnly={true}
                             onPress={async () => {
-                                await getCurrentWindow().hide()
-                                await getCurrentWindow().destroy()
+                                const res = await message(
+                                    'Not yet implemented, you can request this feature on GitHub.',
+                                    {
+                                        title: 'Schedule Serves',
+                                        kind: 'info',
+                                        buttons: {
+                                            ok: 'Request Feature',
+                                        },
+                                    }
+                                )
+
+                                if (res === 'Ok') {
+                                    await openUrl(
+                                        'https://github.com/rclone-ui/rclone-ui/issues/18'
+                                    )
+                                }
                             }}
-                            data-focus-visible="false"
                         >
-                            <XIcon />
+                            <ClockIcon className="size-6" />
                         </Button>
-                    </>
-                ) : (
-                    <Button
-                        onPress={handleStartServe}
-                        size="lg"
-                        fullWidth={true}
-                        color="primary"
-                        isDisabled={
-                            isLoading ||
-                            !!jsonError ||
-                            !source ||
-                            !type ||
-                            isServing ||
-                            !('addr' in serveOptions)
-                        }
-                        isLoading={isLoading}
-                        endContent={buttonIcon}
-                        className="max-w-2xl gap-2"
-                        data-focus-visible="false"
-                    >
-                        {buttonText}
-                    </Button>
-                )}
-            </div>
+                    </Tooltip>
+                    <CommandInfoButton
+                        content={`Serve allows you to serve the contents of a remote as a file server using various protocols.
+
+This turns any rclone remote into a server that other applications and devices can connect to. Choose a protocol based on what your clients support.
+
+Available server types:
+
+• HTTP — Serves files over HTTP. Can be viewed in a web browser or used as an HTTP remote. Supports directory listing and file downloads.
+
+• WebDAV — Serves files via the WebDAV protocol. Compatible with Windows Explorer, macOS Finder, and many file managers. Supports read and write operations.
+
+• FTP — Serves files over the FTP protocol. Works with any FTP client. Supports read and write operations with VFS caching enabled.
+
+• SFTP — Serves files over SFTP (SSH File Transfer Protocol). More secure than FTP. Requires authentication via username/password or SSH keys.
+
+• DLNA — Serves media files to DLNA-compatible devices like smart TVs, Xbox, PlayStation, and VLC. Automatically discovered on your local network via SSDP.
+
+• S3 — Serves files using the S3 API. Allows S3-compatible clients and tools to access your remote. Experimental feature.
+
+• NFS — Serves files as an NFS mount. Useful on macOS where FUSE is difficult to install. Requires VFS caching for write access. Experimental feature.
+
+• Restic — Serves files via restic's REST API. Allows the restic backup tool to use rclone as a storage backend for cloud providers restic doesn't support directly.
+
+• Docker — Implements Docker's volume plugin API. Allows Docker containers to use rclone remotes as volumes. Linux only.
+
+Here's a quick guide to using Serve:
+
+1. SELECT SOURCE
+Choose which remote (and optional subfolder) to serve. This is the content that will be accessible to clients.
+
+2. SELECT TYPE
+Choose the server protocol. Pick based on what your clients support — HTTP for browsers, WebDAV for file managers, DLNA for media players, etc.
+
+3. CONFIGURE OPTIONS
+Expand the accordion sections to customize your server. The most important option is "addr" in the Serve section — this sets the IP and port to listen on (e.g., ":8080" for all interfaces, or "127.0.0.1:8080" for localhost only).
+
+• Serve — Protocol-specific options including listen address, authentication, and TLS settings.
+
+• VFS — Virtual File System caching. Set vfs_cache_mode to "writes" or "full" if you need write access.
+
+• Filters — Include or exclude files by pattern.
+
+• Config — Global rclone settings.
+
+4. START SERVE
+Once configured, tap "START SERVE" to begin. The server will run until you stop it or quit the app.`}
+                    />
+                    <CommandsDropdown currentCommand="serve" />
+                </ButtonGroup>
+            </OperationWindowFooter>
         </div>
     )
 }

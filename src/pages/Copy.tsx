@@ -1,12 +1,22 @@
-import { useAutoAnimate } from '@formkit/auto-animate/react'
-import { Accordion, AccordionItem, Avatar, Button, Divider, cn } from '@heroui/react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import {
+    Accordion,
+    AccordionItem,
+    Avatar,
+    Button,
+    ButtonGroup,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownTrigger,
+    Tooltip,
+} from '@heroui/react'
+import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
-import { exists } from '@tauri-apps/plugin-fs'
+import { platform } from '@tauri-apps/plugin-os'
 import cronstrue from 'cronstrue'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
     AlertOctagonIcon,
-    ChevronDownIcon,
     ClockIcon,
     CopyIcon,
     FilterIcon,
@@ -14,525 +24,216 @@ import {
     PlayIcon,
     ServerIcon,
     WrenchIcon,
-    XIcon,
 } from 'lucide-react'
-import { startTransition, useEffect, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getRemoteName } from '../../lib/format'
-import { isRemotePath } from '../../lib/fs'
-import {
-    getConfigFlags,
-    getCopyFlags,
-    getCurrentGlobalFlags,
-    getFilterFlags,
-    startCopy,
-} from '../../lib/rclone/api'
+import { getOptionsSubtitle } from '../../lib/flags'
+import { useFlags } from '../../lib/hooks'
+import notify from '../../lib/notify'
+import { startCopy } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
-import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
-import CommandInfo from '../components/CommandInfo'
+import { useHostStore } from '../../store/host'
+import { usePersistedStore } from '../../store/persisted'
+import type { FlagValue } from '../../types/rclone'
+import CommandInfoButton from '../components/CommandInfoButton'
+import CommandsDropdown from '../components/CommandsDropdown'
 import CronEditor from '../components/CronEditor'
+import OperationWindowContent from '../components/OperationWindowContent'
+import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { MultiPathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import ShowMoreOptionsBanner from '../components/ShowMoreOptionsBanner'
 import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Copy() {
     const [searchParams] = useSearchParams()
+    const { globalFlags, filterFlags, configFlags, copyFlags } = useFlags()
 
     const [sources, setSources] = useState<string[] | undefined>(
         searchParams.get('initialSource') ? [searchParams.get('initialSource')!] : undefined
     )
-    const [dest, setDest] = useState<string | undefined>(undefined)
+    const [dest, setDest] = useState<string | undefined>(
+        searchParams.get('initialDest') ? searchParams.get('initialDest')! : undefined
+    )
 
-    const [isStarted, setIsStarted] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
     const [jsonError, setJsonError] = useState<'copy' | 'filter' | 'config' | 'remote' | null>(null)
 
     const [copyOptionsLocked, setCopyOptionsLocked] = useState(false)
-    const [copyOptions, setCopyOptions] = useState<Record<string, string>>({})
-    const [copyOptionsJson, setCopyOptionsJson] = useState<string>('{}')
+    const [copyOptions, setCopyOptions] = useState<Record<string, FlagValue>>({})
+    const [copyOptionsJsonString, setCopyOptionsJsonString] = useState<string>('{}')
 
     const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
-    const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
-    const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
+    const [filterOptions, setFilterOptions] = useState<Record<string, FlagValue>>({})
+    const [filterOptionsJsonString, setFilterOptionsJsonString] = useState<string>('{}')
 
     const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
-    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
-    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+    const [configOptions, setConfigOptions] = useState<Record<string, FlagValue>>({})
+    const [configOptionsJsonString, setConfigOptionsJsonString] = useState<string>('{}')
 
     const [remoteOptionsLocked, setRemoteOptionsLocked] = useState(false)
-    const [remoteOptions, setRemoteOptions] = useState<Record<string, string>>({})
-    const [remoteOptionsJson, setRemoteOptionsJson] = useState<string>('{}')
+    const [remoteOptions, setRemoteOptions] = useState<Record<string, Record<string, FlagValue>>>(
+        {}
+    )
+    const [remoteOptionsJsonString, setRemoteOptionsJsonString] = useState<string>('{}')
 
     const [cronExpression, setCronExpression] = useState<string | null>(null)
 
-    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
+    const selectedRemotes = useMemo(
+        () => [...(sources || []), dest].filter(Boolean),
+        [sources, dest]
+    )
 
-    const [showMore, setShowMore] = useState(false)
-    const [animationParent] = useAutoAnimate()
+    const startCopyMutation = useMutation({
+        mutationFn: async () => {
+            if (!sources || sources.length === 0 || !dest) {
+                throw new Error('Please select both a source and destination path')
+            }
 
-    const selectedRemotes = (() => {
-        return [...(sources || []), dest].filter(Boolean) as string[]
-    })()
-
-    console.log('[Copy] selectedRemotes', selectedRemotes)
-
-    // console.log('sources', sources)
-    // console.log('dest', dest)
-
-    useEffect(() => {
-        getCurrentGlobalFlags().then((flags) => {
-            startTransition(() => {
-                setCurrentGlobalOptions(flags)
+            return startCopy({
+                sources,
+                destination: dest,
+                options: {
+                    config: configOptions,
+                    copy: copyOptions,
+                    filter: filterOptions,
+                    remotes: remoteOptions,
+                },
             })
-        })
-    }, [])
+        },
+        onSuccess: () => {
+            if (cronExpression) {
+                scheduleTaskMutation.mutate()
+            }
+        },
+        onError: async (error) => {
+            console.error('Error starting copy:', error)
+            await message(error instanceof Error ? error.message : 'Failed to start copy', {
+                title: 'Copy',
+                kind: 'error',
+            })
+        },
+    })
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
-    useEffect(() => {
-        const storeData = usePersistedStore.getState()
-
-        const sourceRemote = getRemoteName(sources?.[0])
-        const destRemote = getRemoteName(dest)
-
-        let mergedCopyDefaults = {}
-        let mergedFilterDefaults = {}
-        let mergedConfigDefaults = {}
-
-        // Helper function to merge defaults from a remote
-        const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote) return
-
-            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
-
-            if (remoteConfig.copyDefaults) {
-                mergedCopyDefaults = {
-                    ...mergedCopyDefaults,
-                    ...remoteConfig.copyDefaults,
-                }
+    const scheduleTaskMutation = useMutation({
+        mutationFn: async () => {
+            if (!sources || sources.length === 0 || !dest) {
+                throw new Error('Please select both a source and destination path')
             }
 
-            if (remoteConfig.filterDefaults) {
-                mergedFilterDefaults = {
-                    ...mergedFilterDefaults,
-                    ...remoteConfig.filterDefaults,
-                }
+            if (sources.length > 1 && !usePersistedStore.getState().licenseValid) {
+                throw new Error('You need a valid license to schedule multiple tasks at once')
             }
 
-            if (remoteConfig.configDefaults) {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...remoteConfig.configDefaults,
-                }
-            } else {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...RCLONE_CONFIG_DEFAULTS,
-                }
+            if (!cronExpression) {
+                throw new Error('Please enter a cron expression')
             }
-        }
 
-        // Only merge defaults for remote paths
-        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
-        if (destRemote) mergeRemoteDefaults(destRemote)
+            try {
+                cronstrue.toString(cronExpression)
+            } catch {
+                throw new Error('Invalid cron expression')
+            }
 
-        if (Object.keys(mergedCopyDefaults).length > 0 && !copyOptionsLocked) {
-            setCopyOptionsJson(JSON.stringify(mergedCopyDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
-            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
-            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
-        }
-    }, [sources, dest])
+            useHostStore.getState().addScheduledTask({
+                operation: 'copy',
+                cron: cronExpression,
+                args: {
+                    sources,
+                    destination: dest,
+                    options: {
+                        config: configOptions,
+                        copy: copyOptions,
+                        filter: filterOptions,
+                        remotes: remoteOptions,
+                    },
+                },
+            })
+        },
+        onSuccess: async () => {
+            await notify({
+                title: 'Success',
+                body: 'New schedule has been created',
+            })
+        },
+        onError: async (error) => {
+            console.error('Error scheduling task:', error)
+            await message(error instanceof Error ? error.message : 'Failed to schedule task', {
+                title: 'Schedule',
+                kind: 'error',
+            })
+        },
+    })
 
     useEffect(() => {
         startTransition(() => {
-            let step: 'copy' | 'filter' | 'config' | 'remote' = 'copy'
-            try {
-                setCopyOptions(JSON.parse(copyOptionsJson))
-
-                step = 'filter'
-                setFilterOptions(JSON.parse(filterOptionsJson))
-
-                step = 'config'
-                setConfigOptions(JSON.parse(configOptionsJson))
-
-                step = 'remote'
-                setRemoteOptions(JSON.parse(remoteOptionsJson))
-
-                setJsonError(null)
-            } catch (error) {
-                setJsonError(step)
-                console.error(`Error parsing ${step} options:`, error)
-            }
+            setConfigOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.config, null, 2))
+            setCopyOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.copy, null, 2))
         })
-    }, [copyOptionsJson, filterOptionsJson, configOptionsJson, remoteOptionsJson])
+    }, [])
 
-    const buttonText = (() => {
-        if (isLoading) return 'STARTING...'
+    useEffect(() => {
+        let step: 'copy' | 'filter' | 'config' | 'remote' = 'copy'
+        try {
+            const parsedCopy = JSON.parse(copyOptionsJsonString) as Record<string, FlagValue>
+
+            step = 'filter'
+            const parsedFilter = JSON.parse(filterOptionsJsonString) as Record<string, FlagValue>
+
+            step = 'config'
+            const parsedConfig = JSON.parse(configOptionsJsonString) as Record<string, FlagValue>
+
+            step = 'remote'
+            const parsedRemote = JSON.parse(remoteOptionsJsonString) as Record<
+                string,
+                Record<string, FlagValue>
+            >
+
+            startTransition(() => {
+                setCopyOptions(parsedCopy)
+                setFilterOptions(parsedFilter)
+                setConfigOptions(parsedConfig)
+                setRemoteOptions(parsedRemote)
+                setJsonError(null)
+            })
+        } catch (error) {
+            setJsonError(step)
+            console.error(`Error parsing ${step} options:`, error)
+        }
+    }, [
+        copyOptionsJsonString,
+        filterOptionsJsonString,
+        configOptionsJsonString,
+        remoteOptionsJsonString,
+    ])
+
+    const buttonText = useMemo(() => {
+        if (startCopyMutation.isPending) return 'STARTING...'
         if (!sources || sources.length === 0) return 'Please select a source path'
         if (!dest) return 'Please select a destination path'
         if (sources[0] === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
         return 'START COPY'
-    })()
+    }, [startCopyMutation.isPending, sources, dest, jsonError])
 
-    const buttonIcon = (() => {
-        if (isLoading) return
+    const buttonIcon = useMemo(() => {
+        if (startCopyMutation.isPending) return
         if (!sources || sources.length === 0 || !dest || sources[0] === dest)
             return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
         return <PlayIcon className="w-5 h-5 fill-current" />
-    })()
+    }, [startCopyMutation.isPending, sources, dest, jsonError])
 
-    async function handleStartCopy() {
-        setIsLoading(true)
-
-        if (!sources || sources.length === 0 || !dest) {
-            await message('Please select both a source and destination path', {
-                title: 'Error',
-                kind: 'error',
-            })
-            return
-        }
-
-        // check local paths exists
-        for (const source of sources) {
-            try {
-                if (!isRemotePath(source)) {
-                    const sourceExists = await exists(source)
-                    if (sourceExists) {
-                        continue
-                    }
-                    await message(`Source does not exist, ${source} is missing`, {
-                        title: 'Error',
-                        kind: 'error',
-                    })
-                    setIsLoading(false)
-                    return
-                }
-            } catch {}
-        }
-
-        if (!isRemotePath(dest)) {
-            const destExists = await exists(dest)
-            if (!destExists) {
-                await message('Destination path does not exist', {
-                    title: 'Error',
-                    kind: 'error',
-                })
-                setIsLoading(false)
-                return
-            }
-        }
-
-        if (
-            sources.length > 1 &&
-            filterOptions &&
-            ('IncludeRule' in filterOptions || 'IncludeFrom' in filterOptions)
-        ) {
-            await message('Include rules are not supported with multiple sources', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
-
-        const mergedConfig = {
-            ...configOptions,
-            ...copyOptions,
-        }
-
-        if (cronExpression) {
-            if (sources.length > 1) {
-                await message(
-                    'Cron is not supported for multiple sources, please use a single source',
-                    {
-                        title: 'Error',
-                        kind: 'error',
-                    }
-                )
-                setIsLoading(false)
-                return
-            }
-            try {
-                cronstrue.toString(cronExpression)
-            } catch {
-                await message('Invalid cron expression', {
-                    title: 'Error',
-                    kind: 'error',
-                })
-                setIsLoading(false)
-                return
-            }
-            usePersistedStore.getState().addScheduledTask({
-                type: 'copy',
-                cron: cronExpression,
-                args: {
-                    srcFs: sources[0],
-                    dstFs: dest,
-                    _config: mergedConfig,
-                    _filter: filterOptions,
-                },
-            })
-        }
-
-        const failedPaths: Record<string, string> = {}
-
-        // Group files by their parent folder to build a single IncludeRule per group
-        const folderSources = sources.filter((path) => path.endsWith('/'))
-        const fileSources = sources.filter((path) => !path.endsWith('/'))
-
-        const parentToFilesMap: Record<string, string[]> = {}
-        for (const fileSource of fileSources) {
-            const parentFolder = fileSource.split('/').slice(0, -1).join('/')
-            const fileName = fileSource.split('/').pop()!
-            if (!parentToFilesMap[parentFolder]) parentToFilesMap[parentFolder] = []
-            parentToFilesMap[parentFolder].push(fileName)
-        }
-
-        const fileGroups = Object.entries(parentToFilesMap)
-
-        // Start copy for each file group (per parent folder)
-        for (const [parentFolder, fileNames] of fileGroups) {
-            const customFilterOptions = {
-                ...filterOptions,
-                IncludeRule: fileNames,
-            }
-            console.log('[Copy] customFilterOptions for group', parentFolder, customFilterOptions)
-
-            const customSource = parentFolder
-            console.log('[Copy] customSource for group', parentFolder, customSource)
-
-            const destination = dest
-            console.log('[Copy] destination for group', parentFolder, destination)
-
-            try {
-                // await new Promise((resolve) => setTimeout(resolve, 1000))
-                const jobId = await startCopy({
-                    srcFs: customSource,
-                    dstFs: destination,
-                    _config: mergedConfig,
-                    _filter: customFilterOptions,
-                    remoteOptions,
-                })
-
-                await new Promise((resolve) => setTimeout(resolve, 500))
-
-                const statusRes = await fetch(`http://localhost:5572/job/status?jobid=${jobId}`, {
-                    method: 'POST',
-                })
-                    .then((res) => {
-                        return res.json() as Promise<{
-                            duration: number
-                            endTime?: string
-                            error?: string
-                            finished: boolean
-                            group: string
-                            id: number
-                            output?: Record<string, any>
-                            startTime: string
-                            success: boolean
-                        }>
-                    })
-                    .catch(() => {
-                        return { error: null }
-                    })
-
-                console.log('statusRes', JSON.stringify(statusRes, null, 2))
-
-                if (statusRes.error) {
-                    failedPaths[`[group] ${parentFolder}`] = statusRes.error
-                }
-            } catch (error) {
-                console.log('[Copy] error', error)
-                console.error('Failed to start copy for group:', parentFolder, error)
-                if (!failedPaths[`[group] ${parentFolder}`]) {
-                    if (error instanceof Error) {
-                        failedPaths[`[group] ${parentFolder}`] = error.message
-                    } else {
-                        failedPaths[`[group] ${parentFolder}`] = 'Unknown error'
-                    }
-                }
-            }
-        }
-
-        // Start copy for each full folder source (preserve existing behavior)
-        for (const source of folderSources) {
-            const isFolder = true
-            const customFilterOptions = filterOptions
-            console.log('[Copy] customFilterOptions for', source, customFilterOptions)
-            const customSource = source
-            console.log('[Copy] customSource for', source, customSource)
-
-            const destination =
-                isFolder && sources.length > 1
-                    ? `${dest}/${source.split('/').filter(Boolean).pop()!}`
-                    : dest
-            console.log('[Copy] destination for', source, destination)
-
-            try {
-                // await new Promise((resolve) => setTimeout(resolve, 1000))
-                const jobId = await startCopy({
-                    srcFs: customSource,
-                    dstFs: destination,
-                    _config: mergedConfig,
-                    _filter: customFilterOptions,
-                    remoteOptions,
-                })
-
-                await new Promise((resolve) => setTimeout(resolve, 500))
-
-                const statusRes = await fetch(`http://localhost:5572/job/status?jobid=${jobId}`, {
-                    method: 'POST',
-                })
-                    .then((res) => {
-                        return res.json() as Promise<{
-                            duration: number
-                            endTime?: string
-                            error?: string
-                            finished: boolean
-                            group: string
-                            id: number
-                            output?: Record<string, any>
-                            startTime: string
-                            success: boolean
-                        }>
-                    })
-                    .catch(() => {
-                        return { error: null }
-                    })
-
-                console.log('statusRes', JSON.stringify(statusRes, null, 2))
-
-                if (statusRes.error) {
-                    failedPaths[source] = statusRes.error
-                }
-            } catch (error) {
-                console.log('[Copy] error', error)
-                console.error('Failed to start copy for path:', source, error)
-                if (!failedPaths[source]) {
-                    if (error instanceof Error) {
-                        failedPaths[source] = error.message
-                    } else {
-                        failedPaths[source] = 'Unknown error'
-                    }
-                }
-            }
-        }
-
-        console.log('[Copy] failedPaths', failedPaths)
-
-        // dummy delay to avoid waiting when opening the Jobs page
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-
-        const failedPathsKeys = Object.keys(failedPaths)
-        console.log('[Copy] failedPathsKeys', failedPathsKeys)
-
-        const expectedJobsFinal = (() => {
-            // Recompute to be safe in case of future changes
-            const folderSourcesFinal = (sources || []).filter((path) => path.endsWith('/'))
-            const fileSourcesFinal = (sources || []).filter((path) => !path.endsWith('/'))
-            const parentToFilesMapFinal: Record<string, true> = {}
-            for (const fileSource of fileSourcesFinal) {
-                const parentFolder = fileSource.split('/').slice(0, -1).join('/')
-                parentToFilesMapFinal[parentFolder] = true
-            }
-            return folderSourcesFinal.length + Object.keys(parentToFilesMapFinal).length
-        })()
-
-        if (expectedJobsFinal !== failedPathsKeys.length) {
-            setIsStarted(true)
-        }
-
-        if (failedPathsKeys.length > 0) {
-            if (expectedJobsFinal === failedPathsKeys.length) {
-                await message(`${failedPathsKeys[0]} ${failedPaths[failedPathsKeys[0]]}`, {
-                    title: 'Failed to start copy',
-                    kind: 'error',
-                })
-            } else {
-                await message(
-                    `${failedPathsKeys.map((source) => `${source} ${failedPaths[source]}`).join(',')}`,
-                    {
-                        title: 'Failed to start copy',
-                        kind: 'error',
-                    }
-                )
-            }
-        }
-
-        setIsLoading(false)
-    }
-
-    async function handleAddToTemplates(name: string) {
-        if (!!jsonError || !sources || sources.length === 0 || !dest || sources[0] === dest) {
-            await message('Your config for this operation is incomplete or has errors.', {
-                title: 'Error',
-                kind: 'error',
-            })
-            return
-        }
-        const templates = usePersistedStore.getState().templates
-
-        const mergedOptions = {
-            copyOptions,
-            filterOptions,
-            configOptions,
-            remoteOptions,
-            sources,
-            dest,
-        }
-
-        const newTemplates = [
-            ...templates,
-            {
-                id: Math.floor(Date.now() / 1000).toString(),
-                name,
-                operation: 'copy',
-                options: mergedOptions,
-            } as const,
-        ]
-
-        usePersistedStore.setState({ templates: newTemplates })
-    }
-
-    async function handleSelectTemplate(templateId: string) {
-        const template = usePersistedStore
-            .getState()
-            .templates.find((template) => template.id === templateId)
-
-        if (!template) {
-            await message('Template not found', {
-                title: 'Error',
-                kind: 'error',
-            })
-            return
-        }
-
-        setCopyOptions(template.options.copyOptions)
-        setFilterOptions(template.options.filterOptions)
-        setConfigOptions(template.options.configOptions)
-        setRemoteOptions(template.options.remoteOptions)
-        setSources(template.options.sources)
-        setDest(template.options.dest)
-    }
+    useEffect(() => {
+        console.log('[Copy] remoteOptions', remoteOptions)
+        console.log('[Copy] remoteOptionsJsonString', remoteOptionsJsonString)
+    }, [remoteOptionsJsonString, remoteOptions])
 
     return (
         <div className="flex flex-col h-screen gap-10">
-            <CommandInfo
-                content={`Copy the source to the destination. Does not transfer files that are identical on source and destination, testing by size and modification time or MD5SUM. Doesn't delete files from the destination. If you want to also delete files from destination, to make it match source, use the SYNC command instead.
-
-Note that it is always the contents of the directory that is synced, not the directory itself. So when source:path is a directory, it's the contents of source:path that are copied, not the directory name and contents.`}
-            />
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
+            <OperationWindowContent>
                 {/* Paths Display */}
                 <MultiPathFinder
                     sourcePaths={sources}
@@ -541,29 +242,27 @@ Note that it is always the contents of the directory that is synced, not the dir
                     setDestPath={setDest}
                 />
 
-                <div
-                    className={cn('flex flex-col pb-10 relative', showMore && 'pb-0')}
-                    ref={animationParent}
-                >
-                    <Accordion>
+                <div className="relative flex flex-col">
+                    <Accordion
+                        keepContentMounted={true}
+                        dividerProps={{
+                            className: 'opacity-50',
+                        }}
+                    >
                         <AccordionItem
                             key="copy"
                             startContent={
                                 <Avatar color="primary" radius="lg" fallback={<CopyIcon />} />
                             }
                             indicator={<CopyIcon />}
-                            subtitle="Tap to toggle copy options for this operation"
                             title="Copy"
+                            subtitle={getOptionsSubtitle(Object.keys(copyOptions).length)}
                         >
                             <OptionsSection
-                                globalOptions={
-                                    currentGlobalOptions[
-                                        'main' as keyof typeof currentGlobalOptions
-                                    ]
-                                }
-                                optionsJson={copyOptionsJson}
-                                setOptionsJson={setCopyOptionsJson}
-                                getAvailableOptions={getCopyFlags}
+                                globalOptions={globalFlags?.main || {}}
+                                optionsJson={copyOptionsJsonString}
+                                setOptionsJson={setCopyOptionsJsonString}
+                                availableOptions={copyFlags || []}
                                 isLocked={copyOptionsLocked}
                                 setIsLocked={setCopyOptionsLocked}
                             />
@@ -574,18 +273,14 @@ Note that it is always the contents of the directory that is synced, not the dir
                                 <Avatar color="danger" radius="lg" fallback={<FilterIcon />} />
                             }
                             indicator={<FilterIcon />}
-                            subtitle="Tap to toggle filtering options for this operation"
                             title="Filters"
+                            subtitle={getOptionsSubtitle(Object.keys(filterOptions).length)}
                         >
                             <OptionsSection
-                                globalOptions={
-                                    currentGlobalOptions[
-                                        'filter' as keyof typeof currentGlobalOptions
-                                    ]
-                                }
-                                optionsJson={filterOptionsJson}
-                                setOptionsJson={setFilterOptionsJson}
-                                getAvailableOptions={getFilterFlags}
+                                globalOptions={globalFlags?.filter || {}}
+                                optionsJson={filterOptionsJsonString}
+                                setOptionsJson={setFilterOptionsJsonString}
+                                availableOptions={filterFlags || []}
                                 isLocked={filterOptionsLocked}
                                 setIsLocked={setFilterOptionsLocked}
                             />
@@ -596,171 +291,285 @@ Note that it is always the contents of the directory that is synced, not the dir
                                 <Avatar color="warning" radius="lg" fallback={<ClockIcon />} />
                             }
                             indicator={<ClockIcon />}
-                            subtitle="Tap to toggle cron options for this operation"
                             title="Cron"
                         >
                             <CronEditor expression={cronExpression} onChange={setCronExpression} />
                         </AccordionItem>
-                    </Accordion>
-
-                    {showMore ? (
-                        <Divider />
-                    ) : (
-                        <div
-                            key="show-more-options"
-                            className="absolute flex flex-col items-center justify-center w-full gap-1 -bottom-8 group "
-                            onClick={() => {
-                                startTransition(() => {
-                                    setShowMore(true)
-                                })
-                                requestAnimationFrame(() => {
-                                    setTimeout(() => {
-                                        scrollTo({
-                                            top: document.body.scrollHeight,
-                                            behavior: 'smooth',
-                                        })
-                                    }, 400)
-                                })
-                            }}
+                        <AccordionItem
+                            key="config"
+                            startContent={
+                                <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                            }
+                            indicator={<WrenchIcon />}
+                            title="Config"
+                            subtitle={getOptionsSubtitle(Object.keys(configOptions).length)}
                         >
-                            <p className="text-small animate-show-more-title group-hover:text-foreground-500 text-foreground-400">
-                                Show more options
-                            </p>
-                            <ChevronDownIcon className="size-5 stroke-foreground-400 animate-show-more group-hover:stroke-foreground-500" />
-                        </div>
-                    )}
+                            <OptionsSection
+                                globalOptions={globalFlags?.main || {}}
+                                optionsJson={configOptionsJsonString}
+                                setOptionsJson={setConfigOptionsJsonString}
+                                availableOptions={configFlags || []}
+                                isLocked={configOptionsLocked}
+                                setIsLocked={setConfigOptionsLocked}
+                            />
+                        </AccordionItem>
 
-                    {showMore ? (
-                        // @ts-expect-error
-                        <Accordion>
+                        {selectedRemotes.length > 0 ? (
                             <AccordionItem
-                                key="config"
+                                key={'remotes'}
                                 startContent={
-                                    <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                                    <Avatar
+                                        className="bg-fuchsia-500"
+                                        radius="lg"
+                                        fallback={<ServerIcon />}
+                                    />
                                 }
-                                indicator={<WrenchIcon />}
-                                subtitle="Tap to toggle config options for this operation"
-                                title="Config"
+                                indicator={<ServerIcon />}
+                                title={'Remotes'}
+                                subtitle={getOptionsSubtitle(
+                                    Object.values(remoteOptions).reduce(
+                                        (acc, opts) => acc + Object.keys(opts).length,
+                                        0
+                                    )
+                                )}
                             >
-                                <OptionsSection
-                                    globalOptions={
-                                        currentGlobalOptions[
-                                            'main' as keyof typeof currentGlobalOptions
-                                        ]
-                                    }
-                                    optionsJson={configOptionsJson}
-                                    setOptionsJson={setConfigOptionsJson}
-                                    getAvailableOptions={getConfigFlags}
-                                    isLocked={configOptionsLocked}
-                                    setIsLocked={setConfigOptionsLocked}
+                                <RemoteOptionsSection
+                                    selectedRemotes={selectedRemotes}
+                                    remoteOptionsJsonString={remoteOptionsJsonString}
+                                    setRemoteOptionsJsonString={setRemoteOptionsJsonString}
+                                    setRemoteOptionsLocked={setRemoteOptionsLocked}
+                                    remoteOptionsLocked={remoteOptionsLocked}
                                 />
                             </AccordionItem>
+                        ) : null}
+                    </Accordion>
 
-                            {selectedRemotes.length > 0 && (
-                                <AccordionItem
-                                    key={'remotes'}
-                                    startContent={
-                                        <Avatar
-                                            className="bg-fuchsia-500"
-                                            radius="lg"
-                                            fallback={<ServerIcon />}
-                                        />
-                                    }
-                                    indicator={<ServerIcon />}
-                                    subtitle="Tap to toggle remote options for this operation"
-                                    title={'Remotes'}
-                                >
-                                    <RemoteOptionsSection
-                                        selectedRemotes={selectedRemotes}
-                                        remoteOptionsJson={remoteOptionsJson}
-                                        setRemoteOptionsJson={setRemoteOptionsJson}
-                                        setRemoteOptionsLocked={setRemoteOptionsLocked}
-                                        remoteOptionsLocked={remoteOptionsLocked}
-                                    />
-                                </AccordionItem>
-                            )}
-                        </Accordion>
-                    ) : undefined}
+                    <ShowMoreOptionsBanner />
                 </div>
-            </div>
+            </OperationWindowContent>
 
-            <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+            <OperationWindowFooter>
                 <TemplatesDropdown
+                    isDisabled={!!jsonError}
                     operation="copy"
-                    onSelect={handleSelectTemplate}
-                    onAdd={handleAddToTemplates}
+                    onSelect={(groupedOptions, shouldMerge) => {
+                        startTransition(() => {
+                            if (shouldMerge) {
+                                if (groupedOptions.copy)
+                                    setCopyOptions({ ...copyOptions, ...groupedOptions.copy })
+                                if (groupedOptions.filter)
+                                    setFilterOptions({ ...filterOptions, ...groupedOptions.filter })
+                                if (groupedOptions.config)
+                                    setConfigOptions({ ...configOptions, ...groupedOptions.config })
+                            } else {
+                                if (groupedOptions.copy) setCopyOptions(groupedOptions.copy)
+                                if (groupedOptions.filter) setFilterOptions(groupedOptions.filter)
+                                if (groupedOptions.config) setConfigOptions(groupedOptions.config)
+                            }
+                        })
+                    }}
+                    getOptions={() => ({
+                        ...copyOptions,
+                        ...filterOptions,
+                        ...configOptions,
+                    })}
                 />
-                {isStarted ? (
-                    <>
+                <AnimatePresence mode="wait" initial={false}>
+                    {startCopyMutation.isSuccess ? (
+                        <motion.div
+                            key="started-buttons"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1 gap-2"
+                        >
+                            <Dropdown shadow={platform() === 'windows' ? 'none' : undefined}>
+                                <DropdownTrigger>
+                                    <Button
+                                        fullWidth={true}
+                                        size="lg"
+                                        color="primary"
+                                        data-focus-visible="false"
+                                    >
+                                        NEW COPY
+                                    </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu>
+                                    <DropdownItem
+                                        key="reset-paths"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setSources(undefined)
+                                                setDest(undefined)
+                                                setJsonError(null)
+                                                startCopyMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Paths
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-options"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setCopyOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.copy,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setFilterOptionsJsonString('{}')
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setRemoteOptionsJsonString('{}')
+                                                setCronExpression(null)
+                                                setJsonError(null)
+                                                startCopyMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Options
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-all"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setCopyOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.copy,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setFilterOptionsJsonString('{}')
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setRemoteOptionsJsonString('{}')
+                                                setCopyOptionsLocked(false)
+                                                setFilterOptionsLocked(false)
+                                                setConfigOptionsLocked(false)
+                                                setRemoteOptionsLocked(false)
+                                                setCronExpression(null)
+                                                setJsonError(null)
+                                                setSources(undefined)
+                                                setDest(undefined)
+                                                startCopyMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset All
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+
+                            <Button
+                                fullWidth={true}
+                                size="lg"
+                                color="secondary"
+                                onPress={async () => {
+                                    await openWindow({
+                                        name: 'Transfers',
+                                        url: '/transfers',
+                                    })
+                                }}
+                                data-focus-visible="false"
+                            >
+                                VIEW TRANSFERS
+                            </Button>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="start-button"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1"
+                        >
+                            <Button
+                                onPress={() => setTimeout(() => startCopyMutation.mutate(), 100)}
+                                size="lg"
+                                fullWidth={true}
+                                type="button"
+                                color="primary"
+                                isDisabled={
+                                    startCopyMutation.isPending ||
+                                    !!jsonError ||
+                                    !sources ||
+                                    sources.length === 0 ||
+                                    !dest ||
+                                    sources[0] === dest
+                                }
+                                isLoading={startCopyMutation.isPending}
+                                endContent={buttonIcon}
+                                className="max-w-2xl gap-2"
+                                data-focus-visible="false"
+                            >
+                                {buttonText}
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <ButtonGroup variant="flat">
+                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
                         <Button
-                            fullWidth={true}
                             size="lg"
+                            type="button"
                             color="primary"
-                            onPress={() => {
-                                setCopyOptionsJson('{}')
-                                setFilterOptionsJson('{}')
-                                setSources(undefined)
-                                setDest(undefined)
-                                setIsStarted(false)
-                            }}
-                            data-focus-visible="false"
-                        >
-                            RESET
-                        </Button>
-
-                        <Button
-                            fullWidth={true}
-                            size="lg"
-                            color="secondary"
-                            onPress={async () => {
-                                // const createdWindow =
-                                await openWindow({
-                                    name: 'Jobs',
-                                    url: '/jobs',
-                                })
-                                // await createdWindow.setFocus()
-                            }}
-                            data-focus-visible="false"
-                        >
-                            JOBS
-                        </Button>
-
-                        <Button
-                            size="lg"
                             isIconOnly={true}
-                            onPress={async () => {
-                                await getCurrentWindow().hide()
-                                await getCurrentWindow().destroy()
+                            onPress={() => {
+                                setTimeout(() => scheduleTaskMutation.mutate(), 100)
                             }}
-                            data-focus-visible="false"
                         >
-                            <XIcon />
+                            <ClockIcon className="size-6" />
                         </Button>
-                    </>
-                ) : (
-                    <Button
-                        onPress={handleStartCopy}
-                        size="lg"
-                        fullWidth={true}
-                        type="button"
-                        color="primary"
-                        isDisabled={
-                            isLoading ||
-                            !!jsonError ||
-                            !sources ||
-                            sources.length === 0 ||
-                            !dest ||
-                            sources[0] === dest
-                        }
-                        isLoading={isLoading}
-                        endContent={buttonIcon}
-                        className="max-w-2xl gap-2"
-                        data-focus-visible="false"
-                    >
-                        {buttonText}
-                    </Button>
-                )}
-            </div>
+                    </Tooltip>
+                    <CommandInfoButton
+                        content={`Copies the source(s) to the destination.
+
+Does not transfer files that are identical on source and destination (testing by size and modification time or MD5SUM). Does not delete files from the destination. If the destination path doesn't exist, it will be created automatically.
+
+If you want to also delete files from the destination to make it match the source exactly, use the SYNC command instead.
+
+Here's a quick guide to using the Copy command:
+
+1. SELECT PATHS
+Use the path selectors at the top to choose your source(s) and destination. You can select from local filesystem, configured remotes, or favorites. Tap the folder icon to browse, or type a path directly. Use the swap button to quickly switch source and destination.
+
+2. CONFIGURE OPTIONS (Optional)
+Expand the accordion sections to customize your copy operation. Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
+
+• Copy — Multi-threading settings (multi_thread_cutoff, streams, chunk_size), checksum verification, how to handle existing files (ignore_existing), and metadata preservation.
+
+• Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
+
+• Cron — Schedule this copy to run automatically at set intervals. The schedule only triggers while the app is running.
+
+• Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
+
+• Remotes — Override backend-specific settings for remotes involved in this operation.
+
+3. USE TEMPLATES (Optional)
+Tap the folder icon in the bottom bar to load or save option presets. Templates let you quickly apply common configurations without manually setting each option.
+
+4. START THE COPY
+Once paths are selected, tap "START COPY" to begin. You can monitor progress on the Transfers page.`}
+                    />
+                    <CommandsDropdown currentCommand="copy" />
+                </ButtonGroup>
+            </OperationWindowFooter>
         </div>
     )
 }

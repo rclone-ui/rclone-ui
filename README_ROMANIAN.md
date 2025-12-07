@@ -50,28 +50,49 @@
 
 <br />
 
-## Features
-### 🖥️ Toate Platformele: Windows, Linux, macOS (x64, Arm și Apple Silicon)
-### ✅ Funcționează cu instalarea ta existentă de rclone (sau îl poate instala pentru tine) și îl menține up-to-date (cu aprobarea ta)
-### 🔗 Adaugă/Editează/Șterge Remotes
-### ⚡️ Sync, Bisync, Copy, Move, Delete, Purge, Serve, Mount etc.
-### ⭐️ Economisește timp setând default flags pentru fiecare Remote, separat pentru fiecare operațiune (Mount, Sync, Copy etc.)
-### 🎛️ Personalizează flags când rulezi o operațiune, de la caz la caz
-### 📚 Documentație integrată pentru fiecare flag — nu mai trebuie să dai search pe Google ca să afli ce face!
-### 📂 File Browser
-### 📡 Proxy
+<a href="https://get.rcloneui.com/showcase">
+  <img src=".github/rclone-video.png" alt="The GUI for Rclone">
+</a>
 
-<img src=".github/rclone-1.png" alt="Rclone UI">
+## Docker/Homelab/Server
+Controlează serverul, homelab-ul sau PC-ul mamei tale cu **cea mai simplă soluție pentru a gestiona instanțe **`rclone`** la distanță.**
 
-### ⏰ Sarcini programate (cron)
-### 📊 Job Logs (vizualizează toate operațiunile în background)
-### 🚀 Start on boot (autostart) și Mount on start (automount)
-### 🔒 Setează o parolă pentru panoul de Settings
-### 👁️ Ascunde comenzile sau Remotes din meniul tray
-### ⚙️ Import/Export Configs (criptate cu `pass` sau `command`)
-### ✍️ Signed by Microsoft și Notarized pe macOS
+#### Docker Compose
+```yaml
+services:
+  rclone:
+    image: rclone/rclone
+    container_name: rclone
+    command: rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+    ports:
+      - 5572:5572
+    volumes:
+      - ./config:/config/rclone
+      - /path/to/data:/data
+```
 
-<img src=".github/rclone-2.png" alt="Rclone UI">
+#### Docker CLI
+```bash
+docker run -d \
+  --name rclone \
+  -p 5572:5572 \
+  -v ./config:/config/rclone \
+  -v /path/to/data:/data \
+  rclone/rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+```
+
+#### Fără Docker
+Pornește daemon-ul `rcd` direct:
+
+```bash
+rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+```
+
+#### Note
+- După pornirea **`rclone`** folosind metoda preferată, deschide Rclone UI și navighează la Settings > Hosts.
+- Asigură-te că permiți traficul pe portul **`5572`** în firewall-ul tău și/sau reverse proxy (nginx/caddy/traefik).
+- Rclone UI se poate conecta la orice port RCD, astfel încât poți personaliza portul implicit **`5572`**.
+- Folosește **`--rc-user`** și **`--rc-pass`** în loc de **`--rc-no-auth`** în producție.
 
 ## Package Managers
 - Flathub **`flatpak install com.rcloneui.RcloneUI`** sau **[din magazin](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
@@ -79,6 +100,7 @@
 - Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
 - WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
+- NPM **`npx rclone-ui`**
 
 ## Descarcă
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
@@ -100,7 +122,15 @@
 </a>
 
 ## Contribuții
-Apreciem contribuțiile tale! Deschide un [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) sau un [PR](https://github.com/FTCHD/rclone-ui/compare) și hai să facem Rclone UI și mai bun împreună 🎉🎉
+Bine ai venit, anon. Te-așteptam.
+
+Iată câteva probleme bune de abordat:
+- Rezolvă un [**Issue**](https://github.com/rclone-ui/rclone-ui/issues) deschis
+- Actualizează repository-ul la Vite 7 & React 19
+- Introdu React Compiler
+- Mută logica Cron în Rust
+
+🎁 **PR-urile acceptate primesc o licență gratis!**
 
 <br />
 

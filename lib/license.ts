@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
-import { usePersistedStore } from './store'
+import { usePersistedStore } from '../store/persisted'
 
 export async function validateLicense(licenseKey: string) {
     console.log('[validateLicense]')
@@ -29,7 +29,7 @@ export async function validateLicense(licenseKey: string) {
             platform: platform(),
         }),
     })
-        .then((r) => r.json())
+        .then((r) => r.json() as Promise<{ error: string; valid: boolean }>)
         .catch((e) => {
             console.error('[validateLicense] failed to validate license')
             console.error(JSON.stringify(e))
@@ -76,7 +76,7 @@ export async function revokeMachineLicense(licenseKey: string) {
             id,
         }),
     })
-        .then((r) => r.json())
+        .then((r) => r.json() as Promise<{ error: string; revoked: boolean }>)
         .catch((e) => {
             console.error('[revokeMachineLicense] failed to revoke license, fetch failed')
             console.error(JSON.stringify(e))

@@ -1,3 +1,8 @@
+ <img src=".github/rclone-mobile.png" alt="Rclone Mobile" width="100%">
+
+<br />
+<br />
+
 <h1 align="center">
   <a href="https://rcloneui.com">
     <img src="./public/banner.png" alt="Rclone UI" width="100%">
@@ -50,28 +55,50 @@
 
 <br />
 
-## Features
-### 🖥️ Cross platform running on Windows, Linux, macOS (x64, Arm and Apple Silicon)
-### ✅ Works with your existing rclone installation (or can install rclone for you) and keeps it updated (with your approval)
-### 🔗 Add/Edit/Remove Remotes
-### ⚡️ Sync, BiSync, Bisync, Copy, Move, Delete, Purge, Serve, Mount, etc
-### ⭐️ Save time by setting default flags for each Remote separately, for each operation (Mount, Sync, Copy, etc)
-### 🎛️ Customize the flags (parameters) when running an operation, on a case by case basis
-### 📚 Embedded documentation for each flag, no need to google what everything does!
-### 📂 File Browser
-### 📡 Proxy
+<a href="https://get.rcloneui.com/showcase">
+  <img src=".github/rclone-video.png" alt="The GUI for Rclone">
+</a>
 
-<img src=".github/rclone-1.png" alt="Rclone UI">
+## Docker/Homelab/Server Usage
+Control your server, homelab, or mom's PC with **the easiest solution to manage remote **`rclone`** instances.**
 
-### ⏰ Scheduled Tasks (cron)
-### 📊 Job Logs (visualize all background operations)
-### 🚀 Start on boot (autostart) and Mount on start (automount)
-### 🔒 Set a password for the Settings panel
-### 👁️ Hide commands or Remotes from the tray menu
-### ⚙️ Import/Export Configs (encrypted with pass or command)
-### ✍️ Signed by Microsoft and Notarized on macOS
+#### Docker Compose
+```yaml
+services:
+  rclone:
+    image: rclone/rclone
+    container_name: rclone
+    command: rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+    ports:
+      - 5572:5572
+    volumes:
+      - ./config:/config/rclone
+      - /path/to/data:/data
+```
 
-<img src=".github/rclone-2.png" alt="Rclone UI">
+#### Docker CLI
+```bash
+docker run -d \
+  --name rclone \
+  -p 5572:5572 \
+  -v ./config:/config/rclone \
+  -v /path/to/data:/data \
+  rclone/rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+```
+
+#### Without Docker
+Just start the `rcd` daemon directly:
+
+```bash
+rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+```
+
+#### Notes
+- After starting up **`rclone`** using your preferred method, simply open Rclone UI and navigate to Settings > Hosts.
+- Make sure to allow traffic to port **`5572`** in your firewall and/or reverse proxy (nginx/caddy/traefik).
+- Rclone UI can connect to any RCD port, so you can customize the default **`5572`** port.
+- Use **`--rc-user`** and **`--rc-pass`** instead of **`--rc-no-auth`** in production.
+
 
 ## Package Managers
 - Flathub **`flatpak install com.rcloneui.RcloneUI`** or **[from the store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
@@ -79,6 +106,7 @@
 - Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
 - WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
+- NPM **`npx rclone-ui`**
 
 ## Downloads
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
@@ -100,7 +128,15 @@
 </a>
 
 ## Contributing
-We welcome your contributions! Please open an [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) or a [PR](https://github.com/FTCHD/rclone-ui/compare), and let's make this better together 🎉🎉
+Welcome, anon. We’ve been expecting you.
+
+Here are some good problems to tackle:
+- Fix an open [**Issue**](https://github.com/rclone-ui/rclone-ui/issues)
+- Upgrade repository to Vite 7 & React 19
+- Introduce React Compiler
+- Move Cron logic to Rust
+
+🎁 **Merged PRs receive a Lifetime License!**
 
 <br />
 

@@ -11,13 +11,16 @@
         "Purge",
         "Delete",
         "Settings",
-        "Jobs",
-        "Cron",
+        "Transfers",
+        "Schedules",
+        "Templates",
         "Serve",
         "Bisync",
         "Download",
         "Browse",
         "Startup",
+        "Toolbar",
+        "Onboarding",
         "Test"
     ],
     "permissions": [
@@ -247,7 +250,6 @@
                 }
             ]
         },
-
         "opener:allow-open-url",
         {
             "identifier": "opener:allow-open-path",
@@ -266,57 +268,21 @@
             ]
         },
         "opener:allow-default-urls",
-
         "updater:allow-download",
         "updater:allow-download-and-install",
         "updater:allow-check",
         "updater:allow-install",
-
         "autostart:allow-enable",
         "autostart:allow-disable",
         "autostart:allow-is-enabled",
-
         {
             "identifier": "http:default",
             "allow": [
                 {
-                    "url": "http://localhost:5572/**"
+                    "url": "http://*:*"
                 },
                 {
-                    "url": "https://downloads.rclone.org/**"
-                },
-                {
-                    "url": "https://github.com/**"
-                },
-                {
-                    "url": "https://raw.githubusercontent.com/**"
-                },
-                {
-                    "url": "https://rcloneui.com/**"
-                },
-                {
-                    "url": "https://stripe.com/**"
-                },
-                {
-                    "url": "https://buy.stripe.com/**"
-                },
-                {
-                    "url": "https://checkout.stripe.com/**"
-                },
-                {
-                    "url": "https://js.stripe.com/**"
-                },
-                {
-                    "url": "https://donate.stripe.com/**"
-                },
-                {
-                    "url": "https://payments.stripe.com/**"
-                },
-                {
-                    "url": "https://checkout.link.com/**"
-                },
-                {
-                    "url": "https://**.sentry.io/**"
+                    "url": "https://*:*"
                 }
             ]
         },
@@ -326,6 +292,8 @@
         "os:default",
         "sentry:allow-event",
         "sentry:allow-breadcrumb",
-        "sentry:allow-envelope"
+        "sentry:allow-envelope",
+        "deep-link:default",
+        "deep-link:allow-get-current"
     ]
 }

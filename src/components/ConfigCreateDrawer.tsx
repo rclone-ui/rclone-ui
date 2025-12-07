@@ -7,16 +7,19 @@ import {
     Input,
     Switch,
     Textarea,
+    cn,
 } from '@heroui/react'
 import { Button } from '@heroui/react'
+import { useMutation } from '@tanstack/react-query'
 import { sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import { mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { platform } from '@tauri-apps/plugin-os'
 import { UploadIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { getConfigPath } from '../../lib/rclone/common'
-import { usePersistedStore } from '../../lib/store'
+import { useHostStore } from '../../store/host'
 import type { ConfigFile } from '../../types/config'
 
 export default function ConfigCreateDrawer({
@@ -32,88 +35,65 @@ export default function ConfigCreateDrawer({
     const [configContent, setConfigContent] = useState<string | null>(null)
 
     const [isPasswordCommand, setIsPasswordCommand] = useState(false)
-    const [isSaving, setIsSaving] = useState(false)
 
-    const isEncrypted = configContent?.includes('RCLONE_ENCRYPT_V0:')
+    const isEncrypted = useMemo(
+        () => configContent?.includes('RCLONE_ENCRYPT_V0:'),
+        [configContent]
+    )
 
-    async function handleCreate({
-        label,
-        pass,
-        passCommand,
-        content,
-        isPasswordCommand,
-        isEncrypted,
-    }: {
-        label?: string
-        pass?: string
-        passCommand?: string
-        content: string | null
-        isPasswordCommand: boolean
-        isEncrypted: boolean
-    }) {
-        if (!label) {
-            await message('Label is required', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
+    const createConfigMutation = useMutation({
+        mutationFn: async ({
+            label,
+            pass,
+            passCommand,
+            content,
+            isPasswordCommand,
+            isEncrypted,
+        }: {
+            label: string
+            pass?: string
+            passCommand?: string
+            content: string
+            isPasswordCommand: boolean
+            isEncrypted: boolean
+        }) => {
+            const savedPass = isPasswordCommand ? undefined : pass
+            const savedPassCommand = isPasswordCommand ? passCommand : undefined
 
-        if (!content) {
-            await message('Content is required', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
-
-        if (isEncrypted && isPasswordCommand && !passCommand) {
-            await message('Password command is required for encrypted configs', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
-
-        setIsSaving(true)
-
-        const savedPass = isPasswordCommand ? undefined : pass
-        const savedPassCommand = isPasswordCommand ? passCommand : undefined
-
-        try {
             const generatedId = crypto.randomUUID()
-
             const configPath = await getConfigPath({ id: generatedId, validate: false })
 
             await mkdir(configPath.replace(sep() + 'rclone.conf', ''), {
                 recursive: true,
             })
             await writeTextFile(configPath, content)
-            console.log('[handleCreate] saved config to', configPath)
+            console.log('[createConfig] saved config to', configPath)
 
-            usePersistedStore.getState().addConfigFile({
+            const newConfig = {
                 id: generatedId,
                 label,
                 pass: savedPass,
                 passCommand: savedPassCommand,
-                isEncrypted: isEncrypted,
+                isEncrypted,
                 sync: undefined,
-            })
+            }
 
+            useHostStore.getState().addConfigFile(newConfig)
+
+            return true
+        },
+        onSuccess: () => {
             onClose()
-        } catch (error) {
-            console.error('[handleCreate] failed to save config', error)
+        },
+        onError: async (error) => {
+            console.error('[createConfig] failed to save config', error)
             await message(error instanceof Error ? error.message : 'An unknown error occurred', {
                 title: 'Failed to save config',
                 kind: 'error',
                 okLabel: 'OK',
             })
-        }
-        setIsSaving(false)
-    }
+        },
+    })
 
     return (
         <Drawer
@@ -123,36 +103,27 @@ export default function ConfigCreateDrawer({
             onClose={onClose}
             hideCloseButton={true}
         >
-            <DrawerContent>
+            <DrawerContent
+                className={cn(
+                    'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
+                    platform() === 'macos' && 'pt-5'
+                )}
+            >
                 {(close) => (
                     <>
                         <DrawerHeader className="flex flex-col gap-1">Import Config</DrawerHeader>
                         <DrawerBody>
-                            <form
-                                id="config-form"
-                                className="flex flex-col gap-4"
-                                onSubmit={(e) => {
-                                    e.preventDefault()
-                                    handleCreate({
-                                        label: config.label,
-                                        pass: config.pass,
-                                        passCommand: config.passCommand,
-                                        content: configContent,
-                                        isPasswordCommand: isPasswordCommand,
-                                        isEncrypted:
-                                            configContent?.includes('RCLONE_ENCRYPT_V0:') || false,
-                                    })
-                                }}
-                            >
+                            <div className="flex flex-col gap-4">
                                 <Input
                                     label="Name"
                                     labelPlacement="outside"
                                     placeholder="Enter a name for your config"
                                     type="text"
                                     value={config.label}
-                                    autoComplete="off"
                                     autoCapitalize="off"
+                                    autoComplete="off"
                                     autoCorrect="off"
+                                    spellCheck="false"
                                     onValueChange={(value) => {
                                         setConfig({ ...config, label: value })
                                     }}
@@ -280,21 +251,6 @@ export default function ConfigCreateDrawer({
                                         console.log(value)
                                         setConfigContent(value)
                                     }}
-                                    onKeyDown={(e) => {
-                                        //if it's tab key, add 2 spaces at the current text cursor position
-                                        if (e.key === 'Tab') {
-                                            e.preventDefault()
-                                            const text = e.currentTarget.value
-                                            const cursorPosition = e.currentTarget.selectionStart
-                                            const newText =
-                                                text.slice(0, cursorPosition) +
-                                                '  ' +
-                                                text.slice(cursorPosition)
-                                            e.currentTarget.value = newText
-                                            e.currentTarget.selectionStart = cursorPosition + 2
-                                            e.currentTarget.selectionEnd = cursorPosition + 2
-                                        }
-                                    }}
                                     autoCapitalize="off"
                                     autoComplete="off"
                                     autoCorrect="off"
@@ -309,7 +265,7 @@ export default function ConfigCreateDrawer({
                                     }}
                                     data-focus-visible="false"
                                 />
-                            </form>
+                            </div>
                         </DrawerBody>
                         <DrawerFooter>
                             <Button
@@ -322,12 +278,50 @@ export default function ConfigCreateDrawer({
                             </Button>
                             <Button
                                 color="primary"
-                                type="submit"
-                                form="config-form"
-                                isDisabled={isSaving}
+                                isDisabled={createConfigMutation.isPending}
                                 data-focus-visible="false"
+                                onPress={async () => {
+                                    if (!config.label) {
+                                        await message('Label is required', {
+                                            title: 'Failed to save config',
+                                            kind: 'error',
+                                            okLabel: 'OK',
+                                        })
+                                        return
+                                    }
+
+                                    if (!configContent) {
+                                        await message('Content is required', {
+                                            title: 'Failed to save config',
+                                            kind: 'error',
+                                            okLabel: 'OK',
+                                        })
+                                        return
+                                    }
+
+                                    if (isEncrypted && isPasswordCommand && !config.passCommand) {
+                                        await message(
+                                            'Password command is required for encrypted configs',
+                                            {
+                                                title: 'Failed to save config',
+                                                kind: 'error',
+                                                okLabel: 'OK',
+                                            }
+                                        )
+                                        return
+                                    }
+
+                                    createConfigMutation.mutate({
+                                        label: config.label,
+                                        pass: config.pass,
+                                        passCommand: config.passCommand,
+                                        content: configContent,
+                                        isPasswordCommand: isPasswordCommand,
+                                        isEncrypted: !!isEncrypted,
+                                    })
+                                }}
                             >
-                                {isSaving ? 'Saving...' : 'Import'}
+                                {createConfigMutation.isPending ? 'Saving...' : 'Import'}
                             </Button>
                         </DrawerFooter>
                     </>

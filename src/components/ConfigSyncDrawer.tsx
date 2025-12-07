@@ -6,15 +6,18 @@ import {
     DrawerHeader,
     Input,
     Switch,
+    cn,
 } from '@heroui/react'
 import { Button } from '@heroui/react'
+import { useMutation } from '@tanstack/react-query'
 import { sep } from '@tauri-apps/api/path'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
+import { platform } from '@tauri-apps/plugin-os'
 import { UploadIcon } from 'lucide-react'
 import { useState } from 'react'
-import { usePersistedStore } from '../../lib/store'
+import { useHostStore } from '../../store/host'
 import type { ConfigFile } from '../../types/config'
 
 export default function ConfigSyncDrawer({
@@ -30,79 +33,52 @@ export default function ConfigSyncDrawer({
 
     const [isPasswordCommand, setIsPasswordCommand] = useState(false)
 
-    const [isSaving, setIsSaving] = useState(false)
-
-    async function handleCreate({
-        label,
-        pass,
-        isEncrypted,
-        passCommand,
-        sync,
-        isPasswordCommand,
-    }: {
-        label?: string
-        sync?: string
-        isEncrypted?: boolean
-        pass?: string
-        passCommand?: string
-        isPasswordCommand?: boolean
-    }) {
-        if (!label) {
-            await message('Label is required', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
-
-        if (!sync) {
-            await message('Path is required', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
-
-        if (isEncrypted && isPasswordCommand && !passCommand) {
-            await message('Password command is required for encrypted configs', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
-
-        setIsSaving(true)
-
-        const savedPass = isPasswordCommand ? undefined : pass
-        const savedPassCommand = isPasswordCommand ? passCommand : undefined
-        const savedIsEncrypted = isEncrypted || false
-
-        try {
+    const createSyncConfigMutation = useMutation({
+        mutationFn: async ({
+            label,
+            pass,
+            isEncrypted,
+            passCommand,
+            sync,
+            isPasswordCommand,
+        }: {
+            label: string
+            sync: string
+            isEncrypted?: boolean
+            pass?: string
+            passCommand?: string
+            isPasswordCommand?: boolean
+        }) => {
+            const savedPass = isPasswordCommand ? undefined : pass
+            const savedPassCommand = isPasswordCommand ? passCommand : undefined
+            const savedIsEncrypted = isEncrypted || false
             const generatedId = crypto.randomUUID()
 
-            usePersistedStore.getState().addConfigFile({
+            const newConfig = {
                 id: generatedId,
                 label,
                 isEncrypted: savedIsEncrypted,
                 pass: savedPass,
                 passCommand: savedPassCommand,
                 sync,
-            })
+            }
 
+            useHostStore.getState().addConfigFile(newConfig)
+
+            return true
+        },
+        onSuccess: () => {
             onClose()
-        } catch (error) {
-            console.error('[handleCreate] failed to save config', error)
+        },
+        onError: async (error) => {
+            console.error('[createSyncConfig] failed to save config', error)
             await message(error instanceof Error ? error.message : 'An unknown error occurred', {
                 title: 'Failed to save config',
                 kind: 'error',
                 okLabel: 'OK',
             })
-        }
-        setIsSaving(false)
-    }
+        },
+    })
 
     return (
         <Drawer
@@ -112,26 +88,17 @@ export default function ConfigSyncDrawer({
             onClose={onClose}
             hideCloseButton={true}
         >
-            <DrawerContent>
+            <DrawerContent
+                className={cn(
+                    'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
+                    platform() === 'macos' && 'pt-5'
+                )}
+            >
                 {(close) => (
                     <>
                         <DrawerHeader className="flex flex-col gap-1">Sync Config</DrawerHeader>
                         <DrawerBody>
-                            <form
-                                id="config-form"
-                                className="flex flex-col gap-5"
-                                onSubmit={(e) => {
-                                    e.preventDefault()
-                                    handleCreate({
-                                        label: config.label,
-                                        pass: config.pass,
-                                        isEncrypted: config.isEncrypted,
-                                        passCommand: config.passCommand,
-                                        sync: config.sync,
-                                        isPasswordCommand: isPasswordCommand,
-                                    })
-                                }}
-                            >
+                            <div className="flex flex-col gap-5">
                                 <Switch
                                     size="lg"
                                     isSelected={config.isEncrypted}
@@ -338,7 +305,7 @@ export default function ConfigSyncDrawer({
                                     }}
                                     data-focus-visible="false"
                                 />
-                            </form>
+                            </div>
                         </DrawerBody>
                         <DrawerFooter>
                             <Button
@@ -351,12 +318,54 @@ export default function ConfigSyncDrawer({
                             </Button>
                             <Button
                                 color="primary"
-                                type="submit"
-                                form="config-form"
-                                isDisabled={isSaving}
+                                onPress={async () => {
+                                    if (!config.label) {
+                                        await message('Label is required', {
+                                            title: 'Failed to save config',
+                                            kind: 'error',
+                                            okLabel: 'OK',
+                                        })
+                                        return
+                                    }
+
+                                    if (!config.sync) {
+                                        await message('Path is required', {
+                                            title: 'Failed to save config',
+                                            kind: 'error',
+                                            okLabel: 'OK',
+                                        })
+                                        return
+                                    }
+
+                                    if (
+                                        config.isEncrypted &&
+                                        isPasswordCommand &&
+                                        !config.passCommand
+                                    ) {
+                                        await message(
+                                            'Password command is required for encrypted configs',
+                                            {
+                                                title: 'Failed to save config',
+                                                kind: 'error',
+                                                okLabel: 'OK',
+                                            }
+                                        )
+                                        return
+                                    }
+
+                                    createSyncConfigMutation.mutate({
+                                        label: config.label,
+                                        pass: config.pass,
+                                        isEncrypted: config.isEncrypted,
+                                        passCommand: config.passCommand,
+                                        sync: config.sync,
+                                        isPasswordCommand: isPasswordCommand,
+                                    })
+                                }}
+                                isDisabled={createSyncConfigMutation.isPending}
                                 data-focus-visible="false"
                             >
-                                {isSaving ? 'Saving...' : 'Sync'}
+                                {createSyncConfigMutation.isPending ? 'Saving...' : 'Sync'}
                             </Button>
                         </DrawerFooter>
                     </>

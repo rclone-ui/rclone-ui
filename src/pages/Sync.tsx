@@ -1,12 +1,23 @@
-import { useAutoAnimate } from '@formkit/auto-animate/react'
-import { Accordion, AccordionItem, Avatar, Button, Divider, cn } from '@heroui/react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import {
+    Accordion,
+    AccordionItem,
+    Avatar,
+    Button,
+    ButtonGroup,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownTrigger,
+    Tooltip,
+} from '@heroui/react'
+import * as Sentry from '@sentry/browser'
+import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
-import { exists } from '@tauri-apps/plugin-fs'
+import { platform } from '@tauri-apps/plugin-os'
 import cronstrue from 'cronstrue'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
     AlertOctagonIcon,
-    ChevronDownIcon,
     ClockIcon,
     FilterIcon,
     FolderSyncIcon,
@@ -14,346 +25,203 @@ import {
     PlayIcon,
     ServerIcon,
     WrenchIcon,
-    XIcon,
 } from 'lucide-react'
-import { startTransition, useEffect, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getRemoteName } from '../../lib/format'
-import { isRemotePath } from '../../lib/fs'
-import {
-    getConfigFlags,
-    getCurrentGlobalFlags,
-    getFilterFlags,
-    getSyncFlags,
-    startSync,
-} from '../../lib/rclone/api'
+import { getOptionsSubtitle } from '../../lib/flags'
+import { useFlags } from '../../lib/hooks'
+import notify from '../../lib/notify'
+import { startSync } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
-import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
-import CommandInfo from '../components/CommandInfo'
+import { useHostStore } from '../../store/host'
+import type { FlagValue } from '../../types/rclone'
+import CommandInfoButton from '../components/CommandInfoButton'
+import CommandsDropdown from '../components/CommandsDropdown'
 import CronEditor from '../components/CronEditor'
+import OperationWindowContent from '../components/OperationWindowContent'
+import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { PathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import ShowMoreOptionsBanner from '../components/ShowMoreOptionsBanner'
 import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Sync() {
     const [searchParams] = useSearchParams()
+    const { globalFlags, filterFlags, configFlags, syncFlags } = useFlags()
 
     const [source, setSource] = useState<string | undefined>(
-        searchParams.get('initialSource') || undefined
+        searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
     )
-    const [dest, setDest] = useState<string | undefined>(undefined)
+    const [dest, setDest] = useState<string | undefined>(
+        searchParams.get('initialDestination') ? searchParams.get('initialDestination')! : undefined
+    )
 
-    const [isStarted, setIsStarted] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
     const [jsonError, setJsonError] = useState<'sync' | 'filter' | 'config' | 'remote' | null>(null)
 
     const [syncOptionsLocked, setSyncOptionsLocked] = useState(false)
-    const [syncOptions, setSyncOptions] = useState<Record<string, string>>({})
-    const [syncOptionsJson, setSyncOptionsJson] = useState<string>('{}')
+    const [syncOptions, setSyncOptions] = useState<Record<string, FlagValue>>({})
+    const [syncOptionsJsonString, setSyncOptionsJsonString] = useState<string>('{}')
 
     const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
-    const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
-    const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
+    const [filterOptions, setFilterOptions] = useState<Record<string, FlagValue>>({})
+    const [filterOptionsJsonString, setFilterOptionsJsonString] = useState<string>('{}')
 
     const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
-    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
-    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+    const [configOptions, setConfigOptions] = useState<Record<string, FlagValue>>({})
+    const [configOptionsJsonString, setConfigOptionsJsonString] = useState<string>('{}')
 
     const [remoteOptionsLocked, setRemoteOptionsLocked] = useState(false)
-    const [remoteOptions, setRemoteOptions] = useState<Record<string, string>>({})
-    const [remoteOptionsJson, setRemoteOptionsJson] = useState<string>('{}')
+    const [remoteOptions, setRemoteOptions] = useState<Record<string, Record<string, FlagValue>>>(
+        {}
+    )
+    const [remoteOptionsJsonString, setRemoteOptionsJsonString] = useState<string>('{}')
 
     const [cronExpression, setCronExpression] = useState<string | null>(null)
 
-    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
+    const selectedRemotes = useMemo(() => [source, dest].filter(Boolean), [source, dest])
 
-    const [showMore, setShowMore] = useState(false)
-    const [animationParent] = useAutoAnimate()
+    const startSyncMutation = useMutation({
+        mutationFn: async () => {
+            if (!source || !dest) {
+                throw new Error('Please select both a source and destination path')
+            }
 
-    const selectedRemotes = (() => {
-        return [source, dest].filter(Boolean) as string[]
-    })()
+            return startSync({
+                source: source,
+                destination: dest,
+                options: {
+                    config: configOptions,
+                    sync: syncOptions,
+                    filter: filterOptions,
+                    remotes: remoteOptions,
+                },
+            })
+        },
+        onSuccess: () => {
+            if (cronExpression) {
+                scheduleTaskMutation.mutate()
+            }
+        },
+        onError: async (error) => {
+            console.error('Error starting sync:', error)
+            Sentry.captureException(error)
+            await message(error instanceof Error ? error.message : 'Failed to start sync', {
+                title: 'Sync',
+                kind: 'error',
+            })
+        },
+    })
 
-    const buttonText = (() => {
-        if (isLoading) return 'STARTING...'
+    const scheduleTaskMutation = useMutation({
+        mutationFn: async () => {
+            if (!source || !dest) {
+                throw new Error('Please select both a source and destination path')
+            }
+
+            if (!cronExpression) {
+                throw new Error('Please enter a cron expression')
+            }
+
+            try {
+                cronstrue.toString(cronExpression)
+            } catch {
+                throw new Error('Invalid cron expression')
+            }
+
+            useHostStore.getState().addScheduledTask({
+                operation: 'sync',
+                cron: cronExpression,
+                args: {
+                    source,
+                    destination: dest,
+                    options: {
+                        config: configOptions,
+                        sync: syncOptions,
+                        filter: filterOptions,
+                        remotes: remoteOptions,
+                    },
+                },
+            })
+        },
+        onSuccess: async () => {
+            await notify({
+                title: 'Success',
+                body: 'New schedule has been created',
+            })
+        },
+        onError: async (error) => {
+            console.error('Error scheduling task:', error)
+            await message(error instanceof Error ? error.message : 'Failed to schedule task', {
+                title: 'Schedule',
+                kind: 'error',
+            })
+        },
+    })
+
+    const buttonText = useMemo(() => {
+        if (startSyncMutation.isPending) return 'STARTING...'
         if (!source) return 'Please select a source path'
         if (!dest) return 'Please select a destination path'
         if (source === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
         return 'START SYNC'
-    })()
+    }, [startSyncMutation.isPending, source, dest, jsonError])
 
-    const buttonIcon = (() => {
-        if (isLoading) return
+    const buttonIcon = useMemo(() => {
+        if (startSyncMutation.isPending) return
         if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
         return <PlayIcon className="w-5 h-5 fill-current" />
-    })()
-
-    async function handleStartSync() {
-        setIsLoading(true)
-
-        if (!source || !dest) {
-            await message('Please select both a source and destination path', {
-                title: 'Error',
-                kind: 'error',
-            })
-            return
-        }
-
-        let sourceExists = false
-        let destExists = false
-
-        try {
-            // check local paths exists
-            if (isRemotePath(source)) {
-                sourceExists = true
-            } else {
-                sourceExists = await exists(source)
-            }
-
-            if (isRemotePath(dest)) {
-                destExists = true
-            } else {
-                destExists = await exists(dest)
-            }
-        } catch {}
-
-        if (!sourceExists) {
-            await message('Source path does not exist', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
-
-        if (!destExists) {
-            await message('Destination path does not exist', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
-
-        const mergedConfig = {
-            ...configOptions,
-            ...syncOptions,
-        }
-
-        if (cronExpression) {
-            try {
-                cronstrue.toString(cronExpression)
-            } catch {
-                await message('Invalid cron expression', {
-                    title: 'Error',
-                    kind: 'error',
-                })
-                setIsLoading(false)
-                return
-            }
-            usePersistedStore.getState().addScheduledTask({
-                type: 'sync',
-                cron: cronExpression,
-                args: {
-                    source: source,
-                    dest: dest,
-                    syncOptions: mergedConfig,
-                    filterOptions: filterOptions,
-                },
-            })
-        }
-
-        try {
-            await startSync({
-                srcFs: source,
-                dstFs: dest,
-                _config: mergedConfig,
-                _filter: filterOptions,
-                remoteOptions,
-            })
-
-            // dummy delay to avoid waiting when opening the Jobs page
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-
-            setIsStarted(true)
-        } catch (err) {
-            console.error('Failed to start sync:', err)
-            const errorMessage =
-                err instanceof Error ? err.message : 'Failed to start sync operation'
-            await message(errorMessage, {
-                title: 'Error',
-                kind: 'error',
-            })
-        }
-        setIsLoading(false)
-    }
-
-    async function handleAddToTemplates(name: string) {
-        if (!!jsonError || !source || !dest || source === dest) {
-            await message('Your config for this operation is incomplete or has errors.', {
-                title: 'Error',
-                kind: 'error',
-            })
-            return
-        }
-        const templates = usePersistedStore.getState().templates
-
-        const mergedOptions = {
-            syncOptions,
-            filterOptions,
-            configOptions,
-            remoteOptions,
-            source,
-            dest,
-        }
-
-        const newTemplates = [
-            ...templates,
-            {
-                id: Math.floor(Date.now() / 1000).toString(),
-                name,
-                operation: 'sync',
-                options: mergedOptions,
-            } as const,
-        ]
-
-        usePersistedStore.setState({ templates: newTemplates })
-    }
-
-    async function handleSelectTemplate(templateId: string) {
-        const template = usePersistedStore
-            .getState()
-            .templates.find((template) => template.id === templateId)
-
-        if (!template) {
-            await message('Template not found', {
-                title: 'Error',
-                kind: 'error',
-            })
-            return
-        }
-
-        setSyncOptions(template.options.syncOptions)
-        setFilterOptions(template.options.filterOptions)
-        setConfigOptions(template.options.configOptions)
-        setRemoteOptions(template.options.remoteOptions)
-        setSource(template.options.source)
-        setDest(template.options.dest)
-    }
+    }, [startSyncMutation.isPending, source, dest, jsonError])
 
     useEffect(() => {
-        setConfigOptionsJson(JSON.stringify(RCLONE_CONFIG_DEFAULTS, null, 2))
-
-        return () => {
-            setConfigOptionsJson('{}')
-        }
+        startTransition(() => {
+            setConfigOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.config, null, 2))
+            setSyncOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.copy, null, 2))
+        })
     }, [])
-
-    useEffect(() => {
-        getCurrentGlobalFlags().then((flags) =>
-            startTransition(() => setCurrentGlobalOptions(flags))
-        )
-    }, [])
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
-    useEffect(() => {
-        const storeData = usePersistedStore.getState()
-
-        const sourceRemote = getRemoteName(source)
-        const destRemote = getRemoteName(dest)
-
-        let mergedSyncDefaults = {}
-        let mergedFilterDefaults = {}
-        let mergedConfigDefaults = {}
-
-        // Helper function to merge defaults from a remote
-        const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote) return
-
-            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
-
-            if (remoteConfig.syncDefaults) {
-                mergedSyncDefaults = {
-                    ...mergedSyncDefaults,
-                    ...remoteConfig.syncDefaults,
-                }
-            }
-
-            if (remoteConfig.filterDefaults) {
-                mergedFilterDefaults = {
-                    ...mergedFilterDefaults,
-                    ...remoteConfig.filterDefaults,
-                }
-            }
-
-            if (remoteConfig.configDefaults) {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...remoteConfig.configDefaults,
-                }
-            }
-        }
-
-        // Only merge defaults for remote paths
-        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
-        if (destRemote) mergeRemoteDefaults(destRemote)
-
-        if (Object.keys(mergedSyncDefaults).length > 0 && !syncOptionsLocked) {
-            setSyncOptionsJson(JSON.stringify(mergedSyncDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
-            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
-            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
-        }
-    }, [source, dest])
 
     useEffect(() => {
         let step: 'sync' | 'filter' | 'config' | 'remote' = 'sync'
         try {
-            setSyncOptions(JSON.parse(syncOptionsJson))
+            const parsedSync = JSON.parse(syncOptionsJsonString) as Record<string, FlagValue>
 
             step = 'filter'
-            setFilterOptions(JSON.parse(filterOptionsJson))
+            const parsedFilter = JSON.parse(filterOptionsJsonString) as Record<string, FlagValue>
 
             step = 'config'
-            setConfigOptions(JSON.parse(configOptionsJson))
+            const parsedConfig = JSON.parse(configOptionsJsonString) as Record<string, FlagValue>
 
             step = 'remote'
-            setRemoteOptions(JSON.parse(remoteOptionsJson))
+            const parsedRemote = JSON.parse(remoteOptionsJsonString) as Record<
+                string,
+                Record<string, FlagValue>
+            >
 
-            setJsonError(null)
+            startTransition(() => {
+                setSyncOptions(parsedSync)
+                setFilterOptions(parsedFilter)
+                setConfigOptions(parsedConfig)
+                setRemoteOptions(parsedRemote)
+                setJsonError(null)
+            })
         } catch (error) {
             setJsonError(step)
             console.error(`Error parsing ${step} options:`, error)
         }
-    }, [syncOptionsJson, filterOptionsJson, configOptionsJson, remoteOptionsJson])
+    }, [
+        syncOptionsJsonString,
+        filterOptionsJsonString,
+        configOptionsJsonString,
+        remoteOptionsJsonString,
+    ])
 
     return (
         <div className="flex flex-col h-screen gap-10">
-            <CommandInfo
-                content={`Sync the source to the destination, changing the destination only. Doesn't transfer files that are identical on source and destination, testing by size and modification time or MD5SUM. Destination is updated to match source, including deleting files if necessary (except duplicate objects, see below). If you don't want to delete files from destination, use the COPY command instead.
-					
-Files in the destination won't be deleted if there were any errors at any point. Duplicate objects (files with the same name, on those providers that support it) are not yet handled.
-
-It is always the contents of the directory that is synced, not the directory itself. So when source:path is a directory, it's the contents of source:path that are copied, not the directory name and contents.
-
-If dest:path doesn't exist, it is created and the source:path contents go there.
-
-It is not possible to sync overlapping remotes. However, you may exclude the destination from the sync with a filter rule or by putting an exclude-if-present file inside the destination directory and sync to a destination that is inside the source directory.
-
-Rclone will sync the modification times of files and directories if the backend supports it.`}
-            />
-
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
+            <OperationWindowContent>
                 {/* Paths Display */}
                 <PathFinder
                     sourcePath={source}
@@ -365,7 +233,6 @@ Rclone will sync the modification times of files and directories if the backend 
                         showPicker: true,
                         placeholder:
                             'Enter a remote:/path or local path, or tap to select a folder',
-                        showSuggestions: true,
                         clearable: true,
                         showFiles: true,
                         allowedKeys: ['LOCAL_FS', 'REMOTES', 'FAVORITES'],
@@ -374,36 +241,33 @@ Rclone will sync the modification times of files and directories if the backend 
                         label: 'Destination',
                         showPicker: true,
                         placeholder: 'Enter a remote:/path or local path',
-                        showSuggestions: true,
                         clearable: true,
                         showFiles: false,
                         allowedKeys: ['LOCAL_FS', 'REMOTES', 'FAVORITES'],
                     }}
                 />
 
-                <div
-                    className={cn('flex flex-col pb-10', showMore && 'pb-0')}
-                    ref={animationParent}
-                >
-                    <Accordion>
+                <div className="relative flex flex-col">
+                    <Accordion
+                        keepContentMounted={true}
+                        dividerProps={{
+                            className: 'opacity-50',
+                        }}
+                    >
                         <AccordionItem
                             key="sync"
                             startContent={
                                 <Avatar color="success" radius="lg" fallback={<FolderSyncIcon />} />
                             }
                             indicator={<FolderSyncIcon />}
-                            subtitle="Tap to toggle sync options for this operation"
                             title="Sync"
+                            subtitle={getOptionsSubtitle(Object.keys(syncOptions).length)}
                         >
                             <OptionsSection
-                                optionsJson={syncOptionsJson}
-                                setOptionsJson={setSyncOptionsJson}
-                                globalOptions={
-                                    currentGlobalOptions[
-                                        'main' as keyof typeof currentGlobalOptions
-                                    ]
-                                }
-                                getAvailableOptions={getSyncFlags}
+                                optionsJson={syncOptionsJsonString}
+                                setOptionsJson={setSyncOptionsJsonString}
+                                globalOptions={globalFlags?.main || {}}
+                                availableOptions={syncFlags || []}
                                 isLocked={syncOptionsLocked}
                                 setIsLocked={setSyncOptionsLocked}
                             />
@@ -414,18 +278,14 @@ Rclone will sync the modification times of files and directories if the backend 
                                 <Avatar color="danger" radius="lg" fallback={<FilterIcon />} />
                             }
                             indicator={<FilterIcon />}
-                            subtitle="Tap to toggle filtering options for this operation"
                             title="Filters"
+                            subtitle={getOptionsSubtitle(Object.keys(filterOptions).length)}
                         >
                             <OptionsSection
-                                globalOptions={
-                                    currentGlobalOptions[
-                                        'filter' as keyof typeof currentGlobalOptions
-                                    ]
-                                }
-                                optionsJson={filterOptionsJson}
-                                setOptionsJson={setFilterOptionsJson}
-                                getAvailableOptions={getFilterFlags}
+                                globalOptions={globalFlags?.filter || {}}
+                                optionsJson={filterOptionsJsonString}
+                                setOptionsJson={setFilterOptionsJsonString}
+                                availableOptions={filterFlags || []}
                                 isLocked={filterOptionsLocked}
                                 setIsLocked={setFilterOptionsLocked}
                             />
@@ -436,163 +296,290 @@ Rclone will sync the modification times of files and directories if the backend 
                                 <Avatar color="warning" radius="lg" fallback={<ClockIcon />} />
                             }
                             indicator={<ClockIcon />}
-                            subtitle="Tap to toggle cron options for this operation"
                             title="Cron"
                         >
                             <CronEditor expression={cronExpression} onChange={setCronExpression} />
                         </AccordionItem>
-                    </Accordion>
-
-                    {showMore ? (
-                        <Divider />
-                    ) : (
-                        <div
-                            key="show-more-options"
-                            className="absolute flex flex-col items-center justify-center w-full gap-1 -bottom-8 group "
-                            onClick={() => {
-                                startTransition(() => {
-                                    setShowMore(true)
-                                })
-                                requestAnimationFrame(() => {
-                                    setTimeout(() => {
-                                        scrollTo({
-                                            top: document.body.scrollHeight,
-                                            behavior: 'smooth',
-                                        })
-                                    }, 400)
-                                })
-                            }}
+                        <AccordionItem
+                            key="config"
+                            startContent={
+                                <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                            }
+                            indicator={<WrenchIcon />}
+                            title="Config"
+                            subtitle={getOptionsSubtitle(Object.keys(configOptions).length)}
                         >
-                            <p className="text-small animate-show-more-title group-hover:text-foreground-500 text-foreground-400">
-                                Show more options
-                            </p>
-                            <ChevronDownIcon className="size-5 stroke-foreground-400 animate-show-more group-hover:stroke-foreground-500" />
-                        </div>
-                    )}
+                            <OptionsSection
+                                globalOptions={globalFlags?.main || {}}
+                                optionsJson={configOptionsJsonString}
+                                setOptionsJson={setConfigOptionsJsonString}
+                                availableOptions={configFlags || []}
+                                isLocked={configOptionsLocked}
+                                setIsLocked={setConfigOptionsLocked}
+                            />
+                        </AccordionItem>
 
-                    {showMore && (
-                        // @ts-expect-error
-                        <Accordion>
+                        {selectedRemotes.length > 0 ? (
                             <AccordionItem
-                                key="config"
+                                key={'remotes'}
                                 startContent={
-                                    <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
+                                    <Avatar
+                                        className="bg-fuchsia-500"
+                                        radius="lg"
+                                        fallback={<ServerIcon />}
+                                    />
                                 }
-                                indicator={<WrenchIcon />}
-                                subtitle="Tap to toggle config options for this operation"
-                                title="Config"
+                                indicator={<ServerIcon />}
+                                title={'Remotes'}
+                                subtitle={getOptionsSubtitle(
+                                    Object.values(remoteOptions).reduce(
+                                        (acc, opts) => acc + Object.keys(opts).length,
+                                        0
+                                    )
+                                )}
                             >
-                                <OptionsSection
-                                    globalOptions={
-                                        currentGlobalOptions[
-                                            'main' as keyof typeof currentGlobalOptions
-                                        ]
-                                    }
-                                    optionsJson={configOptionsJson}
-                                    setOptionsJson={setConfigOptionsJson}
-                                    getAvailableOptions={getConfigFlags}
-                                    isLocked={configOptionsLocked}
-                                    setIsLocked={setConfigOptionsLocked}
+                                <RemoteOptionsSection
+                                    selectedRemotes={selectedRemotes}
+                                    remoteOptionsJsonString={remoteOptionsJsonString}
+                                    setRemoteOptionsJsonString={setRemoteOptionsJsonString}
+                                    setRemoteOptionsLocked={setRemoteOptionsLocked}
+                                    remoteOptionsLocked={remoteOptionsLocked}
                                 />
                             </AccordionItem>
+                        ) : null}
+                    </Accordion>
 
-                            {selectedRemotes.length > 0 && (
-                                <AccordionItem
-                                    key={'remotes'}
-                                    startContent={
-                                        <Avatar
-                                            className="bg-fuchsia-500"
-                                            radius="lg"
-                                            fallback={<ServerIcon />}
-                                        />
-                                    }
-                                    indicator={<ServerIcon />}
-                                    subtitle="Tap to toggle remote options for this operation"
-                                    title={'Remotes'}
-                                >
-                                    <RemoteOptionsSection
-                                        selectedRemotes={selectedRemotes}
-                                        remoteOptionsJson={remoteOptionsJson}
-                                        setRemoteOptionsJson={setRemoteOptionsJson}
-                                        setRemoteOptionsLocked={setRemoteOptionsLocked}
-                                        remoteOptionsLocked={remoteOptionsLocked}
-                                    />
-                                </AccordionItem>
-                            )}
-                        </Accordion>
-                    )}
+                    <ShowMoreOptionsBanner />
                 </div>
-            </div>
+            </OperationWindowContent>
 
-            <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+            <OperationWindowFooter>
                 <TemplatesDropdown
+                    isDisabled={!!jsonError}
                     operation="sync"
-                    onSelect={handleSelectTemplate}
-                    onAdd={handleAddToTemplates}
+                    onSelect={(groupedOptions, shouldMerge) => {
+                        startTransition(() => {
+                            if (shouldMerge) {
+                                if (groupedOptions.sync)
+                                    setSyncOptions({ ...syncOptions, ...groupedOptions.sync })
+                                if (groupedOptions.filter)
+                                    setFilterOptions({ ...filterOptions, ...groupedOptions.filter })
+                                if (groupedOptions.config)
+                                    setConfigOptions({ ...configOptions, ...groupedOptions.config })
+                            } else {
+                                if (groupedOptions.sync) setSyncOptions(groupedOptions.sync)
+                                if (groupedOptions.filter) setFilterOptions(groupedOptions.filter)
+                                if (groupedOptions.config) setConfigOptions(groupedOptions.config)
+                            }
+                        })
+                    }}
+                    getOptions={() => ({
+                        ...syncOptions,
+                        ...filterOptions,
+                        ...configOptions,
+                    })}
                 />
-                {isStarted ? (
-                    <>
+                <AnimatePresence mode="wait" initial={false}>
+                    {startSyncMutation.isSuccess ? (
+                        <motion.div
+                            key="started-buttons"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1 gap-2"
+                        >
+                            <Dropdown shadow={platform() === 'windows' ? 'none' : undefined}>
+                                <DropdownTrigger>
+                                    <Button
+                                        fullWidth={true}
+                                        color="primary"
+                                        size="lg"
+                                        data-focus-visible="false"
+                                    >
+                                        NEW SYNC
+                                    </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu>
+                                    <DropdownItem
+                                        key="reset-paths"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setSource(undefined)
+                                                setDest(undefined)
+                                                setJsonError(null)
+                                                startSyncMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Paths
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-options"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setSyncOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.copy,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setFilterOptionsJsonString('{}')
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setRemoteOptionsJsonString('{}')
+                                                setCronExpression(null)
+                                                setJsonError(null)
+                                                startSyncMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Options
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-all"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setSyncOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.copy,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setFilterOptionsJsonString('{}')
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setRemoteOptionsJsonString('{}')
+                                                setSyncOptionsLocked(false)
+                                                setFilterOptionsLocked(false)
+                                                setConfigOptionsLocked(false)
+                                                setRemoteOptionsLocked(false)
+                                                setCronExpression(null)
+                                                setJsonError(null)
+                                                setDest(undefined)
+                                                setSource(undefined)
+                                                startSyncMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset All
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+
+                            <Button
+                                size="lg"
+                                color="secondary"
+                                fullWidth={true}
+                                onPress={async () => {
+                                    await openWindow({
+                                        name: 'Transfers',
+                                        url: '/transfers',
+                                    })
+                                }}
+                                data-focus-visible="false"
+                            >
+                                VIEW TRANSFERS
+                            </Button>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="start-button"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1"
+                        >
+                            <Button
+                                onPress={() => setTimeout(() => startSyncMutation.mutate(), 100)}
+                                size="lg"
+                                fullWidth={true}
+                                type="button"
+                                color="primary"
+                                isDisabled={
+                                    startSyncMutation.isPending ||
+                                    !!jsonError ||
+                                    !source ||
+                                    !dest ||
+                                    source === dest
+                                }
+                                isLoading={startSyncMutation.isPending}
+                                endContent={buttonIcon}
+                                className="max-w-2xl gap-2"
+                                data-focus-visible="false"
+                            >
+                                {buttonText}
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <ButtonGroup variant="flat">
+                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
                         <Button
-                            fullWidth={true}
+                            size="lg"
+                            type="button"
                             color="primary"
-                            size="lg"
-                            onPress={() => {
-                                setSyncOptionsJson('{}')
-                                setFilterOptionsJson('{}')
-                                setDest(undefined)
-                                setSource(undefined)
-                                setIsStarted(false)
-                            }}
-                            data-focus-visible="false"
-                        >
-                            RESET
-                        </Button>
-
-                        <Button
-                            size="lg"
-                            color="secondary"
-                            fullWidth={true}
-                            onPress={async () => {
-                                const createdWindow = await openWindow({
-                                    name: 'Jobs',
-                                    url: '/jobs',
-                                })
-                                await createdWindow.setFocus()
-                            }}
-                            data-focus-visible="false"
-                        >
-                            JOBS
-                        </Button>
-
-                        <Button
-                            size="lg"
                             isIconOnly={true}
-                            onPress={async () => {
-                                await getCurrentWindow().hide()
-                                await getCurrentWindow().destroy()
+                            onPress={() => {
+                                setTimeout(() => scheduleTaskMutation.mutate(), 100)
                             }}
-                            data-focus-visible="false"
                         >
-                            <XIcon />
+                            <ClockIcon className="size-6" />
                         </Button>
-                    </>
-                ) : (
-                    <Button
-                        onPress={handleStartSync}
-                        size="lg"
-                        fullWidth={true}
-                        type="button"
-                        color="primary"
-                        isDisabled={isLoading || !!jsonError || !source || !dest || source === dest}
-                        isLoading={isLoading}
-                        endContent={buttonIcon}
-                        className="max-w-2xl gap-2"
-                        data-focus-visible="false"
-                    >
-                        {buttonText}
-                    </Button>
-                )}
-            </div>
+                    </Tooltip>
+                    <CommandInfoButton
+                        content={`Sync the source to the destination, changing the destination only. Doesn't transfer files that are identical on source and destination, testing by size and modification time or MD5SUM. Destination is updated to match source, including deleting files if necessary (except duplicate objects, see below). If you don't want to delete files from destination, use the COPY command instead.
+					
+Files in the destination won't be deleted if there were any errors at any point. Duplicate objects (files with the same name, on those providers that support it) are not yet handled.
+
+It is always the contents of the directory that is synced, not the directory itself. So when source:path is a directory, it's the contents of source:path that are copied, not the directory name and contents.
+
+If dest:path doesn't exist, it is created and the source:path contents go there.
+
+It is not possible to sync overlapping remotes. However, you may exclude the destination from the sync with a filter rule or by putting an exclude-if-present file inside the destination directory and sync to a destination that is inside the source directory.
+
+Rclone will sync the modification times of files and directories if the backend supports it.
+
+Here's a quick guide to using the Sync command:
+
+1. SELECT PATHS
+Use the path selectors at the top to choose your source and destination. You can select from local filesystem, configured remotes, or favorites. Tap the folder icon to browse, or type a path directly. Use the swap button to quickly switch source and destination.
+
+2. CONFIGURE OPTIONS (Optional)
+Expand the accordion sections to customize your sync operation. Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
+
+• Sync — Multi-threading settings (multi_thread_cutoff, streams, chunk_size), checksum verification, how to handle existing files (ignore_existing), and metadata preservation.
+
+• Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
+
+• Cron — Schedule this sync to run automatically at set intervals. The schedule only triggers while the app is running.
+
+• Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
+
+• Remotes — Override backend-specific settings for remotes involved in this operation.
+
+3. USE TEMPLATES (Optional)
+Tap the folder icon in the bottom bar to load or save option presets. Templates let you quickly apply common configurations without manually setting each option.
+
+4. START THE SYNC
+Once paths are selected, tap "START SYNC" to begin. You can monitor progress on the Transfers page.`}
+                    />
+                    <CommandsDropdown currentCommand="sync" />
+                </ButtonGroup>
+            </OperationWindowFooter>
         </div>
     )
 }

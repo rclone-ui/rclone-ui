@@ -41,7 +41,7 @@
 		<li>✅ File Browser 2.0</li>
 		<li>✅ Proxy support</li>
 		<li>✅ Sync, Download, Copy, Mount, Serve, Move, and more</li>
-		<li>✅ Jobs (see all background operations)</li>
+		<li>✅ Transfers (see all background operations)</li>
 		<li>✅ Set default flags for each remote separately, based on the operation (mount, copy, etc)</li>
 		<li>✅ Customize the flags when running an operation on a case by case basis (on top of defaults)</li>
 		<li>✅ Set a password for the Settings panel</li>
@@ -114,10 +114,10 @@
   </screenshots>
 	
   <releases>
-    <release version="2.8.1" date="2025-11-11">
-      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v2.8.1</url>
+    <release version="3.0.0" date="2025-12-06">
+      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v3.0.0</url>
       <description>
-	    <p>2.8.1 Release</p>
+	    <p>3.0.0 Release</p>
     	<ul>
 		  <li>Improved Linux stability and overall performance.</li>
         </ul>

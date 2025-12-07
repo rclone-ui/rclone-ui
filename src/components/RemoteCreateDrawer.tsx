@@ -1,228 +1,128 @@
-import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@heroui/react'
-import {
-    Autocomplete,
-    AutocompleteItem,
-    Button,
-    Checkbox,
-    DrawerContent,
-    Input,
-} from '@heroui/react'
+import { Drawer, DrawerBody, DrawerFooter, DrawerHeader, cn } from '@heroui/react'
+import { Autocomplete, AutocompleteItem, Button, DrawerContent, Input } from '@heroui/react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
-import { openUrl } from '@tauri-apps/plugin-opener'
-import { ChevronDown, ChevronUp, ExternalLinkIcon, RefreshCcwIcon } from 'lucide-react'
-import { type Key, useEffect, useState } from 'react'
-import { createRemote } from '../../lib/rclone/api'
-import { getBackends } from '../../lib/rclone/api'
-import { useStore } from '../../lib/store'
-import { triggerTrayRebuild } from '../../lib/tray'
-import type { Backend, BackendOption } from '../../types/rclone'
+import { platform } from '@tauri-apps/plugin-os'
+import { ChevronDown, ChevronUp, RefreshCcwIcon } from 'lucide-react'
+import { type Key, startTransition, useCallback, useMemo, useState } from 'react'
+import rclone from '../../lib/rclone/client'
+import { OVERRIDES } from '../../lib/rclone/overrides'
+import type { BackendOption } from '../../types/rclone'
+import RemoteField from './RemoteField'
 
 export default function RemoteCreateDrawer({
     isOpen,
     onClose,
 }: { isOpen: boolean; onClose: () => void }) {
-    const addRemote = useStore((state) => state.addRemote)
+    const queryClient = useQueryClient()
     const [config, setConfig] = useState<Record<string, any>>({})
     const [showMoreOptions, setShowMoreOptions] = useState(false)
-    const [isSaving, setIsSaving] = useState(false)
-    const [backends, setBackends] = useState<Backend[]>([])
 
-    const currentBackend = config.type ? backends.find((b) => b.Name === config.type) : null
+    const backendsQuery = useQuery({
+        queryKey: ['backends'],
+        queryFn: async () => {
+            const backends = await rclone('/config/providers')
+            return backends.providers
+        },
+    })
 
-    const currentBackendFields = currentBackend
-        ? (currentBackend.Options as BackendOption[]).filter((opt) => {
-              if (!opt.Provider) return true
-              if (opt.Provider.includes(config.provider) && !opt.Provider.startsWith('!'))
-                  return true
-              if (config.type === 's3' && config.provider === 'Other' && opt.Provider.includes('!'))
-                  return true
-              return false
-          }) || []
-        : []
+    const sortedEnrichedBackends = useMemo(() => {
+        const backends = backendsQuery.data ?? []
 
-    function handleTypeChange(key: Key | null) {
+        return backends
+            .filter((b) => !['uptobox', 'tardigrade'].includes(b.Name))
+            .map((backend) => {
+                const override = OVERRIDES[backend.Name as keyof typeof OVERRIDES]
+                return {
+                    ...backend,
+                    Description: override?.Description || backend.Description,
+                }
+            })
+            .sort((a, b) => {
+                return a.Name.localeCompare(b.Name)
+            })
+    }, [backendsQuery.data])
+
+    const currentBackend = useMemo(
+        () => (config.type ? sortedEnrichedBackends.find((b) => b.Name === config.type) : null),
+        [config.type, sortedEnrichedBackends]
+    )
+
+    const currentBackendFields = useMemo(
+        () =>
+            currentBackend
+                ? (currentBackend.Options as BackendOption[]).filter((opt) => {
+                      if (!opt.Provider) return true
+                      if (opt.Provider.includes(config.provider) && !opt.Provider.startsWith('!'))
+                          return true
+                      if (
+                          config.type === 's3' &&
+                          config.provider === 'Other' &&
+                          opt.Provider.includes('!')
+                      )
+                          return true
+                      return false
+                  }) || []
+                : [],
+        [currentBackend, config.provider, config.type]
+    )
+
+    const createRemoteMutation = useMutation({
+        mutationFn: async ({
+            name,
+            type,
+            parameters,
+        }: { name: string; type: string; parameters: Record<string, any> }) => {
+            console.log('[RemoteCreateDrawer] newRemoteConfig', name, type, parameters)
+
+            await rclone('/config/create', {
+                params: {
+                    query: {
+                        name,
+                        type,
+                        parameters: JSON.stringify(parameters),
+                    },
+                },
+            })
+
+            return name
+        },
+        onSuccess: async (name) => {
+            queryClient.setQueryData(['remotes', 'list', 'all'], (old: string[] | undefined) => [
+                ...(old ?? []),
+                name,
+            ])
+            onClose()
+            setConfig({})
+            setShowMoreOptions(false)
+        },
+        onError: async (error) => {
+            console.error('Failed to create remote:', error)
+
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+
+            if (errorMessage.includes('address already in use')) {
+                await message(
+                    'Rclone Oauth Client is stuck, please restart the UI to add new remotes',
+                    {
+                        title: 'Busy',
+                        kind: 'error',
+                    }
+                )
+            }
+
+            await message(errorMessage, {
+                title: 'Could not create remote',
+                kind: 'error',
+            })
+        },
+    })
+
+    const handleTypeChange = useCallback((key: Key | null) => {
         const newType = key ? String(key) : undefined
 
         // preserve name when resetting type
         setConfig((prev) => ({ name: prev.name, type: newType }))
-    }
-
-    function renderField(option: BackendOption) {
-        // Skip rendering if the field should be hidden
-        if (option.Hide !== 0) return null
-
-        // For S3 type, only show fields that match the current provider or have no provider specified
-        // if (config.type === 's3' && option.Provider && option.Provider !== config.provider) {
-        //     return null
-        // }
-
-        const fieldId = `field-${option.Name}`
-        const fieldValue = config[option.Name] || option.DefaultStr
-
-        switch (option.Type) {
-            case 'bool':
-                return (
-                    <div key={option.Name} className="flex flex-col gap-0.5">
-                        <Checkbox
-                            checked={fieldValue === 'true'}
-                            name={option.Name}
-                            radius="sm"
-                            onValueChange={(checked) =>
-                                setConfig({ ...config, [option.Name]: checked })
-                            }
-                        >
-                            {option.Name}
-                        </Checkbox>
-                        {option.Help.includes('\n') && (
-                            <p className="text-xs text-foreground-400">
-                                {option.Help.split('\n').slice(1).join('\n')}
-                            </p>
-                        )}
-                    </div>
-                )
-            case 'string': {
-                if (
-                    !(config?.provider === 'Other' && option.Name === 'endpoint') &&
-                    option.Examples &&
-                    option.Examples.length > 0
-                ) {
-                    return (
-                        <Autocomplete
-                            id={fieldId}
-                            name={option.Name}
-                            defaultInputValue={fieldValue}
-                            defaultItems={option.Examples}
-                            label={option.Name}
-                            labelPlacement="outside"
-                            placeholder={option.Help.split('\n')[0]}
-                            description={option.Help.split('\n').slice(1).join('\n')}
-                            isRequired={option.Required}
-                            onInputChange={(value) => {
-                                // console.log(value)
-                                setConfig({ ...config, [option.Name]: value })
-                            }}
-                            allowsCustomValue={true}
-                        >
-                            {(item) => (
-                                <AutocompleteItem
-                                    key={item.Value}
-                                    textValue={item.Value}
-                                    startContent={
-                                        option.Name === 'provider' && (
-                                            <img
-                                                src={`/icons/providers/${item.Value}.png`}
-                                                className="object-contain w-4 h-4"
-                                                alt={item.Value}
-                                            />
-                                        )
-                                    }
-                                >
-                                    {item.Value || 'No Value'} {item.Help && `— ${item.Help}`}
-                                </AutocompleteItem>
-                            )}
-                        </Autocomplete>
-                    )
-                }
-                return (
-                    <Input
-                        key={option.Name}
-                        id={fieldId}
-                        name={option.Name}
-                        label={option.Name}
-                        labelPlacement="outside"
-                        placeholder={option.Help.split('\n')[0]}
-                        type={option.IsPassword ? 'password' : 'text'}
-                        value={fieldValue}
-                        classNames={
-                            config.type === 'drive' && option.Name === 'client_id'
-                                ? {
-                                      description: 'text-warning',
-                                      'inputWrapper': 'pr-0',
-                                  }
-                                : undefined
-                        }
-                        endContent={
-                            config.type === 'drive' &&
-                            option.Name === 'client_id' && (
-                                <Button
-                                    size="sm"
-                                    className="h-full gap-1 rounded-l-none"
-                                    color="warning"
-                                    endContent={
-                                        <ExternalLinkIcon className="mb-0.5 size-4 shrink-0" />
-                                    }
-                                    onPress={() => {
-                                        openUrl(
-                                            'https://rclone.org/drive/#making-your-own-client-id'
-                                        )
-                                    }}
-                                >
-                                    GUIDE
-                                </Button>
-                            )
-                        }
-                        autoComplete="off"
-                        autoCapitalize="off"
-                        autoCorrect="off"
-                        spellCheck="false"
-                        description={option.Help.split('\n').slice(1).join('\n')}
-                        isRequired={option.Required}
-                        onValueChange={(value) => {
-                            setConfig({ ...config, [option.Name]: value })
-                        }}
-                    />
-                )
-            }
-            default:
-                return null
-        }
-    }
-
-    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault()
-        setIsSaving(true)
-
-        // take data from config state, not form
-        const data = structuredClone(config)
-
-        for (const [key, value] of Object.entries(data)) {
-            if (value.toString().trim() === '') continue
-            if (
-                e.currentTarget[key] instanceof HTMLInputElement &&
-                e.currentTarget[key].type === 'checkbox'
-            ) {
-                data[key] = (e.currentTarget[key] as HTMLInputElement).checked
-            } else {
-                data[key] = value.toString()
-            }
-        }
-        try {
-            const name = data.name as string
-            const type = data.type as string
-            const parameters = Object.fromEntries(
-                Object.entries(data).filter(([key]) => key !== 'name' && key !== 'type')
-            )
-
-            await createRemote(name, type, parameters)
-            addRemote(name)
-            onClose()
-            setConfig({})
-            setShowMoreOptions(false)
-            await triggerTrayRebuild()
-        } catch (error) {
-            console.error('Failed to create remote:', error)
-            await message(error instanceof Error ? error.message : 'Unknown error occurred', {
-                title: 'Could not create remote',
-                kind: 'error',
-            })
-        }
-        setIsSaving(false)
-    }
-
-    useEffect(() => {
-        getBackends().then((b) => {
-            setBackends(b)
-        })
     }, [])
 
     return (
@@ -230,10 +130,22 @@ export default function RemoteCreateDrawer({
             isOpen={isOpen}
             placement={'bottom'}
             size="full"
-            onClose={onClose}
+            onClose={() => {
+                startTransition(() => {
+                    setConfig({})
+                    setShowMoreOptions(false)
+                    createRemoteMutation.reset()
+                })
+                onClose()
+            }}
             hideCloseButton={true}
         >
-            <DrawerContent>
+            <DrawerContent
+                className={cn(
+                    'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
+                    platform() === 'macos' && 'pt-5'
+                )}
+            >
                 {(close) => (
                     <>
                         <DrawerHeader className="flex flex-row justify-between gap-1">
@@ -251,11 +163,7 @@ export default function RemoteCreateDrawer({
                             </Button>
                         </DrawerHeader>
                         <DrawerBody id="create-form-body">
-                            <form
-                                className="flex flex-col gap-4"
-                                onSubmit={handleSubmit}
-                                id="create-form"
-                            >
+                            <div className="flex flex-col gap-4">
                                 <Input
                                     id="remote-name"
                                     name="name"
@@ -281,8 +189,12 @@ export default function RemoteCreateDrawer({
                                     onSelectionChange={handleTypeChange}
                                     isRequired={true}
                                     itemHeight={42}
+                                    autoCapitalize="off"
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    spellCheck="false"
                                 >
-                                    {backends.map((backend) => (
+                                    {sortedEnrichedBackends.map((backend) => (
                                         <AutocompleteItem
                                             key={backend.Name}
                                             startContent={
@@ -293,12 +205,7 @@ export default function RemoteCreateDrawer({
                                                 />
                                             }
                                         >
-                                            {backend.Description.includes('Compliant')
-                                                ? `${backend.Description.split('Compliant')[0]} Compliant`
-                                                : backend.Description?.replace(
-                                                      ' (this is not Google Drive)',
-                                                      ''
-                                                  ) || backend.Name}
+                                            {backend.Description || backend.Name}
                                         </AutocompleteItem>
                                     ))}
                                 </Autocomplete>
@@ -306,7 +213,14 @@ export default function RemoteCreateDrawer({
                                 {/* Normal Fields */}
                                 {currentBackendFields
                                     .filter((opt) => !opt.Advanced)
-                                    .map(renderField)}
+                                    .map((opt) => (
+                                        <RemoteField
+                                            key={opt.Name}
+                                            option={opt}
+                                            config={config}
+                                            setConfig={setConfig}
+                                        />
+                                    ))}
 
                                 {/* Advanced Fields */}
                                 {currentBackendFields.some((opt) => opt.Advanced) && (
@@ -328,12 +242,19 @@ export default function RemoteCreateDrawer({
                                             <div className="flex flex-col gap-4 pt-4 mt-4">
                                                 {currentBackendFields
                                                     .filter((opt) => opt.Advanced)
-                                                    .map(renderField)}
+                                                    .map((opt) => (
+                                                        <RemoteField
+                                                            key={opt.Name}
+                                                            option={opt}
+                                                            config={config}
+                                                            setConfig={setConfig}
+                                                        />
+                                                    ))}
                                             </div>
                                         )}
                                     </div>
                                 )}
-                            </form>
+                            </div>
                         </DrawerBody>
                         <DrawerFooter>
                             <Button
@@ -346,12 +267,19 @@ export default function RemoteCreateDrawer({
                             </Button>
                             <Button
                                 color="primary"
-                                type="submit"
-                                form="create-form"
-                                isLoading={isSaving}
+                                isLoading={createRemoteMutation.isPending}
                                 data-focus-visible="false"
+                                onPress={() => {
+                                    setTimeout(() => {
+                                        createRemoteMutation.mutate({
+                                            name: config.name,
+                                            type: config.type,
+                                            parameters: config,
+                                        })
+                                    }, 10)
+                                }}
                             >
-                                {isSaving ? 'Creating...' : 'Create Remote'}
+                                {createRemoteMutation.isPending ? 'Creating...' : 'Create Remote'}
                             </Button>
                         </DrawerFooter>
                     </>
