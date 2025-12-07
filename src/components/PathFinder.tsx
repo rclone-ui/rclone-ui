@@ -1,77 +1,9 @@
-import { Autocomplete, Tooltip } from '@heroui/react'
-import { AutocompleteItem, Button } from '@heroui/react'
+import { Input, ScrollShadow, Tooltip } from '@heroui/react'
+import { Button } from '@heroui/react'
 import { sep } from '@tauri-apps/api/path'
-import { readDir } from '@tauri-apps/plugin-fs'
 import { ArrowDownUp, FolderOpen, XIcon } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { useDebounce } from 'use-debounce'
-import { isRemotePath } from '../../lib/fs'
-import { listPath } from '../../lib/rclone/api'
-import { useStore } from '../../lib/store'
+import { useCallback, useMemo, useState } from 'react'
 import PathSelector from './PathSelector'
-import RemoteAvatar from './RemoteAvatar'
-
-type PathSuggestion = {
-    IsDir: boolean
-    Name: string
-    Path: string
-    _showAvatar: boolean
-}
-
-function deriveFolderDisplayName(currentPath: string) {
-    const trimmed = currentPath.trim()
-    if (!trimmed) {
-        return ''
-    }
-
-    if (isRemotePath(trimmed)) {
-        const [remote, ...pathParts] = trimmed.split(':/')
-        const remotePath = pathParts.join(':/')
-        const normalized = remotePath.replace(/\\/g, '/').replace(/\/+$/g, '')
-        if (!normalized) {
-            return remote
-        }
-        const segments = normalized.split('/').filter(Boolean)
-        return segments[segments.length - 1] ?? remote
-    }
-
-    const normalized = trimmed.replace(/\\/g, '/').replace(/\/+$/g, '')
-    if (!normalized) {
-        return trimmed || '/'
-    }
-    const segments = normalized.split('/').filter(Boolean)
-    if (segments.length === 0) {
-        return normalized
-    }
-    return segments[segments.length - 1]
-}
-
-function withCurrentFolderSuggestion(suggestions: PathSuggestion[], currentPath?: string) {
-    if (!currentPath) {
-        return suggestions
-    }
-
-    const trimmed = currentPath.trim()
-    if (!trimmed) {
-        return suggestions
-    }
-
-    if (suggestions.some((item) => item.Path === currentPath)) {
-        return suggestions
-    }
-
-    const folderName = deriveFolderDisplayName(trimmed)
-
-    return [
-        {
-            IsDir: true,
-            Name: folderName ? `Root (${folderName})` : 'Root',
-            Path: trimmed,
-            _showAvatar: false,
-        },
-        ...suggestions,
-    ]
-}
 
 export function PathFinder({
     sourcePath = '',
@@ -82,8 +14,7 @@ export function PathFinder({
     sourceOptions = {
         label: 'Source',
         showPicker: true,
-        placeholder: 'Enter a remote:/path or local path, or tap to select a folder',
-        showSuggestions: true,
+        placeholder: 'Enter a remote:/path or local path, or tap on the folder icon',
         clearable: true,
         showFiles: true,
         allowedKeys: ['LOCAL_FS', 'REMOTES', 'FAVORITES'],
@@ -91,8 +22,7 @@ export function PathFinder({
     destOptions = {
         label: 'Destination',
         showPicker: true,
-        placeholder: 'Enter a remote:/path or local path',
-        showSuggestions: true,
+        placeholder: 'Enter a remote:/path or local path or tap on the folder icon',
         clearable: true,
         showFiles: true,
         allowedKeys: ['LOCAL_FS', 'REMOTES', 'FAVORITES'],
@@ -107,7 +37,6 @@ export function PathFinder({
         label: string
         placeholder: string
         showPicker: boolean
-        showSuggestions: boolean
         clearable: boolean
         allowedKeys?: ('LOCAL_FS' | 'FAVORITES' | 'REMOTES')[]
         showFiles?: boolean
@@ -116,17 +45,17 @@ export function PathFinder({
         label: string
         placeholder: string
         showPicker: boolean
-        showSuggestions: boolean
         clearable: boolean
         allowedKeys?: ('LOCAL_FS' | 'FAVORITES' | 'REMOTES')[]
         showFiles?: boolean
     }
 }) {
-    const handleSwap = () => {
+    const handleSwap = useCallback(() => {
         const temp = sourcePath
-        setSourcePath(destPath)
-        setDestPath(temp)
-    }
+        // handles empty strings => undefined
+        setSourcePath(destPath || undefined)
+        setDestPath(temp || undefined)
+    }, [sourcePath, destPath, setSourcePath, setDestPath])
 
     return (
         <div className="flex flex-col gap-8">
@@ -135,7 +64,6 @@ export function PathFinder({
                 setPath={setSourcePath}
                 label={sourceOptions.label}
                 placeholder={sourceOptions.placeholder}
-                showSuggestions={sourceOptions.showSuggestions}
                 clearable={sourceOptions.clearable}
                 showPicker={sourceOptions.showPicker}
                 allowedKeys={sourceOptions.allowedKeys}
@@ -162,11 +90,8 @@ export function PathFinder({
                 setPath={setDestPath}
                 label={destOptions.label}
                 placeholder={destOptions.placeholder}
-                showSuggestions={destOptions.showSuggestions}
                 clearable={destOptions.clearable}
-                showPicker={destOptions.showPicker}
-                allowedKeys={destOptions.allowedKeys}
-                showFiles={destOptions.showFiles}
+                showFiles={false}
             />
         </div>
     )
@@ -181,15 +106,13 @@ export function MultiPathFinder({
     sourceOptions = {
         label: 'Source',
         showPicker: true,
-        placeholder: 'Enter a remote:/path or local path, or tap to select files',
-        showSuggestions: true,
+        placeholder: 'Enter a remote:/path or local path, or tap on the folder icon',
         clearable: true,
     },
     destOptions = {
         label: 'Destination',
         showPicker: true,
-        placeholder: 'Enter a remote:/path or local path',
-        showSuggestions: true,
+        placeholder: 'Enter a remote:/path or local path or tap on the folder icon',
         clearable: true,
     },
 }: {
@@ -202,40 +125,32 @@ export function MultiPathFinder({
         label: string
         placeholder: string
         showPicker: boolean
-        showSuggestions: boolean
         clearable: boolean
     }
     destOptions?: {
         label: string
         placeholder: string
         showPicker: boolean
-        showSuggestions: boolean
         clearable: boolean
     }
 }) {
-    const handleSwap = () => {
+    const handleSwap = useCallback(() => {
         if (sourcePaths.length !== 1) {
             return
         }
         const temp = sourcePaths[0]
-        setSourcePaths([destPath])
-        setDestPath(temp)
-    }
+        setSourcePaths(destPath ? [destPath] : undefined)
+        setDestPath(temp || undefined)
+    }, [sourcePaths, destPath, setSourcePaths, setDestPath])
 
-    const isSwapDisabled = sourcePaths.length !== 1 || !destPath
+    const isSwapDisabled = useMemo(() => sourcePaths.length !== 1, [sourcePaths])
 
-    const swapDisabledReason = (() => {
-        if (sourcePaths.length === 0) {
-            return 'No source selected'
-        }
-        if (sourcePaths.length >= 2) {
+    const swapDisabledReason = useMemo(() => {
+        if (sourcePaths.length > 1) {
             return 'Cannot swap when multiple sources are selected'
         }
-        if (!destPath) {
-            return 'No destination selected'
-        }
         return 'Swap sources'
-    })()
+    }, [sourcePaths])
 
     return (
         <div className="flex flex-col gap-8">
@@ -244,7 +159,6 @@ export function MultiPathFinder({
                 setPaths={setSourcePaths}
                 label={sourceOptions.label}
                 placeholder={sourceOptions.placeholder}
-                showSuggestions={sourceOptions.showSuggestions}
                 clearable={sourceOptions.clearable}
             />
 
@@ -272,7 +186,6 @@ export function MultiPathFinder({
                 setPath={setDestPath}
                 label={destOptions.label}
                 placeholder={destOptions.placeholder}
-                showSuggestions={destOptions.showSuggestions}
                 clearable={destOptions.clearable}
                 showFiles={false}
             />
@@ -284,9 +197,8 @@ export function PathField({
     path,
     setPath,
     label,
-    placeholder = 'Enter a remote:/path or local path, or tap to select files',
+    placeholder = 'Enter a remote:/path or local path, or tap on the folder icon',
     description,
-    showSuggestions = true,
     clearable = true,
     showPicker = true,
     allowedKeys,
@@ -297,172 +209,24 @@ export function PathField({
     label: string
     placeholder?: string
     description?: string
-    showSuggestions?: boolean
     clearable?: boolean
     showPicker?: boolean
     allowedKeys?: ('LOCAL_FS' | 'FAVORITES' | 'REMOTES')[]
     showFiles?: boolean
 }) {
-    const remotes = useStore((state) => state.remotes)
-
-    const [debouncedPath] = useDebounce(path, 800)
-
-    const fieldRef = useRef<HTMLInputElement>(null)
-
-    const [suggestions, setSuggestions] = useState<PathSuggestion[]>([])
-    const [isLoading, setIsLoading] = useState<boolean>(false)
-    const [error, setError] = useState<string | null>(null)
     const [isOpen, setIsOpen] = useState<boolean>(false)
-
-    const visibleSuggestions = showSuggestions ? suggestions : []
-
-    async function fetchSuggestions(searchPath: string) {
-        setIsLoading(true)
-        setError(null)
-
-        // console.log('fetching suggestions for', path, field)
-
-        let cleanedPath = searchPath
-        const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
-        let resolvedAsDirectory = false
-
-        try {
-            // If path is empty, show list of remotes
-            if (!searchPath) {
-                const remoteItems = remotes.map((remote) => ({
-                    IsDir: true,
-                    Name: remote + ':/',
-                    Path: remote + ':/',
-                    _showAvatar: true,
-                }))
-                setSuggestions(remoteItems)
-                setIsLoading(false)
-                return
-            }
-
-            // Fetch suggestions for local paths
-            if (!isRemotePath(searchPath)) {
-                let localEntries: Awaited<ReturnType<typeof readDir>> = []
-
-                try {
-                    localEntries = await readDir(cleanedPath)
-                    resolvedAsDirectory = true
-                } catch (err) {
-                    // most likely due to the path being a file
-                    console.error('Failed to fetch local suggestions:', err)
-                    try {
-                        // we also retry in case the last part of the path is wrong
-                        cleanedPath = searchPath.split(sep()).slice(0, -1).join(sep())
-                        localEntries = await readDir(cleanedPath)
-                    } catch (err) {
-                        console.error('Failed to fetch local suggestions (again):', err)
-                    }
-                }
-
-                const localSuggestions = localEntries
-                    .filter((entry) => !entry.isSymlink)
-                    .filter((entry) => showFiles || entry.isDirectory)
-                    .map((entry) => ({
-                        IsDir: entry.isDirectory,
-                        Name: entry.name,
-                        Path: `${cleanedPath}${extraSlash}${entry.name}`,
-                        _showAvatar: false,
-                    }))
-
-                let newSuggestions = localSuggestions
-
-                if (resolvedAsDirectory) {
-                    newSuggestions = withCurrentFolderSuggestion(newSuggestions, searchPath)
-                }
-                setSuggestions(newSuggestions)
-                setIsLoading(false)
-                return
-            }
-
-            // Split the path into remote and path parts
-            const [remote, ...pathParts] = searchPath.split(':/')
-            if (!remote) {
-                // throw new Error('Invalid remote path format')
-                setIsLoading(false)
-                return
-            }
-
-            let remotePath = pathParts.join('/')
-            if (remotePath.endsWith('/')) {
-                remotePath = remotePath.slice(0, -1)
-            }
-
-            const items = await listPath(remote, remotePath, {
-                noModTime: true,
-                noMimeType: true,
-            })
-
-            const suggestionsWithRemote = items
-                .filter((item) => showFiles || item.IsDir)
-                .map((item) => ({
-                    IsDir: item.IsDir,
-                    Name: item.Path,
-                    Path: `${remote}:/${item.Path}`,
-                    _showAvatar: false,
-                }))
-
-            setSuggestions(withCurrentFolderSuggestion(suggestionsWithRemote, searchPath))
-        } catch (err) {
-            console.error('Failed to fetch suggestions:', err)
-            const errorMessage = err instanceof Error ? err.message : 'Failed to fetch suggestions'
-            setError(errorMessage)
-            setSuggestions([])
-        }
-        setIsLoading(false)
-    }
-
-    useEffect(() => {
-        let cancelTimeout: ReturnType<typeof setTimeout> | null = null
-        if (!showSuggestions) {
-            return
-        }
-        if (debouncedPath) {
-            fetchSuggestions(debouncedPath).then(() => {
-                if (fieldRef.current) {
-                    fieldRef.current.blur()
-                    cancelTimeout = setTimeout(() => {
-                        fieldRef.current?.focus()
-                    }, 100)
-                }
-            })
-        }
-        return () => {
-            if (cancelTimeout) {
-                clearTimeout(cancelTimeout)
-                cancelTimeout = null
-            }
-        }
-        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
-    }, [debouncedPath, fetchSuggestions, showSuggestions])
 
     return (
         <div className="flex gap-2">
             <div className="flex-1">
-                <Autocomplete
+                <Input
                     size="lg"
-                    ref={fieldRef}
                     label={label}
-                    allowsCustomValue={true}
-                    inputValue={path || ''}
-                    onInputChange={(e) => {
+                    value={path || ''}
+                    onValueChange={(e) => {
                         setPath(e)
                     }}
-                    onFocus={() => {
-                        if (!path) {
-                            fetchSuggestions('')
-                        }
-                    }}
-                    shouldCloseOnBlur={false}
                     placeholder={placeholder}
-                    isInvalid={!!error}
-                    errorMessage={error}
-                    isLoading={isLoading}
-                    selectorIcon={showSuggestions ? undefined : null}
                     isClearable={clearable}
                     description={description}
                     autoComplete="off"
@@ -471,27 +235,8 @@ export function PathField({
                     spellCheck="false"
                     onClear={() => {
                         setPath('')
-                        setSuggestions([])
-                        setError(null)
                     }}
-                >
-                    {visibleSuggestions.map((item, index) => (
-                        <AutocompleteItem
-                            startContent={
-                                item._showAvatar ? (
-                                    <RemoteAvatar remote={item.Path.replace(':/', '')} />
-                                ) : item.IsDir ? (
-                                    '📁'
-                                ) : (
-                                    '📄'
-                                )
-                            }
-                            key={index}
-                            textValue={item.Path}
-                            title={item.Name}
-                        />
-                    ))}
-                </Autocomplete>
+                />
             </div>
             {showPicker && (
                 <Button
@@ -504,7 +249,7 @@ export function PathField({
                     className="w-20 h-16"
                     data-focus-visible="false"
                 >
-                    <FolderOpen className="w-6 h-6" />
+                    <FolderOpen className="size-7" />
                 </Button>
             )}
 
@@ -519,7 +264,9 @@ export function PathField({
                     if (!item) {
                         return
                     }
-                    item.type === 'folder' && !item.path.endsWith('/') ? `${item.path}/` : item.path
+                    item.type === 'folder' && !item.path.endsWith('/') && !item.path.endsWith('\\')
+                        ? `${item.path}${sep()}`
+                        : item.path
                     setPath(item.path)
                 }}
                 isOpen={isOpen}
@@ -535,8 +282,7 @@ export function MultiPathField({
     paths,
     setPaths,
     label,
-    placeholder = 'Enter a remote:/path or local path, or tap to select files',
-    showSuggestions = true,
+    placeholder = 'Enter a remote:/path or local path, or tap on the folder icon',
     showPicker = true,
     clearable = true,
 }: {
@@ -544,225 +290,83 @@ export function MultiPathField({
     setPaths: (paths: string[] | undefined) => void
     label: string
     placeholder?: string
-    showSuggestions?: boolean
     showPicker?: boolean
     clearable?: boolean
 }) {
-    const remotes = useStore((state) => state.remotes)
-
-    const [debouncedPath] = useDebounce(paths?.[0], 800)
-
-    const fieldRef = useRef<HTMLInputElement>(null)
-
-    const isMultiple = paths.length > 1
-
-    const [suggestions, setSuggestions] = useState<PathSuggestion[]>([])
-    const [isLoading, setIsLoading] = useState<boolean>(false)
-    const [error, setError] = useState<string | null>(null)
     const [isOpen, setIsOpen] = useState<boolean>(false)
 
-    async function fetchSuggestions(path: string) {
-        setIsLoading(true)
-        setError(null)
-
-        // console.log('fetching suggestions for', path, field)
-
-        let cleanedPath = path
-        const extraSlash = cleanedPath.endsWith(sep()) ? '' : sep()
-        let resolvedAsDirectory = false
-
-        try {
-            // If path is empty, show list of remotes
-            if (!path) {
-                const remoteItems = remotes.map((remote) => ({
-                    IsDir: true,
-                    Name: remote + ':/',
-                    Path: remote + ':/',
-                    _showAvatar: true,
-                }))
-                setSuggestions(remoteItems)
-                setIsLoading(false)
-                return
-            }
-
-            // Fetch suggestions for local paths
-            if (!isRemotePath(path)) {
-                let localEntries: Awaited<ReturnType<typeof readDir>> = []
-
-                try {
-                    localEntries = await readDir(cleanedPath)
-                    resolvedAsDirectory = true
-                } catch (err) {
-                    // most likely due to the path being a file
-                    console.error('Failed to fetch local suggestions:', err)
-                    try {
-                        // we also retry in case the last part of the path is wrong
-                        cleanedPath = path.split(sep()).slice(0, -1).join(sep())
-                        localEntries = await readDir(cleanedPath)
-                    } catch (err) {
-                        console.error('Failed to fetch local suggestions (again):', err)
-                    }
-                }
-
-                const localSuggestions = localEntries
-                    .filter((entry) => !entry.isSymlink)
-                    .map((entry) => ({
-                        IsDir: entry.isDirectory,
-                        Name: entry.name,
-                        Path: `${cleanedPath}${extraSlash}${entry.name}`,
-                        _showAvatar: false,
-                    }))
-
-                let newSuggestions = localSuggestions
-
-                if (resolvedAsDirectory) {
-                    newSuggestions = withCurrentFolderSuggestion(newSuggestions, path)
-                }
-                setSuggestions(newSuggestions)
-                setIsLoading(false)
-                return
-            }
-
-            // Split the path into remote and path parts
-            const [remote, ...pathParts] = path.split(':/')
-            if (!remote) {
-                // throw new Error('Invalid remote path format')
-                setIsLoading(false)
-                return
-            }
-
-            let remotePath = pathParts.join('/')
-            if (remotePath.endsWith('/')) {
-                remotePath = remotePath.slice(0, -1)
-            }
-
-            const items = await listPath(remote, remotePath, {
-                noModTime: true,
-                noMimeType: true,
-            })
-
-            const suggestionsWithRemote = items.map((item) => ({
-                IsDir: item.IsDir,
-                Name: item.Path,
-                Path: `${remote}:/${item.Path}`,
-                _showAvatar: false,
-            }))
-
-            setSuggestions(withCurrentFolderSuggestion(suggestionsWithRemote, path))
-        } catch (err) {
-            console.error('Failed to fetch suggestions:', err)
-            const errorMessage = err instanceof Error ? err.message : 'Failed to fetch suggestions'
-            setError(errorMessage)
-            setSuggestions([])
-        }
-        setIsLoading(false)
-    }
-
-    const visibleSuggestions = showSuggestions ? suggestions : []
-
-    useEffect(() => {
-        if (!showSuggestions) {
-            return
-        }
-        if (isMultiple) {
-            return
-        }
-        if (paths?.[0]) {
-            fetchSuggestions(paths?.[0])
-        }
-        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
-    }, [paths, fetchSuggestions, showSuggestions, isMultiple])
-
-    useEffect(() => {
-        let cancelTimeout: ReturnType<typeof setTimeout> | null = null
-        if (!showSuggestions) {
-            return
-        }
-        if (isMultiple) {
-            return
-        }
-        if (debouncedPath) {
-            fetchSuggestions(debouncedPath).then(() => {
-                if (fieldRef.current) {
-                    fieldRef.current.blur()
-                    cancelTimeout = setTimeout(() => {
-                        fieldRef.current?.focus()
-                    }, 100)
-                }
-            })
-        }
-        return () => {
-            if (cancelTimeout) {
-                clearTimeout(cancelTimeout)
-                cancelTimeout = null
-            }
-        }
-        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
-    }, [debouncedPath, fetchSuggestions, showSuggestions, isMultiple])
+    const isMultipleSelected = paths.length > 1
 
     return (
         <div className="flex gap-2">
             <div className="flex-1">
-                {isMultiple ? (
-                    <div className="flex flex-col h-16 gap-0.5 p-2.5 overflow-y-auto bg-default-100 rounded-medium">
-                        {paths.map((path, index) => (
-                            <p key={index} className="text-xs text-foreground-600">
-                                {index + 1}. {path}
-                            </p>
-                        ))}
-                    </div>
+                {isMultipleSelected ? (
+                    <Tooltip
+                        content={
+                            <ScrollShadow className="max-w-[500px] max-h-[300px] overflow-y-auto">
+                                {paths.map((path, pathIndex) => (
+                                    <div
+                                        className="relative flex flex-row items-center gap-2 line-clamp-1 group/pathItem"
+                                        key={path}
+                                    >
+                                        <p className="w-4 text-right transition-opacity duration-100 opacity-100 group-hover/pathItem:opacity-0 tabular-nums">
+                                            {pathIndex + 1}.{' '}
+                                        </p>{' '}
+                                        <Button
+                                            size="sm"
+                                            color="danger"
+                                            className="absolute top-0 left-0 items-center justify-center min-w-0 transition-opacity duration-100 rounded-full opacity-0 -p-2 group-hover/pathItem:opacity-100 size-5"
+                                            onPress={() => {
+                                                setTimeout(() => {
+                                                    setPaths(paths.filter((p) => p !== path))
+                                                }, 100)
+                                            }}
+                                        >
+                                            <XIcon className="size-4" />
+                                        </Button>{' '}
+                                        {path}
+                                    </div>
+                                ))}
+                            </ScrollShadow>
+                        }
+                        placement="bottom-start"
+                    >
+                        <div className="flex flex-row items-center h-16 gap-0.5 p-2.5 pl-4 justify-between overflow-y-auto bg-default-100 rounded-medium">
+                            <p className="text-large">{`${paths[0]} and ${paths.length - 1} more`}</p>
+                            <Button
+                                onPress={() => {
+                                    setPaths([])
+                                }}
+                                isIconOnly={true}
+                                size="sm"
+                                variant="light"
+                                radius="full"
+                            >
+                                <XIcon className="size-4" />
+                            </Button>
+                        </div>
+                    </Tooltip>
                 ) : (
-                    <Autocomplete
+                    <Input
                         size="lg"
-                        ref={fieldRef}
                         label={label}
-                        allowsCustomValue={true}
-                        inputValue={paths?.[0] || ''}
-                        onInputChange={(e) => setPaths([e])}
-                        onFocus={() => {
-                            if (!paths?.[0]) {
-                                fetchSuggestions('')
-                            }
-                        }}
-                        shouldCloseOnBlur={false}
+                        value={paths?.[0] || ''}
+                        onValueChange={(e) => setPaths([e])}
                         placeholder={placeholder}
-                        isInvalid={!!error}
-                        errorMessage={error}
-                        isLoading={isLoading}
-                        selectorIcon={showSuggestions ? undefined : null}
                         isClearable={clearable}
                         onClear={() => {
                             setPaths([])
-                            setSuggestions([])
-                            setError(null)
                         }}
-                    >
-                        {visibleSuggestions.map((item, index) => (
-                            <AutocompleteItem
-                                startContent={
-                                    item._showAvatar ? (
-                                        <RemoteAvatar remote={item.Path.replace(':/', '')} />
-                                    ) : item.IsDir ? (
-                                        '📁'
-                                    ) : (
-                                        '📄'
-                                    )
-                                }
-                                key={index}
-                                textValue={item.Path}
-                                title={item.Name}
-                            />
-                        ))}
-                    </Autocomplete>
+                        autoCapitalize="off"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck="false"
+                    />
                 )}
             </div>
             {showPicker && (
                 <Button
                     onPress={() => {
-                        if (isMultiple) {
-                            setPaths([])
-                            return
-                        }
                         setIsOpen(true)
                     }}
                     isIconOnly={true}
@@ -770,11 +374,7 @@ export function MultiPathField({
                     className="w-20 h-18"
                     data-focus-visible="false"
                 >
-                    {isMultiple ? (
-                        <XIcon className="w-6 h-6" />
-                    ) : (
-                        <FolderOpen className="w-6 h-6" />
-                    )}
+                    <FolderOpen className="size-7" />
                 </Button>
             )}
 
@@ -785,13 +385,18 @@ export function MultiPathField({
                 onSelect={(items) => {
                     console.log('[Copy] items', items)
                     setIsOpen(false)
-                    setPaths(
-                        items.map((item) =>
-                            item.type === 'folder' && !item.path.endsWith('/')
-                                ? `${item.path}/`
+
+                    const newPaths = new Set(paths)
+                    for (const item of items) {
+                        newPaths.add(
+                            item.type === 'folder' &&
+                                !item.path.endsWith('/') &&
+                                !item.path.endsWith('\\')
+                                ? `${item.path}${sep()}`
                                 : item.path
                         )
-                    )
+                    }
+                    setPaths(Array.from(newPaths))
                 }}
                 isOpen={isOpen}
             />

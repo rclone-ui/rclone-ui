@@ -295,7 +295,7 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           }
         }
 
-        async function fetchAndInjectContent(url, pass, isInitialLoad = false) {
+        async function fetchAndInjectContent(url, auth, isInitialLoad = false) {
           try {
             // Only show navigation spinner for non-initial loads
             if (!isInitialLoad) {
@@ -303,17 +303,22 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             }
 		  
 		  let newUrl = url
-		  if (pass) {
-			newUrl = url.replace('localhost:5572', 'admin:' + pass + '@localhost:5572')
-		  } else {
-			console.log('no pass')
-		  }
-		  
+		
 		  console.log('newUrl', newUrl)
           
             const fetch = window.__TAURI__.http.fetch
             // Fetch the webpage content
-            const response = await fetch(newUrl);
+            const options = {
+              method: 'GET',
+            };
+            
+            if (auth) {
+              options.headers = {
+                'Authorization': 'Basic ' + auth
+              };
+            }
+
+            const response = await fetch(newUrl, options);
             const html = await response.text();
 			
 			console.log('fetched html for', newUrl)
@@ -373,7 +378,11 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             document.body.appendChild(navSpinner);
             
             // Update the URL in the address bar without reloading
-            window.history.pushState({}, '', `?url=${encodeURIComponent(url)}` + (pass ? `&pass=${encodeURIComponent(pass)}` : ''));
+            const params = new URLSearchParams();
+            params.set('url', url);
+            if (auth) params.set('auth', auth);
+            
+            window.history.pushState({}, '', `?${params.toString()}`);
             
             // Re-add our event handlers
             setupEventHandlers();
@@ -413,7 +422,10 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
             currentUrl = currentUrl.split('/');
             currentUrl.pop();
             const fullUrl = currentUrl.join('/') + '/';
-            fetchAndInjectContent(fullUrl);
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const auth = urlParams.get('auth');
+            fetchAndInjectContent(fullUrl, auth);
             return;
           }
 
@@ -457,11 +469,22 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
 							toggleNavSpinner(true);
 							
 							console.log('downloading', downloadUrl);
-							// Fetch the file contents
-							const response = await http.fetch(downloadUrl, {
+                            
+                            const options = {
 								method: 'GET',
 								responseType: 2 // ResponseType.Binary
-							});
+							};
+                            
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const auth = urlParams.get('auth');
+                            if (auth) {
+                                options.headers = {
+                                    'Authorization': 'Basic ' + auth
+                                };
+                            }
+
+							// Fetch the file contents
+							const response = await http.fetch(downloadUrl, options);
 							
 							const data = await response.arrayBuffer();
 							
@@ -531,7 +554,9 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
           event.preventDefault();
           
           // Fetch and inject the new content
-          fetchAndInjectContent(fullUrl);
+          const urlParams = new URLSearchParams(window.location.search);
+          const auth = urlParams.get('auth');
+          fetchAndInjectContent(fullUrl, auth);
         }
 
         function isInViewport(element) {
@@ -557,10 +582,10 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
         // Initial setup
         const urlParams = new URLSearchParams(window.location.search);
         const url = urlParams.get('url');
-        const pass = urlParams.get('pass');
+        const auth = urlParams.get('auth');
         if (url) {
           // Pass true to indicate this is the initial load
-          fetchAndInjectContent(url, pass, true);
+          fetchAndInjectContent(url, auth, true);
         } else {
           document.body.innerHTML = '<div>Error: No URL provided.</div>';
         }
@@ -570,9 +595,11 @@ It's not pretty, but at the same time Adobe's .PSD implementation exists.
 
         // Handle browser back/forward buttons
         window.addEventListener('popstate', () => {
-          const newUrl = new URLSearchParams(window.location.search).get('url');
+          const params = new URLSearchParams(window.location.search);
+          const newUrl = params.get('url');
+          const auth = params.get('auth');
           if (newUrl) {
-            fetchAndInjectContent(newUrl, pass);
+            fetchAndInjectContent(newUrl, auth);
           }
         });
       }

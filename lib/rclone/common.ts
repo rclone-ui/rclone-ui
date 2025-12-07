@@ -1,24 +1,18 @@
 import { appLocalDataDir, sep } from '@tauri-apps/api/path'
 import { exists, mkdir, writeTextFile } from '@tauri-apps/plugin-fs'
-import { fetch } from '@tauri-apps/plugin-http'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { Command } from '@tauri-apps/plugin-shell'
+import createRCDClient from 'rclone-sdk'
+import { useHostStore } from '../../store/host'
+import type { FlagValue } from '../../types/rclone'
 import { getConfigParentFolder } from '../format'
-import { usePersistedStore } from '../store'
+import rclone from './client'
 import { DOUBLE_BACKSLASH_REGEX } from './constants'
 
 export async function getDefaultPaths() {
     console.log('[getDefaultPaths]')
 
-    const r = await fetch('http://localhost:5572/config/paths', {
-        method: 'POST',
-    })
-
-    if (!r.ok) {
-        console.error('[getDefaultPaths] failed to make request to config/paths')
-        throw new Error('Failed to make request to config/paths')
-    }
-
-    const defaultPaths = (await r.json()) as { cache: string; config: string; temp: string }
+    const defaultPaths = await rclone('/config/paths')
 
     console.log('[getDefaultPaths] json', JSON.stringify(defaultPaths, null, 2))
 
@@ -33,6 +27,7 @@ export async function getDefaultPaths() {
 
 export async function getSystemConfigPath() {
     console.log('[getSystemConfigPath] running system rclone')
+
     const instance = Command.create('rclone-system', [
         'rcd',
         '--rc-no-auth',
@@ -53,13 +48,20 @@ export async function getSystemConfigPath() {
     await new Promise((resolve) => setTimeout(resolve, 200))
 
     try {
-        const defaultPaths = await getDefaultPaths()
+        // no host store at this point
+        const client = createRCDClient({
+            baseUrl: 'http://localhost:5572',
+            fetch: (request: Request) => tauriFetch(request),
+        })
 
-        if (typeof defaultPaths?.config === 'undefined') {
+        const defaultPaths = await client.POST('/config/paths', {})
+
+        const configPath = defaultPaths.data?.config
+        if (!configPath) {
             throw new Error('Failed to fetch config path')
         }
 
-        return defaultPaths.config
+        return configPath.replace(DOUBLE_BACKSLASH_REGEX, '\\')
     } catch (error) {
         console.error('[getSystemConfigPath] error', error)
         if (error instanceof Error) {
@@ -166,7 +168,7 @@ export async function isInternalRcloneInstalled() {
     }
 }
 
-export function parseRcloneOptions(options: Record<string, string | number | boolean | string[]>) {
+export function parseRcloneOptions(options: Record<string, FlagValue>) {
     console.log('[parseRcloneOptions]', options)
 
     return options
@@ -247,7 +249,7 @@ export function shouldUpdateRclone(versionData: { yours: string; latest: string 
     console.log('[shouldUpdateRclone] current version:', currentVersion)
     console.log('[shouldUpdateRclone] latest version:', latestVersion)
 
-    if (usePersistedStore.getState().lastSkippedVersion === currentVersion) {
+    if (useHostStore.getState().lastSkippedVersion === currentVersion) {
         console.log('[shouldUpdateRclone] current version is in the lastSkippedVersion')
         return false
     }

@@ -1,35 +1,43 @@
-import { Accordion, AccordionItem, Avatar, Button } from '@heroui/react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import {
+    Accordion,
+    AccordionItem,
+    Avatar,
+    Button,
+    ButtonGroup,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownTrigger,
+    Tooltip,
+} from '@heroui/react'
+import * as Sentry from '@sentry/browser'
+import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
+import { platform } from '@tauri-apps/plugin-os'
 import cronstrue from 'cronstrue'
-import {
-    AlertOctagonIcon,
-    ClockIcon,
-    FilterIcon,
-    FoldersIcon,
-    PlayIcon,
-    WrenchIcon,
-    XIcon,
-} from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { AlertOctagonIcon, ClockIcon, FoldersIcon, PlayIcon, WrenchIcon } from 'lucide-react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getRemoteName } from '../../lib/format'
-import {
-    getConfigFlags,
-    getCurrentGlobalFlags,
-    getFilterFlags,
-    startPurge,
-} from '../../lib/rclone/api'
+import { getOptionsSubtitle } from '../../lib/flags'
+import { useFlags } from '../../lib/hooks'
+import notify from '../../lib/notify'
+import { startPurge } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
-import { usePersistedStore } from '../../lib/store'
-import CommandInfo from '../components/CommandInfo'
+import { useHostStore } from '../../store/host'
+import type { FlagValue } from '../../types/rclone'
+import CommandInfoButton from '../components/CommandInfoButton'
+import CommandsDropdown from '../components/CommandsDropdown'
 import CronEditor from '../components/CronEditor'
+import OperationWindowContent from '../components/OperationWindowContent'
+import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
 import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Purge() {
     const [searchParams] = useSearchParams()
+    const { globalFlags, configFlags } = useFlags()
 
     const [source, setSource] = useState<string | undefined>(
         searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
@@ -37,227 +45,121 @@ export default function Purge() {
 
     const [cronExpression, setCronExpression] = useState<string | null>(null)
 
-    const [isStarted, setIsStarted] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
-    const [jsonError, setJsonError] = useState<'filter' | 'config' | null>(null)
-
-    const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
-    const [filterOptions, setFilterOptions] = useState<Record<string, string>>({})
-    const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
+    const [jsonError, setJsonError] = useState<'config' | null>(null)
 
     const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
-    const [configOptions, setConfigOptions] = useState<Record<string, string>>({})
-    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+    const [configOptions, setConfigOptions] = useState<Record<string, FlagValue>>({})
+    const [configOptionsJsonString, setConfigOptionsJsonString] = useState<string>('{}')
 
-    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
-    useEffect(() => {
-        const storeData = usePersistedStore.getState()
-
-        const sourceRemote = getRemoteName(source?.[0])
-
-        let mergedFilterDefaults = {}
-        let mergedConfigDefaults = {}
-
-        // Helper function to merge defaults from a remote
-        const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote) return
-
-            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
-
-            if (remoteConfig.filterDefaults) {
-                mergedFilterDefaults = {
-                    ...mergedFilterDefaults,
-                    ...remoteConfig.filterDefaults,
-                }
+    const startPurgeMutation = useMutation({
+        mutationFn: async () => {
+            if (!source) {
+                throw new Error('Please select a source path')
             }
 
-            if (remoteConfig.configDefaults) {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...remoteConfig.configDefaults,
-                }
-            } else {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...RCLONE_CONFIG_DEFAULTS,
-                }
+            return startPurge({
+                sources: [source],
+                options: {
+                    config: configOptions,
+                },
+            })
+        },
+        onSuccess: async () => {
+            if (cronExpression) {
+                scheduleTaskMutation.mutate()
             }
-        }
+        },
+        onError: async (error) => {
+            console.error('[Purge] Failed to start purge:', error)
+            Sentry.captureException(error)
+            await message(error instanceof Error ? error.message : 'Failed to start purge', {
+                title: 'Purge',
+                kind: 'error',
+            })
+        },
+    })
 
-        // Only merge defaults for remote paths
-        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
+    const scheduleTaskMutation = useMutation({
+        mutationFn: async () => {
+            if (!source) {
+                throw new Error('Please select a source path to purge')
+            }
 
-        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
-            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
-        }
+            if (!cronExpression) {
+                throw new Error('Please enter a cron expression')
+            }
 
-        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
-            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
-        }
-    }, [source])
+            try {
+                cronstrue.toString(cronExpression)
+            } catch {
+                throw new Error('Invalid cron expression')
+            }
+
+            useHostStore.getState().addScheduledTask({
+                operation: 'purge',
+                cron: cronExpression,
+                args: {
+                    sources: [source],
+                    options: {
+                        config: configOptions,
+                    },
+                },
+            })
+        },
+        onSuccess: async () => {
+            await notify({
+                title: 'Success',
+                body: 'New schedule has been created',
+            })
+        },
+        onError: async (error) => {
+            console.error('Error scheduling task:', error)
+            await message(error instanceof Error ? error.message : 'Failed to schedule task', {
+                title: 'Schedule',
+                kind: 'error',
+            })
+        },
+    })
+
+    const buttonText = useMemo(() => {
+        if (startPurgeMutation.isPending) return 'STARTING...'
+        if (!source) return 'Please select a source path'
+        if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        return 'START PURGE'
+    }, [startPurgeMutation.isPending, source, jsonError])
+
+    const buttonIcon = useMemo(() => {
+        if (startPurgeMutation.isPending) return
+        if (!source) return <FoldersIcon className="w-5 h-5" />
+        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
+        return <PlayIcon className="w-5 h-5 fill-current" />
+    }, [startPurgeMutation.isPending, source, jsonError])
 
     useEffect(() => {
-        getCurrentGlobalFlags().then((flags) => setCurrentGlobalOptions(flags))
+        startTransition(() => {
+            setConfigOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.config, null, 2))
+        })
     }, [])
 
     useEffect(() => {
-        let step: 'filter' | 'config' = 'filter'
+        const step = 'config'
         try {
-            setFilterOptions(JSON.parse(filterOptionsJson))
+            const parsedConfig = JSON.parse(configOptionsJsonString) as Record<string, FlagValue>
 
-            step = 'config'
-            setConfigOptions(JSON.parse(configOptionsJson))
-
-            setJsonError(null)
+            startTransition(() => {
+                setConfigOptions(parsedConfig)
+                setJsonError(null)
+            })
         } catch (error) {
             setJsonError(step)
             console.error(`Error parsing ${step} options:`, error)
         }
-    }, [filterOptionsJson, configOptionsJson])
-
-    async function handleStartPurge() {
-        setIsLoading(true)
-
-        if (!source) {
-            await message('Please select a source path', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
-
-        const [fs, remote] = source.split(':')
-
-        if (!fs || !remote) {
-            await message('Invalid source path', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
-
-        if (cronExpression) {
-            try {
-                cronstrue.toString(cronExpression)
-            } catch {
-                await message('Invalid cron expression', {
-                    title: 'Error',
-                    kind: 'error',
-                })
-                setIsLoading(false)
-                return
-            }
-            usePersistedStore.getState().addScheduledTask({
-                type: 'purge',
-                cron: cronExpression,
-                args: {
-                    fs,
-                    remote,
-                    _filter: filterOptions,
-                    _config: configOptions,
-                },
-            })
-        }
-
-        try {
-            await startPurge({
-                fs,
-                remote,
-                _filter: filterOptions,
-                _config: configOptions,
-            })
-
-            setIsStarted(true)
-
-            await message('Purge job started', {
-                title: 'Success',
-                okLabel: 'OK',
-            })
-            setIsLoading(false)
-        } catch (error) {
-            await message(`Failed to start purge job, ${error}`, {
-                title: 'Error',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            setIsLoading(false)
-        }
-    }
-
-    async function handleAddToTemplates(name: string) {
-        if (!!jsonError || !source) {
-            await message('Your config for this operation is incomplete or has errors.', {
-                title: 'Error',
-                kind: 'error',
-            })
-            return
-        }
-        const templates = usePersistedStore.getState().templates
-
-        const mergedOptions = {
-            filterOptions,
-            configOptions,
-            source,
-        }
-
-        const newTemplates = [
-            ...templates,
-            {
-                id: Math.floor(Date.now() / 1000).toString(),
-                name,
-                operation: 'purge',
-                options: mergedOptions,
-            } as const,
-        ]
-
-        usePersistedStore.setState({ templates: newTemplates })
-    }
-
-    async function handleSelectTemplate(templateId: string) {
-        const template = usePersistedStore
-            .getState()
-            .templates.find((template) => template.id === templateId)
-
-        if (!template) {
-            await message('Template not found', {
-                title: 'Error',
-                kind: 'error',
-            })
-            return
-        }
-
-        setFilterOptions(template.options.filterOptions)
-        setConfigOptions(template.options.configOptions)
-        setSource(template.options.source)
-    }
-
-    const buttonText = (() => {
-        if (isLoading) return 'STARTING...'
-        if (!source) return 'Please select a source path'
-        if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        return 'START PURGE'
-    })()
-
-    const buttonIcon = (() => {
-        if (isLoading) return
-        if (!source) return <FoldersIcon className="w-5 h-5" />
-        if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
-        return <PlayIcon className="w-5 h-5 fill-current" />
-    })()
+    }, [configOptionsJsonString])
 
     return (
         <div className="flex flex-col h-screen gap-10">
-            <CommandInfo
-                content={`Remove the path and all of its contents.
-					
-Note that this does not obey include/exclude filters — everything will be removed.`}
-            />
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
+            <OperationWindowContent>
                 {/* Path Display */}
                 <PathField
                     path={source || ''}
@@ -269,43 +171,27 @@ Note that this does not obey include/exclude filters — everything will be remo
                     showFiles={false}
                 />
 
-                <Accordion>
-                    <AccordionItem
-                        key="filters"
-                        startContent={
-                            <Avatar color="danger" radius="lg" fallback={<FilterIcon />} />
-                        }
-                        indicator={<FilterIcon />}
-                        subtitle="Tap to toggle filtering options for this operation"
-                        title="Filters"
-                    >
-                        <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
-                            }
-                            optionsJson={filterOptionsJson}
-                            setOptionsJson={setFilterOptionsJson}
-                            getAvailableOptions={getFilterFlags}
-                            isLocked={filterOptionsLocked}
-                            setIsLocked={setFilterOptionsLocked}
-                        />
-                    </AccordionItem>
+                <Accordion
+                    keepContentMounted={true}
+                    dividerProps={{
+                        className: 'opacity-50',
+                    }}
+                    defaultExpandedKeys={['config', 'cron']}
+                >
                     <AccordionItem
                         key="config"
                         startContent={
                             <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
                         }
                         indicator={<WrenchIcon />}
-                        subtitle="Tap to toggle config options for this operation"
                         title="Config"
+                        subtitle={getOptionsSubtitle(Object.keys(configOptions).length)}
                     >
                         <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
-                            }
-                            optionsJson={configOptionsJson}
-                            setOptionsJson={setConfigOptionsJson}
-                            getAvailableOptions={getConfigFlags}
+                            globalOptions={globalFlags?.main || {}}
+                            optionsJson={configOptionsJsonString}
+                            setOptionsJson={setConfigOptionsJsonString}
+                            availableOptions={configFlags || []}
                             isLocked={configOptionsLocked}
                             setIsLocked={setConfigOptionsLocked}
                         />
@@ -316,65 +202,177 @@ Note that this does not obey include/exclude filters — everything will be remo
                             <Avatar color="warning" radius="lg" fallback={<ClockIcon />} />
                         }
                         indicator={<ClockIcon />}
-                        subtitle="Tap to toggle cron options for this operation"
                         title="Cron"
                     >
                         <CronEditor expression={cronExpression} onChange={setCronExpression} />
                     </AccordionItem>
                 </Accordion>
-            </div>
+            </OperationWindowContent>
 
-            <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
+            <OperationWindowFooter>
                 <TemplatesDropdown
+                    isDisabled={!!jsonError}
                     operation="purge"
-                    onSelect={handleSelectTemplate}
-                    onAdd={handleAddToTemplates}
+                    onSelect={(groupedOptions, shouldMerge) => {
+                        startTransition(() => {
+                            if (shouldMerge) {
+                                if (groupedOptions.config)
+                                    setConfigOptions({ ...configOptions, ...groupedOptions.config })
+                            } else if (groupedOptions.config)
+                                setConfigOptions(groupedOptions.config)
+                        })
+                    }}
+                    getOptions={() => ({
+                        ...configOptions,
+                    })}
                 />
-                {isStarted ? (
-                    <>
+                <AnimatePresence mode="wait" initial={false}>
+                    {startPurgeMutation.isSuccess ? (
+                        <motion.div
+                            key="started-buttons"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1 gap-2"
+                        >
+                            <Dropdown shadow={platform() === 'windows' ? 'none' : undefined}>
+                                <DropdownTrigger>
+                                    <Button
+                                        fullWidth={true}
+                                        color="primary"
+                                        size="lg"
+                                        data-focus-visible="false"
+                                    >
+                                        NEW PURGE
+                                    </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu>
+                                    <DropdownItem
+                                        key="reset-paths"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setSource(undefined)
+                                                setJsonError(null)
+                                                startPurgeMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Path
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-options"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setCronExpression(null)
+                                                setJsonError(null)
+                                                startPurgeMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Options
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-all"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setConfigOptionsLocked(false)
+                                                setCronExpression(null)
+                                                setJsonError(null)
+                                                setSource(undefined)
+                                                startPurgeMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset All
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="start-button"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1"
+                        >
+                            <Button
+                                onPress={() => setTimeout(() => startPurgeMutation.mutate(), 100)}
+                                size="lg"
+                                fullWidth={true}
+                                type="button"
+                                color="primary"
+                                isDisabled={startPurgeMutation.isPending || !!jsonError || !source}
+                                isLoading={startPurgeMutation.isPending}
+                                endContent={buttonIcon}
+                                className="max-w-2xl gap-2"
+                                data-focus-visible="false"
+                            >
+                                {buttonText}
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <ButtonGroup variant="flat">
+                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
                         <Button
-                            fullWidth={true}
+                            size="lg"
+                            type="button"
                             color="primary"
-                            size="lg"
-                            onPress={() => {
-                                setFilterOptionsJson('{}')
-                                setSource(undefined)
-                                setIsStarted(false)
-                            }}
-                            data-focus-visible="false"
-                        >
-                            RESET
-                        </Button>
-
-                        <Button
-                            size="lg"
                             isIconOnly={true}
-                            onPress={async () => {
-                                await getCurrentWindow().hide()
-                                await getCurrentWindow().destroy()
+                            onPress={() => {
+                                setTimeout(() => scheduleTaskMutation.mutate(), 100)
                             }}
-                            data-focus-visible="false"
                         >
-                            <XIcon />
+                            <ClockIcon className="size-6" />
                         </Button>
-                    </>
-                ) : (
-                    <Button
-                        onPress={handleStartPurge}
-                        size="lg"
-                        fullWidth={true}
-                        type="button"
-                        color="primary"
-                        isDisabled={isLoading || !!jsonError || !source}
-                        isLoading={isLoading}
-                        endContent={buttonIcon}
-                        className="max-w-2xl gap-2"
-                        data-focus-visible="false"
-                    >
-                        {buttonText}
-                    </Button>
-                )}
-            </div>
+                    </Tooltip>
+                    <CommandInfoButton
+                        content={`Removes a path and ALL of its contents.
+
+Purge completely deletes the specified directory and everything inside it — files, subdirectories, everything. This is a destructive operation that cannot be undone.
+
+Important: Purge does NOT obey include/exclude filters. Everything in the path will be removed regardless of any filter settings. If you need to selectively delete specific files while keeping others, use the "Delete" command instead.
+
+Many cloud storage backends (like Google Drive, Dropbox, OneDrive, S3) support server-side purge, which is much faster than deleting files one by one. Rclone will automatically use this when available.
+
+Here's a quick guide to using the Purge command:
+
+1. SELECT PATH
+Use the path selector at the top to choose which path to purge. You can select from configured remotes or favorites. Tap the folder icon to browse, or type a path directly. Double-check that you've selected the correct path — purge will delete everything inside it.
+
+2. CONFIGURE OPTIONS (Optional)
+Expand the accordion sections to customize your purge operation. Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
+
+• Config — The "checkers" option controls concurrency for backends that don't support server-side purge. Other global rclone settings are also available here.
+
+• Cron — Schedule this purge to run automatically at set intervals. Useful for automated cleanup of temporary folders. The schedule only triggers while the app is running.
+
+3. USE TEMPLATES (Optional)
+Tap the folder icon in the bottom bar to load or save option presets.
+
+4. START THE PURGE
+Once a path is selected, tap "START PURGE" to begin. The entire directory and all its contents will be permanently deleted.`}
+                    />
+                    <CommandsDropdown currentCommand="purge" />
+                </ButtonGroup>
+            </OperationWindowFooter>
         </div>
     )
 }

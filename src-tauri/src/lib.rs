@@ -1,83 +1,38 @@
-// use tauri::Manager;
-
-// #[derive(Clone, serde::Serialize)]
-// struct Payload {
-//     args: Vec<String>,
-//     cwd: String,
-// }
-
 use machine_uid;
+use sentry;
 use std::fs::{self, File};
 use std::path::Path;
-use zip::ZipArchive;
-use sysinfo::{System};
+use sysinfo::System;
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_sentry;
-use sentry;
+use tinyfiledialogs as tfd;
+use zip::ZipArchive;
+
+#[path = "../common/shortcut.rs"]
+mod shortcut;
+
+#[path = "../common/window.rs"]
+mod window;
+
+use shortcut::{
+    ensure_toolbar_window, set_toolbar_shortcut, show_toolbar_window, DEFAULT_TOOLBAR_SHORTCUT,
+};
+
+use window::{lock_windows, open_full_window, open_small_window, open_window, unlock_windows};
 
 #[tauri::command]
-fn is_tray_supported() -> bool {
-    #[cfg(not(target_os = "linux"))]
-    {
-        return true;
-    }
+fn update_toolbar_shortcut(app_handle: AppHandle, shortcut: Option<String>) -> Result<(), String> {
+    set_toolbar_shortcut(&app_handle, shortcut.as_deref())
+}
 
-    #[cfg(target_os = "linux")]
-    {
-        use zbus::blocking::fdo::DBusProxy;
-        use zbus::blocking::{Connection, Proxy};
-        use zbus::names::BusName;
+#[tauri::command]
+fn show_toolbar(app_handle: AppHandle) -> Result<(), String> {
+    show_toolbar_window(&app_handle).map_err(|e| e.to_string())
+}
 
-        if let Ok(conn) = Connection::session() {
-            if let Ok(dbus) = DBusProxy::new(&conn) {
-                let candidates = [
-                    "org.kde.StatusNotifierWatcher",
-                    "org.freedesktop.StatusNotifierWatcher",
-                ];
-
-                for name in candidates {
-                    let bus_name = match BusName::try_from(name) {
-                        Ok(n) => n,
-                        Err(_) => continue,
-                    };
-                    if dbus.name_has_owner(bus_name).unwrap_or(false) {
-                        // Try to read the property; if it fails but watcher exists, assume true
-                        if let Ok(proxy) = Proxy::new(&conn, name, "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher") {
-                            if let Ok(registered) = proxy.get_property::<bool>("IsStatusNotifierHostRegistered") {
-                                return registered;
-                            }
-                        }
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // legacy XEmbed tray (X11 _NET_SYSTEM_TRAY_Sn)
-        {
-            use std::env;
-            use x11rb::protocol::xproto::ConnectionExt;
-
-            // If Wayland-only (no X server), no legacy tray will exist
-            if env::var_os("WAYLAND_DISPLAY").is_some() && env::var_os("DISPLAY").is_none() {
-                return false;
-            }
-
-            if let Ok((conn, screen_num)) = x11rb::connect(None) {
-                let sel_name = format!("_NET_SYSTEM_TRAY_S{}", screen_num);
-                if let Ok(atom_cookie) = conn.intern_atom(false, sel_name.as_bytes()) {
-                    if let Ok(atom_reply) = atom_cookie.reply() {
-                        if let Ok(owner_cookie) = conn.get_selection_owner(atom_reply.atom) {
-                            if let Ok(owner_reply) = owner_cookie.reply() {
-                                return owner_reply.owner != 0;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        false
-    }
+#[tauri::command]
+fn is_flathub() -> bool {
+    std::path::Path::new("/.flatpak-info").exists() || std::env::var_os("FLATPAK_ID").is_some()
 }
 
 #[tauri::command]
@@ -179,39 +134,19 @@ async fn stop_pid(pid: u32, timeout_ms: Option<u64>) -> Result<(), String> {
 
         let pid_str = pid.to_string();
 
-        // Try graceful termination first
-        let _ = std::process::Command::new("taskkill")
-            .args(&["/PID", &pid_str])
-            .status();
-
-        let deadline = Instant::now() + Duration::from_millis(timeout);
-        while Instant::now() < deadline {
-            let output = std::process::Command::new("tasklist")
-                .args(&["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
-                .output()
-                .map_err(|e| e.to_string())?;
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            if stdout.trim().is_empty()
-                || stdout.contains("No tasks are running")
-                || !stdout.contains(&pid_str)
-            {
-                return Ok(());
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        }
-
-        // Force kill
         let _ = std::process::Command::new("taskkill")
             .args(&["/PID", &pid_str, "/F", "/T"])
             .status();
 
-        // Final check
         let output = std::process::Command::new("tasklist")
             .args(&["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
             .output()
             .map_err(|e| e.to_string())?;
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        if !stdout.trim().is_empty() && stdout.contains(&pid_str) && !stdout.contains("No tasks are running") {
+        if !stdout.trim().is_empty()
+            && stdout.contains(&pid_str)
+            && !stdout.contains("No tasks are running")
+        {
             return Err("Failed to terminate process".to_string());
         }
 
@@ -248,10 +183,8 @@ fn get_uid() -> String {
     return machine_uid::get().unwrap();
 }
 
-
 #[tauri::command]
 fn is_rclone_running(port: Option<u16>) -> bool {
-
     if let Some(port) = port {
         use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream};
         use std::time::Duration;
@@ -309,12 +242,10 @@ async fn stop_rclone_processes(timeout_ms: Option<u64>) -> Result<u32, String> {
     Ok(stopped)
 }
 
-#[tauri::command]
 async fn prompt_password(title: String, message: String) -> Result<Option<String>, String> {
     prompt_text(title, message, None, Some(true)).await
 }
 
-#[tauri::command]
 async fn prompt_text(
     title: String,
     message: String,
@@ -432,7 +363,13 @@ async fn prompt_text(
         );
 
         let output = Command::new("powershell")
-            .args(&["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &powershell_script])
+            .args(&[
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &powershell_script,
+            ])
             .output()
             .map_err(|e| e.to_string())?;
 
@@ -470,7 +407,10 @@ async fn prompt_text(
                         }
                         // For other errors, fall through to try kdialog
                         let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!("zenity password dialog failed (exit {}): {}", exit_code, stderr);
+                        eprintln!(
+                            "zenity password dialog failed (exit {}): {}",
+                            exit_code, stderr
+                        );
                     }
                 }
                 Err(e) => {
@@ -495,7 +435,10 @@ async fn prompt_text(
                             return Ok(None);
                         }
                         let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!("kdialog password dialog failed (exit {}): {}", exit_code, stderr);
+                        eprintln!(
+                            "kdialog password dialog failed (exit {}): {}",
+                            exit_code, stderr
+                        );
                     }
                 }
                 Err(e) => {
@@ -503,11 +446,21 @@ async fn prompt_text(
                 }
             }
 
-            return Err("No suitable password dialog found. Please install zenity or kdialog.".to_string());
+            return Err(
+                "No suitable password dialog found. Please install zenity or kdialog.".to_string(),
+            );
         } else {
             // Try zenity text entry first
             match std::process::Command::new("zenity")
-                .args(&["--entry", "--title", &title, "--text", &message, "--entry-text", &default_value])
+                .args(&[
+                    "--entry",
+                    "--title",
+                    &title,
+                    "--text",
+                    &message,
+                    "--entry-text",
+                    &default_value,
+                ])
                 .output()
             {
                 Ok(output) => {
@@ -521,7 +474,10 @@ async fn prompt_text(
                             return Ok(None);
                         }
                         let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!("zenity entry dialog failed (exit {}): {}", exit_code, stderr);
+                        eprintln!(
+                            "zenity entry dialog failed (exit {}): {}",
+                            exit_code, stderr
+                        );
                     }
                 }
                 Err(e) => {
@@ -553,7 +509,9 @@ async fn prompt_text(
                 }
             }
 
-            return Err("No suitable input dialog found. Please install zenity or kdialog.".to_string());
+            return Err(
+                "No suitable input dialog found. Please install zenity or kdialog.".to_string(),
+            );
         }
     }
 
@@ -561,6 +519,31 @@ async fn prompt_text(
     {
         Err("Text input not supported on this platform".to_string())
     }
+}
+
+#[tauri::command]
+async fn tiny_prompt_text(
+    title: String,
+    message: String,
+    default: Option<String>,
+    sensitive: Option<bool>,
+) -> Result<Option<String>, String> {
+    let is_sensitive = sensitive.unwrap_or(false);
+    let default_value = default.unwrap_or_default();
+    let title_clone = title.clone();
+    let message_clone = message.clone();
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        if is_sensitive {
+            tfd::password_box(&title_clone, &message_clone)
+        } else {
+            tfd::input_box(&title_clone, &message_clone, &default_value)
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -574,8 +557,7 @@ async fn test_proxy_connection(proxy_url: String) -> Result<String, String> {
     }
 
     // Build client with proxy
-    let proxy = reqwest::Proxy::all(proxy_url)
-        .map_err(|e| format!("Invalid proxy URL: {}", e))?;
+    let proxy = reqwest::Proxy::all(proxy_url).map_err(|e| format!("Invalid proxy URL: {}", e))?;
     let client = reqwest::Client::builder()
         .proxy(proxy)
         .timeout(Duration::from_secs(10))
@@ -597,10 +579,15 @@ async fn test_proxy_connection(proxy_url: String) -> Result<String, String> {
                 if resp.status().is_success() {
                     match resp.text().await {
                         Ok(body) => {
-                            return Ok(format!("Connected via proxy. Endpoint: {}. Snippet: {}", url, body.chars().take(200).collect::<String>()))
+                            return Ok(format!(
+                                "Connected via proxy. Endpoint: {}. Snippet: {}",
+                                url,
+                                body.chars().take(200).collect::<String>()
+                            ))
                         }
                         Err(e) => {
-                            last_error = Some(format!("Failed to read response from {}: {}", url, e));
+                            last_error =
+                                Some(format!("Failed to read response from {}: {}", url, e));
                             continue;
                         }
                     }
@@ -630,7 +617,8 @@ async fn update_system_rclone() -> Result<i32, String> {
             format!("'{}'", escaped)
         }
 
-        let mut cmdline = String::from("PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH; ");
+        let mut cmdline =
+            String::from("PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH; ");
         cmdline.push_str(&quote_posix("rclone"));
         cmdline.push(' ');
         cmdline.push_str(&quote_posix("selfupdate"));
@@ -656,7 +644,8 @@ async fn update_system_rclone() -> Result<i32, String> {
     {
         use std::process::Command as SysCommand;
 
-        let path_env = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin";
+        let path_env =
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin";
 
         // Try PolicyKit first (graphical auth prompt on most desktops)
         let mut pkexec_args: Vec<String> = Vec::new();
@@ -673,7 +662,7 @@ async fn update_system_rclone() -> Result<i32, String> {
                 // Fallback to sudo with custom prompt (works if the user has NOPASSWD or cached credentials)
                 let mut sudo_env = std::collections::HashMap::new();
                 sudo_env.insert("SUDO_PROMPT", "Rclone UI needs permission to run rclone selfupdate. Please enter your password: ");
-                
+
                 let mut sudo_args: Vec<String> = Vec::new();
                 sudo_args.push("-n".to_string());
                 sudo_args.push("env".to_string());
@@ -712,7 +701,13 @@ async fn update_system_rclone() -> Result<i32, String> {
         );
 
         let status = SysCommand::new("powershell")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps_script])
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &ps_script,
+            ])
             .status()
             .map_err(|e| e.to_string())?;
         return Ok(status.code().unwrap_or(0));
@@ -726,7 +721,7 @@ async fn update_system_rclone() -> Result<i32, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-	let client = sentry::init((
+    let client = sentry::init((
         "https://7c7c55918ff850112780d2b2b29121a6@o4508503751983104.ingest.de.sentry.io/4508739164110928",
         sentry::ClientOptions {
             release: sentry::release_name!(),
@@ -735,105 +730,76 @@ pub fn run() {
     ));
 
     let _guard = tauri_plugin_sentry::minidump::init(&client);
-	
+
     let mut app = tauri::Builder::default()
-		.plugin(tauri_plugin_sentry::init_with_no_injection(&client))
+		.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+			if let Some(window) = app
+				.webview_windows()
+				.values()
+				.find(|w| w.label() != "main")
+			{
+				let _ = window.set_focus();
+			}
+		}))
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_sentry::init_with_no_injection(&client))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
-		.plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![])))
-        // .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-			// 	println!("{}, {argv:?}, {cwd}", app.package_info().name);
-			// 	// app.emit("single-instance", Payload { args: argv, cwd }).unwrap();
-			// }))
-			// .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-				//     let _ = app
-				//         .get_webview_window("main")
-				//         .expect("no main window")
-				//         .set_focus();
-				// }))
-		.plugin(tauri_plugin_store::Builder::new().build())
-		.plugin(tauri_plugin_http::init())
-		.plugin(tauri_plugin_fs::init())
-		.plugin(tauri_plugin_dialog::init())
-		.plugin(tauri_plugin_log::Builder::new().build())
-		.plugin(tauri_plugin_shell::init())
-		.plugin(tauri_plugin_opener::init())
-		.plugin(tauri_plugin_prevent_default::debug())
-		.invoke_handler(tauri::generate_handler![unzip_file, get_arch, get_uid, is_rclone_running, stop_rclone_processes, prompt_password, prompt_text, stop_pid, update_system_rclone, test_proxy_connection, is_tray_supported])
-        .setup(|_app| Ok(()))
-        // .setup(|app| {
-        //     if cfg!(debug_assertions) {
-        //         app.handle().plugin(
-        //             tauri_plugin_log::Builder::default()
-        //                 .level(log::LevelFilter::Info)
-        //                 .build(),
-        //         )?;
-        //     }
-        //     Ok(())
-        // })
-        // .setup(|app| {
-        //     let win_builder =
-        // 		tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
-        // 		.title("Transparent Titlebar Window")
-        // 		.inner_size(800.0, 600.0);
-        // 	// set transparent title bar only when building for macOS
-        // 	#[cfg(target_os = "macos")]
-        // 	let win_builder = win_builder.title_bar_style(tauri::TitleBarStyle::Transparent);
-        // 	let window = win_builder.build().unwrap();
-        // 	// set background color only when building for macOS
-        // 	#[cfg(target_os = "macos")]
-        // 	{
-        // 		use cocoa::appkit::{NSColor, NSWindow};
-        // 		use cocoa::base::{id, nil};
-        // 		let ns_window = window.ns_window().unwrap() as id;
-        // 		unsafe {
-        // 		let bg_color = NSColor::colorWithRed_green_blue_alpha_(
-        // 			nil,
-        // 			138.0 / 255.0,
-        // 			43.0 / 255.0,
-        // 			226.0 / 255.0,
-        // 			1.0,
-        // 		);
-        // 		ns_window.setBackgroundColor_(bg_color);
-        // 		}
-        // 	}
-        // 	Ok(())
-        // })
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_prevent_default::debug())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![
+            unzip_file,
+            get_arch,
+            get_uid,
+            is_rclone_running,
+            stop_rclone_processes,
+            tiny_prompt_text,
+            stop_pid,
+            update_toolbar_shortcut,
+            show_toolbar,
+            update_system_rclone,
+            test_proxy_connection,
+            is_flathub,
+            open_full_window,
+            open_window,
+            open_small_window,
+            lock_windows,
+            unlock_windows
+        ])
+        .setup(|app| {
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                app.deep_link().register_all()?;
+            }
+
+            if let Err(err) = ensure_toolbar_window(&app.handle()) {
+                log::warn!("failed to prepare toolbar window: {}", err);
+            }
+            if let Err(err) = set_toolbar_shortcut(&app.handle(), Some(DEFAULT_TOOLBAR_SHORTCUT)) {
+                log::error!("failed to update default toolbar shortcut: {}", err);
+            }
+
+            Ok(())
+        })
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
 
     #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-
-    // prevents only app close
-    // app.run(|app_handle, e| {
-    // 	if let tauri::RunEvent::ExitRequested { api, .. } = &e {
-    // 		// Keep the event loop running even if all windows are closed
-    // 		// This allow us to catch system tray events when there is no window
-    // 		api.prevent_exit();
-    // 	  }
-    // });
-
-    // also prevents window close
-    // RS: https://github.com/tauri-apps/tauri/issues/5500#issuecomment-1300258861
-    // JS: https://github.com/tauri-apps/tauri/blob/4cbdf0fb1c0de5004eab51c36d5843a9816f18af/examples/api/src/App.svelte#L26
-    // app.run(|app, event| match event {
-    //     tauri::RunEvent::WindowEvent {
-    //         label,
-    //         event: win_event,
-    //         ..
-    //     } => match win_event {
-    //         tauri::WindowEvent::CloseRequested { api, .. } => {
-    //             let win = app.get_webview_window(label.as_str()).unwrap();
-    //             win.hide().unwrap();
-    //             api.prevent_close();
-    //         }
-    //         _ => {}
-    //     },
-    //     _ => {}
-    // })
     app.run(|_app, _event| {})
 }

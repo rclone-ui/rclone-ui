@@ -1,39 +1,25 @@
 import { Chip, Textarea, Tooltip } from '@heroui/react'
 import { LockKeyholeIcon, LockOpenIcon } from 'lucide-react'
-import { startTransition, useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useState } from 'react'
 import { replaceSmartQuotes } from '../../lib/format'
 
 export default function OptionsSection({
     optionsJson,
     setOptionsJson,
     globalOptions,
-    getAvailableOptions,
+    availableOptions,
     isLocked,
     setIsLocked,
 }: {
     optionsJson: string
     setOptionsJson: (value: string) => void
-    globalOptions: any[]
-    getAvailableOptions: () => Promise<any>
+    globalOptions: Record<string, unknown>
+    availableOptions: any[]
     isLocked?: boolean
     setIsLocked?: (value: boolean) => void
 }) {
-    const [availableOptions, setAvailableOptions] = useState<any[]>([])
-
     const [options, setOptions] = useState<any>({})
     const [isJsonValid, setIsJsonValid] = useState(true)
-
-    useEffect(() => {
-        getAvailableOptions()
-            .then((flags) => {
-                return flags
-            })
-            .then((flags) => {
-                startTransition(() => {
-                    setAvailableOptions(flags)
-                })
-            })
-    }, [getAvailableOptions])
 
     useEffect(() => {
         startTransition(() => {
@@ -47,16 +33,19 @@ export default function OptionsSection({
         })
     }, [optionsJson])
 
-    function isOptionAdded(option: string) {
-        return options[option] !== undefined
-    }
+    const isOptionAdded = useCallback(
+        (option: string) => {
+            return options[option] !== undefined
+        },
+        [options]
+    )
 
     return (
-        <div className="flex flex-row gap-2 h-[400px]">
+        <div className="flex flex-row gap-2 h-[350px]">
             <Textarea
                 classNames={{
                     'base': 'w-1/2',
-                    inputWrapper: '!h-full !ring-0 !outline-none',
+                    inputWrapper: '!h-full !ring-0 !outline-offset-0 !outline-0',
                 }}
                 label="Custom Options"
                 description="Tap an option to add it. Scroll to see more. Hover to see details."
@@ -68,16 +57,96 @@ export default function OptionsSection({
                     setOptionsJson(cleanedJson)
                 }}
                 onKeyDown={(e) => {
-                    //if it's tab key, add 2 spaces at the current text cursor position
                     if (e.key === 'Tab') {
                         e.preventDefault()
                         const text = e.currentTarget.value
                         const cursorPosition = e.currentTarget.selectionStart
+
+                        const lineStart = text.lastIndexOf('\n', cursorPosition - 1) + 1
+                        const lineEnd = text.indexOf('\n', cursorPosition)
+                        const actualLineEnd = lineEnd === -1 ? text.length : lineEnd
+                        const lineText = text.slice(lineStart, actualLineEnd)
+                        const relCursor = cursorPosition - lineStart
+
+                        const quoteIndices: number[] = []
+                        for (let i = 0; i < lineText.length; i++) {
+                            if (lineText[i] === '"' && (i === 0 || lineText[i - 1] !== '\\')) {
+                                quoteIndices.push(i)
+                            }
+                        }
+
+                        if (quoteIndices.length >= 3) {
+                            const startKey = quoteIndices[0]
+                            const endKey = quoteIndices[1]
+                            const startValue = quoteIndices[2]
+
+                            if (relCursor > startKey && relCursor <= endKey) {
+                                const newCursorPosition = lineStart + startValue + 1
+                                e.currentTarget.selectionStart = newCursorPosition
+                                e.currentTarget.selectionEnd = newCursorPosition
+                                return
+                            }
+                        }
+
                         const newText =
                             text.slice(0, cursorPosition) + '  ' + text.slice(cursorPosition)
+                        // add 2 spaces
+                        const newCursorPosition = cursorPosition + 2
+                        setOptionsJson(newText)
                         e.currentTarget.value = newText
-                        e.currentTarget.selectionStart = cursorPosition + 2
-                        e.currentTarget.selectionEnd = cursorPosition + 2
+                        e.currentTarget.selectionStart = newCursorPosition
+                        e.currentTarget.selectionEnd = newCursorPosition
+                    }
+                    if (e.key === '"') {
+                        const text = e.currentTarget.value
+                        const cursorPosition = e.currentTarget.selectionStart
+                        // Check if there's already a closing quote immediately after cursor
+                        const nextChar = text[cursorPosition]
+                        if (nextChar !== '"') {
+                            e.preventDefault()
+                            const newText =
+                                text.slice(0, cursorPosition) + '""' + text.slice(cursorPosition)
+                            setOptionsJson(newText)
+                            e.currentTarget.value = newText
+                            // Position cursor between the quotes
+                            e.currentTarget.selectionStart = cursorPosition + 1
+                            e.currentTarget.selectionEnd = cursorPosition + 1
+                        }
+                    }
+                    if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const text = e.currentTarget.value
+                        const cursorPosition = e.currentTarget.selectionStart
+                        const textBeforeCursor = text.slice(0, cursorPosition)
+                        const textAfterCursor = text.slice(cursorPosition)
+
+                        const trimmedBefore = textBeforeCursor.trimEnd()
+                        const lastChar = trimmedBefore[trimmedBefore.length - 1]
+
+                        // Don't add comma if we're after an opening brace/bracket or existing comma
+                        const needsComma = lastChar && !['{', '[', ','].includes(lastChar)
+
+                        let newText = textBeforeCursor
+                        let moveCursor = 4
+
+                        if (needsComma) {
+                            newText += ','
+                            moveCursor += 1
+                        }
+
+                        newText += '\n  "": ""'
+
+                        if (textAfterCursor.startsWith('}')) {
+                            newText += '\n'
+                        }
+
+                        newText += textAfterCursor
+                        const newCursorPosition = cursorPosition + moveCursor
+
+                        setOptionsJson(newText)
+                        e.currentTarget.value = newText
+                        e.currentTarget.selectionStart = newCursorPosition
+                        e.currentTarget.selectionEnd = newCursorPosition
                     }
                 }}
                 autoCapitalize="off"
@@ -87,10 +156,10 @@ export default function OptionsSection({
                 isInvalid={!isJsonValid}
                 errorMessage={isJsonValid ? '' : 'Invalid JSON'}
                 disableAutosize={true}
-                rows={14}
+                rows={12}
                 size="lg"
                 onClear={() => {
-                    setOptionsJson('{}')
+                    setOptionsJson(JSON.stringify({}, null, 2))
                 }}
                 endContent={
                     setIsLocked && (
@@ -118,7 +187,7 @@ export default function OptionsSection({
 
             <div className="flex flex-row flex-wrap items-start content-start justify-start w-1/2 overflow-y-auto gap-x-2.5 gap-y-3 rounded-medium">
                 {availableOptions.map((option) => {
-                    const alreadyAdded = isOptionAdded(option.FieldName)
+                    const alreadyAdded = isOptionAdded(option.Name)
 
                     return (
                         <Tooltip
@@ -130,11 +199,7 @@ export default function OptionsSection({
                                         {option.Name}
                                     </p>
                                     <p>
-                                        {
-                                            availableOptions.find(
-                                                (o) => o.FieldName === option.FieldName
-                                            )?.Help
-                                        }
+                                        {availableOptions.find((o) => o.Name === option.Name)?.Help}
                                     </p>
                                 </div>
                             }
@@ -152,7 +217,7 @@ export default function OptionsSection({
                                             const newOptions = {
                                                 ...options,
                                             }
-                                            newOptions[option.FieldName] = undefined
+                                            newOptions[option.Name] = undefined
                                             setOptionsJson(JSON.stringify(newOptions, null, 2))
 
                                             return
@@ -169,17 +234,16 @@ export default function OptionsSection({
                                             defaultGlobalValue !== null &&
                                             defaultGlobalValue !== undefined
                                         ) {
-                                            value = defaultGlobalValue
+                                            value = defaultGlobalValue as typeof value
                                         } else {
                                             value = availableOptions.find(
-                                                (o) => o.FieldName === option.FieldName
+                                                (o) => o.Name === option.Name
                                             )?.DefaultStr
                                         }
 
                                         const valueType =
-                                            availableOptions.find(
-                                                (o) => o.FieldName === option.FieldName
-                                            )?.Type || 'string'
+                                            availableOptions.find((o) => o.Name === option.Name)
+                                                ?.Type || 'string'
 
                                         if (valueType === 'bool') {
                                             value = Boolean(value || false)
@@ -192,7 +256,7 @@ export default function OptionsSection({
 
                                         const newOptions = {
                                             ...options,
-                                            [option.FieldName]: value,
+                                            [option.Name]: value,
                                         }
 
                                         setOptionsJson(JSON.stringify(newOptions, null, 2))

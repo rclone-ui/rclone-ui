@@ -2,7 +2,7 @@ import { Button, Input, Select, SelectItem } from '@heroui/react'
 import cronstrue from 'cronstrue'
 import { ClockIcon, XIcon } from 'lucide-react'
 import type React from 'react'
-import { useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 
 interface CronEditorProps {
     expression: string | null
@@ -21,29 +21,35 @@ const DEFAULT_OPTIONS = ['*', '*/5', '*/10', '*/15', '*/30']
 export default function CronEditor({ expression, onChange }: CronEditorProps) {
     const [cronExpression, setCronExpression] = useState(expression)
 
-    const [minute, hour, dayOfMonth, month, dayOfWeek] = (cronExpression || '* * * * *').split(' ')
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = useMemo(
+        () => (cronExpression || '* * * * *').split(' '),
+        [cronExpression]
+    )
 
-    const readableDescription = (() => {
+    const readableDescription = useMemo(() => {
         if (!cronExpression) return 'This task is not scheduled'
         let description: string
         try {
             description = cronstrue.toString(cronExpression)
             description +=
-                '. Jobs trigger when the UI is running, if the active config is the same.'
+                '. Tasks are triggered when the UI is running, if the active config is the same.'
         } catch {
             description = 'Invalid cron expression'
         }
         return description
-    })()
+    }, [cronExpression])
 
-    function handleFieldChange(field: string, value: string) {
-        const parts = (cronExpression || '* * * * *').split(' ')
-        const index = ['minute', 'hour', 'dayOfMonth', 'month', 'dayOfWeek'].indexOf(field)
-        if (index !== -1) {
-            parts[index] = value
-            setCronExpression(parts.join(' '))
-        }
-    }
+    const handleFieldChange = useCallback(
+        (field: string, value: string) => {
+            const parts = (cronExpression || '* * * * *').split(' ')
+            const index = ['minute', 'hour', 'dayOfMonth', 'month', 'dayOfWeek'].indexOf(field)
+            if (index !== -1) {
+                parts[index] = value
+                setCronExpression(parts.join(' '))
+            }
+        },
+        [cronExpression]
+    )
 
     useEffect(() => {
         onChange(cronExpression)
@@ -67,6 +73,10 @@ export default function CronEditor({ expression, onChange }: CronEditorProps) {
                 startContent={<ClockIcon className="text-default-400" />}
                 isClearable={true}
                 onClear={() => setCronExpression(null)}
+                autoCapitalize="off"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck="false"
             />
 
             <div className="grid grid-cols-5 gap-2">
@@ -116,7 +126,10 @@ function CronField({ label, value, onChange, options }: CronFieldProps) {
             !options.includes(value) &&
             value !== '*' &&
             value !== 'custom'
-        setIsCustom(isCustom)
+
+        startTransition(() => {
+            setIsCustom(isCustom)
+        })
     }, [value, options])
 
     const handleCustomChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,6 +154,10 @@ function CronField({ label, value, onChange, options }: CronFieldProps) {
                             <XIcon className="w-4 h-4 text-default-400" />
                         </Button>
                     }
+                    autoCapitalize="off"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck="false"
                 />
             ) : (
                 <Select

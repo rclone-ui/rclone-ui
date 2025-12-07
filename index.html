@@ -1,10 +1,26 @@
 <!doctype html>
-<html lang="en" class="bg-neutral-900 dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rclone UI</title>
+	<script>
+		document.documentElement.classList.toggle(
+			"dark",
+			localStorage.theme === "dark" ||
+				(!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches),
+		);
+	</script>	
+	<script>
+		if (
+			window.location.pathname.startsWith('/toolbar') || 
+			window.location.pathname.startsWith('/startup') || 
+			window.location.pathname.startsWith('/onboarding')
+		) {
+			document.documentElement.classList.add('!bg-transparent')
+		}
+	</script>
   </head>
 
   <body class="select-none">

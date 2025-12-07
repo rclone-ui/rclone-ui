@@ -43,5 +43,6 @@ export default {
             },
         },
     },
+    darkMode: 'class',
     plugins: [heroui()],
 }

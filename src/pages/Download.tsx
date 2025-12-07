@@ -1,11 +1,19 @@
-import { Button, Image, Input, Spinner } from '@heroui/react'
+import { Button, ButtonGroup, Image, Input, Spinner, Tooltip } from '@heroui/react'
 import MuxPlayer from '@mux/mux-player-react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
-import { DownloadIcon, FoldersIcon, XIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { startDownload } from '../../lib/rclone/api'
-import CommandInfo from '../components/CommandInfo'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { AnimatePresence, motion } from 'framer-motion'
+import { AlertOctagonIcon, ClockIcon, DownloadIcon, FoldersIcon } from 'lucide-react'
+import pRetry from 'p-retry'
+import { startTransition, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import notify from '../../lib/notify'
+import rclone from '../../lib/rclone/client'
+import CommandInfoButton from '../components/CommandInfoButton'
+import CommandsDropdown from '../components/CommandsDropdown'
+import OperationWindowContent from '../components/OperationWindowContent'
+import OperationWindowFooter from '../components/OperationWindowFooter'
 import { PathField } from '../components/PathFinder'
 
 function isValidUrl(url: string) {
@@ -38,12 +46,17 @@ function getUrlDomain(url: string) {
 }
 
 export default function Download() {
-    const [url, setUrl] = useState<string | undefined>()
-    const [destination, setDestination] = useState<string | undefined>()
-    const [filename, setFilename] = useState<string | undefined>()
+    const [searchParams] = useSearchParams()
 
-    const [isStarted, setIsStarted] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
+    const [url, setUrl] = useState<string | undefined>(
+        () => searchParams.get('initialUrl') || undefined
+    )
+    const [destination, setDestination] = useState<string | undefined>(
+        () => searchParams.get('initialDestination') || undefined
+    )
+    const [filename, setFilename] = useState<string | undefined>(
+        () => searchParams.get('initialFilename') || undefined
+    )
 
     const [downloadData, setDownloadData] = useState<
         | {
@@ -56,92 +69,86 @@ export default function Download() {
     >()
     const [isFetchingDownloadData, setIsFetchingDownloadData] = useState(false)
 
-    async function handleStartDownload() {
-        setIsLoading(true)
+    const startDownloadMutation = useMutation({
+        mutationFn: async () => {
+            if (!url) {
+                throw new Error('Please enter a URL')
+            }
 
-        if (!url) {
-            await message('Please enter a URL', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
+            if (!destination) {
+                throw new Error('Please select a destination path')
+            }
 
-        if (!destination) {
-            await message('Please select a destination path', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
+            if (!filename) {
+                throw new Error('Please enter a filename')
+            }
 
-        if (!filename) {
-            await message('Please enter a filename', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
+            const downloadUrl = downloadData?.url || url
 
-        const downloadUrl = downloadData?.url || url
-
-        try {
-            await startDownload({
-                fs: destination,
-                remote: filename,
-                url: downloadUrl,
-            })
-
-            // await _startDownload()
-
-            setIsStarted(true)
-
-            await message('Download job started', {
+            await pRetry(
+                async () =>
+                    rclone('/operations/copyurl', {
+                        params: {
+                            query: {
+                                fs: destination,
+                                remote: filename,
+                                url: downloadUrl,
+                                autoFilename: false,
+                                _async: true,
+                            },
+                        },
+                    }),
+                { retries: 3 }
+            )
+        },
+        onSuccess: async () => {
+            await notify({
                 title: 'Success',
-                okLabel: 'OK',
+                body: 'Download task started',
             })
-            setIsLoading(false)
-        } catch (error) {
-            await message(`Failed to start download job, ${error}`, {
-                title: 'Error',
+        },
+        onError: async (error) => {
+            console.error('[Download] Failed to start download', error)
+            await message(error instanceof Error ? error.message : 'Failed to start download', {
+                title: 'Download Error',
                 kind: 'error',
                 okLabel: 'OK',
             })
-            setIsLoading(false)
-        }
-    }
+        },
+    })
 
-    const buttonText = (() => {
-        if (isLoading) return 'STARTING...'
+    const buttonText = useMemo(() => {
+        if (startDownloadMutation.isPending) return 'STARTING...'
         if (!url) return 'Please enter a URL'
         if (!isValidUrl(url)) return 'Invalid URL'
         if (!destination) return 'Please select a destination path'
         return 'DOWNLOAD'
-    })()
+    }, [startDownloadMutation.isPending, url, destination])
 
-    const buttonIcon = (() => {
-        if (isLoading) return
-        if (!url) return <XIcon className="w-5 h-5" />
-        if (!isValidUrl(url)) return <XIcon className="w-5 h-5" />
+    const buttonIcon = useMemo(() => {
+        if (startDownloadMutation.isPending) return <Spinner size="lg" />
+        if (!url) return <AlertOctagonIcon className="w-5 h-5" />
+        if (!isValidUrl(url)) return <AlertOctagonIcon className="w-5 h-5" />
         if (!destination) return <FoldersIcon className="w-5 h-5" />
         return <DownloadIcon className="w-5 h-5 fill-current" />
-    })()
+    }, [startDownloadMutation.isPending, url, destination])
 
     useEffect(() => {
         if (!url || !isValidUrl(url)) {
-            setFilename(undefined)
-            setDownloadData(undefined)
-            setIsFetchingDownloadData(false)
+            startTransition(() => {
+                setFilename(undefined)
+                setDownloadData(undefined)
+                setIsFetchingDownloadData(false)
+            })
             return
         }
 
         console.log('[Download] Fetching download data for URL:', url)
 
         const abortController = new AbortController()
-        setIsFetchingDownloadData(true)
+        startTransition(() => {
+            setIsFetchingDownloadData(true)
+        })
 
         let parsedFilename: typeof filename
         let parsedDownloadData: typeof downloadData
@@ -151,7 +158,14 @@ export default function Download() {
         })
             .then(async (response) => {
                 if (response.ok) {
-                    const result = await response.json()
+                    const result = (await response.json()) as {
+                        data?: {
+                            url: string
+                            title: string
+                            extension: string
+                            type: 'video' | 'audio' | 'file' | 'image'
+                        }[]
+                    }
 
                     if (result.data && Array.isArray(result.data) && result.data.length > 0) {
                         console.log('[Download] Successfully fetched download data')
@@ -170,8 +184,10 @@ export default function Download() {
 
                 if (parsedFilename && parsedDownloadData) {
                     console.log('[Download] Setting filename and download data')
-                    setFilename(parsedFilename)
-                    setDownloadData(parsedDownloadData)
+                    startTransition(() => {
+                        setFilename(parsedFilename)
+                        setDownloadData(parsedDownloadData)
+                    })
                 } else {
                     const extractedExtension = url.split('.').pop()?.split('?')[0]?.toLowerCase()
 
@@ -181,11 +197,15 @@ export default function Download() {
                         parsedFilename = `${getUrlDomain(url)} ${getDateFilename()}.txt`
                     }
 
-                    setFilename(parsedFilename)
-                    setDownloadData(undefined)
+                    startTransition(() => {
+                        setFilename(parsedFilename)
+                        setDownloadData(undefined)
+                    })
                 }
 
-                setIsFetchingDownloadData(false)
+                startTransition(() => {
+                    setIsFetchingDownloadData(false)
+                })
             })
             .catch()
 
@@ -196,18 +216,8 @@ export default function Download() {
 
     return (
         <div className="flex flex-col h-screen gap-2">
-            <CommandInfo
-                content={`Download a URL's content and copy it to the destination without saving it in temporary storage, using the copyurl command.
-					
-Supports Youtube, TikTok, SoundCloud, Google Drive, etc. as well as regular URLs.
-
-If you can't get Download to work then make sure the site works with curl directly.`}
-            />
-
-            <div className="w-full h-5" />
-
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-3xl gap-4 mx-auto">
+            <OperationWindowContent className="gap-4">
                 <Input
                     label="URL"
                     placeholder="Enter a URL"
@@ -264,7 +274,7 @@ If you can't get Download to work then make sure the site works with curl direct
                     autoCapitalize="off"
                     spellCheck="false"
                 />
-            </div>
+            </OperationWindowContent>
 
             <div className="flex items-center justify-center flex-1 overflow-hidden">
                 {isFetchingDownloadData && <Spinner size="lg" />}
@@ -293,51 +303,142 @@ If you can't get Download to work then make sure the site works with curl direct
                 )}
             </div>
 
-            <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
-                {isStarted ? (
-                    <>
-                        <Button
-                            fullWidth={true}
-                            color="primary"
-                            size="lg"
-                            onPress={() => {
-                                setDestination(undefined)
-                                setIsStarted(false)
-                            }}
-                            data-focus-visible="false"
+            <OperationWindowFooter>
+                <AnimatePresence mode="wait" initial={false}>
+                    {startDownloadMutation.isSuccess ? (
+                        <motion.div
+                            key="started-buttons"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1 gap-2"
                         >
-                            RESET
-                        </Button>
-
+                            <Button
+                                fullWidth={true}
+                                color="primary"
+                                size="lg"
+                                onPress={() => {
+                                    startTransition(() => {
+                                        setUrl(undefined)
+                                        setDestination(undefined)
+                                        setFilename(undefined)
+                                        setDownloadData(undefined)
+                                        setIsFetchingDownloadData(false)
+                                        startDownloadMutation.reset()
+                                    })
+                                }}
+                                data-focus-visible="false"
+                            >
+                                NEW DOWNLOAD
+                            </Button>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="start-button"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1"
+                        >
+                            <Button
+                                onPress={() => startDownloadMutation.mutate()}
+                                size="lg"
+                                fullWidth={true}
+                                type="button"
+                                color="primary"
+                                isDisabled={
+                                    startDownloadMutation.isPending ||
+                                    !destination ||
+                                    isFetchingDownloadData
+                                }
+                                isLoading={startDownloadMutation.isPending}
+                                endContent={buttonIcon}
+                                className="max-w-2xl gap-2"
+                                data-focus-visible="false"
+                            >
+                                {buttonText}
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <ButtonGroup variant="flat">
+                    <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
                         <Button
                             size="lg"
+                            type="button"
+                            color="primary"
                             isIconOnly={true}
                             onPress={async () => {
-                                await getCurrentWindow().hide()
-                                await getCurrentWindow().destroy()
+                                const res = await message(
+                                    'Not yet implemented, you can request this feature on GitHub.',
+                                    {
+                                        title: 'Schedule Downloads',
+                                        kind: 'info',
+                                        buttons: {
+                                            ok: 'Request Feature',
+                                        },
+                                    }
+                                )
+
+                                if (res === 'Ok') {
+                                    await openUrl(
+                                        'https://github.com/rclone-ui/rclone-ui/issues/18'
+                                    )
+                                }
                             }}
-                            data-focus-visible="false"
                         >
-                            <XIcon />
+                            <ClockIcon className="size-6" />
                         </Button>
-                    </>
-                ) : (
-                    <Button
-                        onPress={handleStartDownload}
-                        size="lg"
-                        fullWidth={true}
-                        type="button"
-                        color="primary"
-                        isDisabled={isLoading || !destination || isFetchingDownloadData}
-                        isLoading={isLoading}
-                        endContent={buttonIcon}
-                        className="max-w-2xl gap-2"
-                        data-focus-visible="false"
-                    >
-                        {buttonText}
-                    </Button>
-                )}
-            </div>
+                    </Tooltip>
+                    <CommandInfoButton
+                        content={`Download a URL's content and copy it to the destination without saving it in temporary storage.
+
+This uses rclone's copyurl command to stream content directly to your destination.
+
+For supported platforms, the app will automatically extract the direct download URL and suggest a filename.
+
+Supported platforms include:
+• YouTube
+• TikTok
+• Instagram
+• Threads
+• Twitter / X
+• Facebook
+• Pinterest
+• Spotify
+• SoundCloud
+• Capcut
+• Douyin
+• Xiaohongshu
+• SnackVideo
+• Cocofun
+• Google Drive
+• MediaFire
+• Direct file URLs (any URL)
+
+If a platform isn't listed, it may still work — try pasting the URL and see if a preview appears.
+
+Here's a quick guide to using Download:
+
+1. ENTER URL
+Paste or type the URL you want to download. You can use the "Paste" button to quickly paste from your clipboard. If the URL is from a supported platform, the app will automatically fetch metadata and show a preview.
+
+2. SELECT DESTINATION
+Choose where to save the downloaded file. Tap the folder icon to browse your remotes and local filesystem, or type a path directly.
+
+3. SET FILENAME
+The filename is auto-populated based on the URL or video title. You can edit it if needed. Make sure to include the correct file extension (e.g., .mp4, .mp3, .jpg).
+
+4. DOWNLOAD
+Tap "DOWNLOAD" to start. The file will be streamed directly to your destination without using local temporary storage.
+
+Note: If a download doesn't work, the site may have restrictions. Try the URL with curl directly to verify it's accessible.`}
+                    />
+                    <CommandsDropdown currentCommand="download" />
+                </ButtonGroup>
+            </OperationWindowFooter>
         </div>
     )
 }

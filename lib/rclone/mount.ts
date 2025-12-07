@@ -4,7 +4,6 @@ import { exists, writeFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
-import { Command } from '@tauri-apps/plugin-shell'
 
 export async function needsMountPlugin() {
     console.log('[needsMountPlugin]')
@@ -73,37 +72,4 @@ export async function dialogGetMountPlugin() {
             await revealItemInDir(localPath)
         }
     }
-}
-
-export async function unmount(mountPoint: string, force = false) {
-    console.log('[unmount]', mountPoint, force)
-
-    const command = Command.create('umount', [force ? '-f' : '', mountPoint])
-
-    const output = await command.execute()
-
-    if (output.code !== 0) {
-        if (output.stderr.toLowerCase().includes('busy')) {
-            const answer = await ask('This resource is busy, do you wish to force unmount?', {
-                title: 'Could not unmount',
-                kind: 'warning',
-                okLabel: 'Force Unmount',
-                cancelLabel: 'Cancel',
-            })
-            if (answer) {
-                return await unmount(mountPoint, true)
-            }
-            throw new Error(output.stderr)
-        }
-
-        if (output.stderr.toLowerCase().includes('not currently mounted')) {
-            console.error('[unmount] not currently mounted')
-            return
-        }
-
-        console.error('[unmount] failed to unmount', output.stderr)
-        throw new Error(output.stderr)
-    }
-
-    return
 }

@@ -1,458 +1,245 @@
-import { Accordion, AccordionItem, Avatar, Button, Switch } from '@heroui/react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import {
+    Accordion,
+    AccordionItem,
+    Avatar,
+    Button,
+    ButtonGroup,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownTrigger,
+    Switch,
+    Tooltip,
+} from '@heroui/react'
+import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
-import { exists } from '@tauri-apps/plugin-fs'
-import { fetch } from '@tauri-apps/plugin-http'
+import { platform } from '@tauri-apps/plugin-os'
+import cronstrue from 'cronstrue'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
     AlertOctagonIcon,
+    ClockIcon,
     DiamondPercentIcon,
     FilterIcon,
     FoldersIcon,
     PlayIcon,
     ServerIcon,
     WrenchIcon,
-    XIcon,
 } from 'lucide-react'
-import { startTransition, useEffect, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getRemoteName } from '../../lib/format'
-import { isRemotePath } from '../../lib/fs'
-import {
-    getConfigFlags,
-    getCopyFlags,
-    getCurrentGlobalFlags,
-    getFilterFlags,
-    startBisync,
-} from '../../lib/rclone/api'
+import { getOptionsSubtitle } from '../../lib/flags'
+import { useFlags } from '../../lib/hooks'
+import notify from '../../lib/notify'
+import { startBisync } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
-import { usePersistedStore } from '../../lib/store'
 import { openWindow } from '../../lib/window'
+import { useHostStore } from '../../store/host'
 import type { FlagValue } from '../../types/rclone'
-import CommandInfo from '../components/CommandInfo'
+import CommandInfoButton from '../components/CommandInfoButton'
+import CommandsDropdown from '../components/CommandsDropdown'
+import CronEditor from '../components/CronEditor'
+import OperationWindowContent from '../components/OperationWindowContent'
+import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
-import { MultiPathFinder } from '../components/PathFinder'
+import { PathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import TemplatesDropdown from '../components/TemplatesDropdown'
 
 export default function Bisync() {
     const [searchParams] = useSearchParams()
+    const { globalFlags, filterFlags, configFlags, copyFlags } = useFlags()
 
-    const [sources, setSources] = useState<string[] | undefined>(
-        searchParams.get('initialSource') ? [searchParams.get('initialSource')!] : undefined
+    const [source, setSource] = useState<string | undefined>(
+        searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
     )
-    const [dest, setDest] = useState<string | undefined>(undefined)
+    const [dest, setDest] = useState<string | undefined>(
+        searchParams.get('initialDestination') ? searchParams.get('initialDestination')! : undefined
+    )
 
-    const [isStarted, setIsStarted] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
     const [jsonError, setJsonError] = useState<'bisync' | 'filter' | 'config' | 'remote' | null>(
         null
     )
 
     const [bisyncOptionsLocked, setBisyncOptionsLocked] = useState(false)
     const [bisyncOptions, setBisyncOptions] = useState<Record<string, FlagValue>>({})
-    const [bisyncOptionsJson, setBisyncOptionsJson] = useState<string>('{}')
+    const [bisyncOptionsJsonString, setBisyncOptionsJsonString] = useState<string>('{}')
     const [outerBisyncOptions, setOuterBisyncOptions] = useState<Record<string, boolean>>({})
 
     const [filterOptionsLocked, setFilterOptionsLocked] = useState(false)
     const [filterOptions, setFilterOptions] = useState<Record<string, FlagValue>>({})
-    const [filterOptionsJson, setFilterOptionsJson] = useState<string>('{}')
+    const [filterOptionsJsonString, setFilterOptionsJsonString] = useState<string>('{}')
 
     const [configOptionsLocked, setConfigOptionsLocked] = useState(false)
     const [configOptions, setConfigOptions] = useState<Record<string, FlagValue>>({})
-    const [configOptionsJson, setConfigOptionsJson] = useState<string>('{}')
+    const [configOptionsJsonString, setConfigOptionsJsonString] = useState<string>('{}')
 
     const [remoteOptionsLocked, setRemoteOptionsLocked] = useState(false)
-    const [remoteOptions, setRemoteOptions] = useState<Record<string, FlagValue>>({})
-    const [remoteOptionsJson, setRemoteOptionsJson] = useState<string>('{}')
+    const [remoteOptions, setRemoteOptions] = useState<Record<string, Record<string, FlagValue>>>(
+        {}
+    )
+    const [remoteOptionsJsonString, setRemoteOptionsJsonString] = useState<string>('{}')
 
-    const [currentGlobalOptions, setCurrentGlobalOptions] = useState<any[]>([])
+    const [cronExpression, setCronExpression] = useState<string | null>(null)
 
-    const selectedRemotes = (() => {
-        return [...(sources || []), dest].filter(Boolean) as string[]
-    })()
+    const selectedRemotes = useMemo(() => [source, dest].filter(Boolean), [source, dest])
+
+    const startBisyncMutation = useMutation({
+        mutationFn: async () => {
+            if (!source || !dest) {
+                throw new Error('Please select both a source and destination path')
+            }
+
+            return startBisync({
+                source: source,
+                destination: dest,
+                options: {
+                    config: configOptions,
+                    bisync: bisyncOptions,
+                    filter: filterOptions,
+                    remotes: remoteOptions,
+                    outer: outerBisyncOptions,
+                },
+            })
+        },
+        onSuccess: () => {
+            if (cronExpression) {
+                scheduleTaskMutation.mutate()
+            }
+        },
+        onError: async (error) => {
+            console.error('Error starting bisync:', error)
+            const errorMessage =
+                error instanceof Error ? error.message : 'Failed to start bisync operation'
+            await message(errorMessage, {
+                title: 'Bisync',
+                kind: 'error',
+            })
+        },
+    })
+
+    const scheduleTaskMutation = useMutation({
+        mutationFn: async () => {
+            if (!source || !dest) {
+                throw new Error('Please select both a source and destination path')
+            }
+
+            if (!cronExpression) {
+                throw new Error('Please enter a cron expression')
+            }
+
+            try {
+                cronstrue.toString(cronExpression)
+            } catch {
+                throw new Error('Invalid cron expression')
+            }
+
+            useHostStore.getState().addScheduledTask({
+                operation: 'bisync',
+                cron: cronExpression,
+                args: {
+                    source,
+                    destination: dest,
+                    options: {
+                        config: configOptions,
+                        bisync: bisyncOptions,
+                        filter: filterOptions,
+                        remotes: remoteOptions,
+                    },
+                },
+            })
+        },
+        onSuccess: async () => {
+            await notify({
+                title: 'Success',
+                body: 'New schedule has been created',
+            })
+        },
+        onError: async (error) => {
+            console.error('Error scheduling task:', error)
+            await message(error instanceof Error ? error.message : 'Failed to schedule task', {
+                title: 'Schedule',
+                kind: 'error',
+            })
+        },
+    })
 
     useEffect(() => {
-        getCurrentGlobalFlags().then((flags) => {
-            startTransition(() => {
-                setCurrentGlobalOptions(flags)
-            })
+        startTransition(() => {
+            setConfigOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.config, null, 2))
+            setBisyncOptionsJsonString(JSON.stringify(RCLONE_CONFIG_DEFAULTS.copy, null, 2))
         })
     }, [])
 
     useEffect(() => {
-        getCurrentGlobalFlags().then((flags) =>
-            startTransition(() => setCurrentGlobalOptions(flags))
-        )
-    }, [])
-
-    // biome-ignore lint/correctness/useExhaustiveDependencies: when unlocking, we don't want to re-run the effect
-    useEffect(() => {
-        const storeData = usePersistedStore.getState()
-
-        const sourceRemote = getRemoteName(sources?.[0])
-        const destRemote = getRemoteName(dest)
-
-        let mergedBisyncDefaults = {}
-        let mergedFilterDefaults = {}
-        let mergedConfigDefaults = {}
-
-        // Helper function to merge defaults from a remote
-        const mergeRemoteDefaults = (remote: string | null) => {
-            if (!remote) return
-
-            const remoteConfig = storeData.remoteConfigList?.[remote] || {}
-
-            if (remoteConfig.bisyncDefaults) {
-                mergedBisyncDefaults = {
-                    ...mergedBisyncDefaults,
-                    ...remoteConfig.bisyncDefaults,
-                }
-            }
-
-            if (remoteConfig.filterDefaults) {
-                mergedFilterDefaults = {
-                    ...mergedFilterDefaults,
-                    ...remoteConfig.filterDefaults,
-                }
-            }
-
-            if (remoteConfig.configDefaults) {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...remoteConfig.configDefaults,
-                }
-            } else {
-                mergedConfigDefaults = {
-                    ...mergedConfigDefaults,
-                    ...RCLONE_CONFIG_DEFAULTS,
-                }
-            }
-        }
-
-        // Only merge defaults for remote paths
-        if (sourceRemote) mergeRemoteDefaults(sourceRemote)
-        if (destRemote) mergeRemoteDefaults(destRemote)
-
-        if (Object.keys(mergedBisyncDefaults).length > 0 && !bisyncOptionsLocked) {
-            setBisyncOptionsJson(JSON.stringify(mergedBisyncDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedFilterDefaults).length > 0 && !filterOptionsLocked) {
-            setFilterOptionsJson(JSON.stringify(mergedFilterDefaults, null, 2))
-        }
-
-        if (Object.keys(mergedConfigDefaults).length > 0 && !configOptionsLocked) {
-            setConfigOptionsJson(JSON.stringify(mergedConfigDefaults, null, 2))
-        }
-    }, [sources, dest])
-
-    useEffect(() => {
         let step: 'bisync' | 'filter' | 'config' | 'remote' = 'bisync'
         try {
-            setBisyncOptions(JSON.parse(bisyncOptionsJson))
+            const parsedBisync = JSON.parse(bisyncOptionsJsonString) as Record<string, FlagValue>
 
             step = 'filter'
-            setFilterOptions(JSON.parse(filterOptionsJson))
+            const parsedFilter = JSON.parse(filterOptionsJsonString) as Record<string, FlagValue>
 
             step = 'config'
-            setConfigOptions(JSON.parse(configOptionsJson))
+            const parsedConfig = JSON.parse(configOptionsJsonString) as Record<string, FlagValue>
 
             step = 'remote'
-            setRemoteOptions(JSON.parse(remoteOptionsJson))
+            const parsedRemote = JSON.parse(remoteOptionsJsonString) as Record<
+                string,
+                Record<string, FlagValue>
+            >
 
-            setJsonError(null)
+            startTransition(() => {
+                setBisyncOptions(parsedBisync)
+                setFilterOptions(parsedFilter)
+                setConfigOptions(parsedConfig)
+                setRemoteOptions(parsedRemote)
+                setJsonError(null)
+            })
         } catch (error) {
             setJsonError(step)
             console.error(`Error parsing ${step} options:`, error)
         }
-    }, [bisyncOptionsJson, filterOptionsJson, configOptionsJson, remoteOptionsJson])
+    }, [
+        bisyncOptionsJsonString,
+        filterOptionsJsonString,
+        configOptionsJsonString,
+        remoteOptionsJsonString,
+    ])
 
-    async function handleStartBisync() {
-        setIsLoading(true)
-
-        if (!sources || sources.length === 0 || !dest) {
-            await message('Please select both a source and destination path', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
-
-        // check local paths exists
-        for (const source of sources) {
-            try {
-                if (!isRemotePath(source)) {
-                    const sourceExists = await exists(source)
-                    if (sourceExists) {
-                        continue
-                    }
-                    await message(`Source path does not exist, ${source} is missing`, {
-                        title: 'Error',
-                        kind: 'error',
-                    })
-                    setIsLoading(false)
-                    return
-                }
-            } catch {}
-        }
-
-        if (!isRemotePath(dest)) {
-            const destExists = await exists(dest)
-            if (!destExists) {
-                await message('Destination path does not exist', {
-                    title: 'Error',
-                    kind: 'error',
-                })
-                setIsLoading(false)
-                return
-            }
-        }
-
-        if (
-            sources.length > 1 &&
-            filterOptions &&
-            ('IncludeRule' in filterOptions || 'IncludeFrom' in filterOptions)
-        ) {
-            await message('Include rules are not supported with multiple sources', {
-                title: 'Error',
-                kind: 'error',
-            })
-            setIsLoading(false)
-            return
-        }
-
-        const mergedConfig = {
-            ...configOptions,
-            ...bisyncOptions,
-        }
-
-        const failedPaths: Record<string, string> = {}
-
-        // Group files by their parent folder to build a single IncludeRule per group
-        const folderSources = sources.filter((path) => path.endsWith('/'))
-        const fileSources = sources.filter((path) => !path.endsWith('/'))
-
-        const parentToFilesMap: Record<string, string[]> = {}
-        for (const fileSource of fileSources) {
-            const parentFolder = fileSource.split('/').slice(0, -1).join('/')
-            const fileName = fileSource.split('/').pop()!
-            if (!parentToFilesMap[parentFolder]) parentToFilesMap[parentFolder] = []
-            parentToFilesMap[parentFolder].push(fileName)
-        }
-
-        const fileGroups = Object.entries(parentToFilesMap)
-
-        // Start move for each file group (per parent folder)
-        for (const [parentFolder, fileNames] of fileGroups) {
-            const customFilterOptions = {
-                ...filterOptions,
-                IncludeRule: fileNames,
-            }
-            console.log('[Bisync] customFilterOptions for group', parentFolder, customFilterOptions)
-
-            const customSource = parentFolder
-            console.log('[Bisync] customSource for group', parentFolder, customSource)
-
-            const destination = dest
-            console.log('[Bisync] destination for group', parentFolder, destination)
-
-            try {
-                const jobId = await startBisync({
-                    path1: customSource,
-                    path2: destination,
-                    _config: mergedConfig,
-                    _filter: customFilterOptions,
-                    remoteOptions,
-                    outerOptions: outerBisyncOptions,
-                })
-
-                await new Promise((resolve) => setTimeout(resolve, 500))
-
-                const statusRes = await fetch(`http://localhost:5572/job/status?jobid=${jobId}`, {
-                    method: 'POST',
-                })
-                    .then((res) => {
-                        return res.json() as Promise<{
-                            duration: number
-                            endTime?: string
-                            error?: string
-                            finished: boolean
-                            group: string
-                            id: number
-                            output?: Record<string, any>
-                            startTime: string
-                            success: boolean
-                        }>
-                    })
-                    .catch(() => {
-                        return { error: null }
-                    })
-
-                console.log('statusRes', JSON.stringify(statusRes, null, 2))
-
-                if (statusRes.error) {
-                    failedPaths[`[group] ${parentFolder}`] = statusRes.error
-                }
-            } catch (error) {
-                console.log('error', error)
-                console.error('Failed to start move for group:', parentFolder, error)
-                if (!failedPaths[`[group] ${parentFolder}`]) {
-                    if (error instanceof Error) {
-                        failedPaths[`[group] ${parentFolder}`] = error.message
-                    } else {
-                        failedPaths[`[group] ${parentFolder}`] = 'Unknown error'
-                    }
-                }
-            }
-        }
-
-        // Start move for each full folder source (preserve existing behavior)
-        for (const source of folderSources) {
-            const isFolder = true
-            const customFilterOptions = filterOptions
-            console.log('[Bisync] customFilterOptions for', source, customFilterOptions)
-            const customSource = source
-            console.log('[Bisync] customSource for', source, customSource)
-
-            const destination =
-                isFolder && sources.length > 1
-                    ? `${dest}/${source.split('/').filter(Boolean).pop()!}`
-                    : dest
-            console.log('[Bisync] destination for', source, destination)
-
-            try {
-                const jobId = await startBisync({
-                    path1: customSource,
-                    path2: destination,
-                    _config: mergedConfig,
-                    _filter: customFilterOptions,
-                    remoteOptions,
-                    outerOptions: outerBisyncOptions,
-                })
-
-                await new Promise((resolve) => setTimeout(resolve, 500))
-
-                const statusRes = await fetch(`http://localhost:5572/job/status?jobid=${jobId}`, {
-                    method: 'POST',
-                })
-                    .then((res) => {
-                        return res.json() as Promise<{
-                            duration: number
-                            endTime?: string
-                            error?: string
-                            finished: boolean
-                            group: string
-                            id: number
-                            output?: Record<string, any>
-                            startTime: string
-                            success: boolean
-                        }>
-                    })
-                    .catch(() => {
-                        return { error: null }
-                    })
-
-                console.log('statusRes', JSON.stringify(statusRes, null, 2))
-
-                if (statusRes.error) {
-                    failedPaths[source] = statusRes.error
-                }
-            } catch (error) {
-                console.log('error', error)
-                console.error('Failed to start move for path:', source, error)
-                if (!failedPaths[source]) {
-                    if (error instanceof Error) {
-                        failedPaths[source] = error.message
-                    } else {
-                        failedPaths[source] = 'Unknown error'
-                    }
-                }
-            }
-        }
-
-        console.log('[Bisync] failedPaths', failedPaths)
-
-        // dummy delay to avoid waiting when opening the Jobs page
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-
-        const failedPathsKeys = Object.keys(failedPaths)
-        console.log('[Bisync] failedPathsKeys', failedPathsKeys)
-
-        const expectedJobsFinal = (() => {
-            const folderSourcesFinal = (sources || []).filter((path) => path.endsWith('/'))
-            const fileSourcesFinal = (sources || []).filter((path) => !path.endsWith('/'))
-            const parentToFilesMapFinal: Record<string, true> = {}
-            for (const fileSource of fileSourcesFinal) {
-                const parentFolder = fileSource.split('/').slice(0, -1).join('/')
-                parentToFilesMapFinal[parentFolder] = true
-            }
-            return folderSourcesFinal.length + Object.keys(parentToFilesMapFinal).length
-        })()
-
-        if (expectedJobsFinal !== failedPathsKeys.length) {
-            setIsStarted(true)
-        }
-
-        if (failedPathsKeys.length > 0) {
-            if (expectedJobsFinal === failedPathsKeys.length) {
-                await message(`${failedPathsKeys[0]} ${failedPaths[failedPathsKeys[0]]}`, {
-                    title: 'Failed to start move',
-                    kind: 'error',
-                })
-            } else {
-                await message(
-                    `${failedPathsKeys.map((source) => `${source} ${failedPaths[source]}`).join(',')}`,
-                    {
-                        title: 'Failed to start move',
-                        kind: 'error',
-                    }
-                )
-            }
-        }
-
-        setIsLoading(false)
-    }
-
-    const buttonText = (() => {
-        if (isLoading) return 'STARTING...'
-        if (!sources || sources.length === 0) return 'Please select a source path'
+    const buttonText = useMemo(() => {
+        if (startBisyncMutation.isPending) return 'STARTING...'
+        if (!source) return 'Please select a source path'
         if (!dest) return 'Please select a destination path'
-        if (sources[0] === dest) return 'Source and destination cannot be the same'
+        if (source === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
         return 'START BISYNC'
-    })()
+    }, [startBisyncMutation.isPending, source, dest, jsonError])
 
-    const buttonIcon = (() => {
-        if (isLoading) return
-        if (!sources || sources.length === 0 || !dest || sources[0] === dest)
-            return <FoldersIcon className="w-5 h-5" />
+    const buttonIcon = useMemo(() => {
+        if (startBisyncMutation.isPending) return
+        if (!source || !dest || source === dest) return <FoldersIcon className="w-5 h-5" />
         if (jsonError) return <AlertOctagonIcon className="w-5 h-5" />
         return <PlayIcon className="w-5 h-5 fill-current" />
-    })()
+    }, [startBisyncMutation.isPending, source, dest, jsonError])
 
     return (
         <div className="flex flex-col h-screen gap-10">
-            <CommandInfo
-                content={`Bisync provides a bidirectional cloud sync solution in rclone. 
-					
-It retains the Path1 and Path2 filesystem listings from the prior run. On each successive run it will:
-- List files on Path1 and Path2, and check for changes on each side (new, newer, older, and deleted files).
-- Propagate changes on Path1 to Path2, and vice-versa.
-					
-Bisync is considered an advanced command, so use with care. Make sure you have read and understood the entire manual (especially the Limitations section) before using, or data loss can result.`}
-            />
-
             {/* Main Content */}
-            <div className="flex flex-col flex-1 w-full max-w-3xl gap-6 mx-auto">
+            <OperationWindowContent>
                 {/* Paths Display */}
-                <MultiPathFinder
-                    sourcePaths={sources}
-                    setSourcePaths={setSources}
+                <PathFinder
+                    sourcePath={source}
+                    setSourcePath={setSource}
                     destPath={dest}
                     setDestPath={setDest}
                 />
 
-                <Accordion>
+                <Accordion
+                    keepContentMounted={true}
+                    dividerProps={{
+                        className: 'opacity-50',
+                    }}
+                >
                     <AccordionItem
                         key="bisync"
                         startContent={
@@ -465,8 +252,8 @@ Bisync is considered an advanced command, so use with care. Make sure you have r
                             />
                         }
                         indicator={<DiamondPercentIcon />}
-                        subtitle="Tap to toggle bisync options for this operation"
                         title="Bisync"
+                        subtitle={getOptionsSubtitle(Object.keys(bisyncOptions).length)}
                     >
                         <div className="flex flex-row flex-wrap gap-2 pb-5">
                             <Switch
@@ -574,12 +361,10 @@ Bisync is considered an advanced command, so use with care. Make sure you have r
                             </Switch>
                         </div>
                         <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
-                            }
-                            optionsJson={bisyncOptionsJson}
-                            setOptionsJson={setBisyncOptionsJson}
-                            getAvailableOptions={getCopyFlags}
+                            globalOptions={globalFlags?.main || {}}
+                            optionsJson={bisyncOptionsJsonString}
+                            setOptionsJson={setBisyncOptionsJsonString}
+                            availableOptions={copyFlags || []}
                             isLocked={bisyncOptionsLocked}
                             setIsLocked={setBisyncOptionsLocked}
                         />
@@ -590,37 +375,42 @@ Bisync is considered an advanced command, so use with care. Make sure you have r
                             <Avatar color="danger" radius="lg" fallback={<FilterIcon />} />
                         }
                         indicator={<FilterIcon />}
-                        subtitle="Tap to toggle filtering options for this operation"
                         title="Filters"
+                        subtitle={getOptionsSubtitle(Object.keys(filterOptions).length)}
                     >
                         <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['filter' as keyof typeof currentGlobalOptions]
-                            }
-                            optionsJson={filterOptionsJson}
-                            setOptionsJson={setFilterOptionsJson}
-                            getAvailableOptions={getFilterFlags}
+                            globalOptions={globalFlags?.filter || {}}
+                            optionsJson={filterOptionsJsonString}
+                            setOptionsJson={setFilterOptionsJsonString}
+                            availableOptions={filterFlags || []}
                             isLocked={filterOptionsLocked}
                             setIsLocked={setFilterOptionsLocked}
                         />
                     </AccordionItem>
-
+                    <AccordionItem
+                        key="cron"
+                        startContent={
+                            <Avatar color="warning" radius="lg" fallback={<ClockIcon />} />
+                        }
+                        indicator={<ClockIcon />}
+                        title="Cron"
+                    >
+                        <CronEditor expression={cronExpression} onChange={setCronExpression} />
+                    </AccordionItem>
                     <AccordionItem
                         key="config"
                         startContent={
                             <Avatar color="default" radius="lg" fallback={<WrenchIcon />} />
                         }
                         indicator={<WrenchIcon />}
-                        subtitle="Tap to toggle config options for this operation"
                         title="Config"
+                        subtitle={getOptionsSubtitle(Object.keys(configOptions).length)}
                     >
                         <OptionsSection
-                            globalOptions={
-                                currentGlobalOptions['main' as keyof typeof currentGlobalOptions]
-                            }
-                            optionsJson={configOptionsJson}
-                            setOptionsJson={setConfigOptionsJson}
-                            getAvailableOptions={getConfigFlags}
+                            globalOptions={globalFlags?.main || {}}
+                            optionsJson={configOptionsJsonString}
+                            setOptionsJson={setConfigOptionsJsonString}
+                            availableOptions={configFlags || []}
                             isLocked={configOptionsLocked}
                             setIsLocked={setConfigOptionsLocked}
                         />
@@ -637,92 +427,263 @@ Bisync is considered an advanced command, so use with care. Make sure you have r
                                 />
                             }
                             indicator={<ServerIcon />}
-                            subtitle="Tap to toggle remote options for this operation"
                             title={'Remotes'}
+                            subtitle={getOptionsSubtitle(
+                                Object.values(remoteOptions).reduce(
+                                    (acc, opts) => acc + Object.keys(opts).length,
+                                    0
+                                )
+                            )}
                         >
                             <RemoteOptionsSection
                                 selectedRemotes={selectedRemotes}
-                                remoteOptionsJson={remoteOptionsJson}
-                                setRemoteOptionsJson={setRemoteOptionsJson}
+                                remoteOptionsJsonString={remoteOptionsJsonString}
+                                setRemoteOptionsJsonString={setRemoteOptionsJsonString}
                                 setRemoteOptionsLocked={setRemoteOptionsLocked}
                                 remoteOptionsLocked={remoteOptionsLocked}
                             />
                         </AccordionItem>
                     ) : null}
                 </Accordion>
-            </div>
+            </OperationWindowContent>
 
-            <div className="sticky bottom-0 z-50 flex items-center justify-center flex-none gap-2 p-4 border-t border-neutral-500/20 bg-neutral-900/50 backdrop-blur-lg">
-                {isStarted ? (
-                    <>
+            <OperationWindowFooter>
+                <TemplatesDropdown
+                    isDisabled={!!jsonError}
+                    operation="bisync"
+                    onSelect={(groupedOptions, shouldMerge) => {
+                        startTransition(() => {
+                            if (shouldMerge) {
+                                if (groupedOptions.copy)
+                                    setBisyncOptions({ ...bisyncOptions, ...groupedOptions.copy })
+                                if (groupedOptions.filter)
+                                    setFilterOptions({ ...filterOptions, ...groupedOptions.filter })
+                                if (groupedOptions.config)
+                                    setConfigOptions({ ...configOptions, ...groupedOptions.config })
+                            } else {
+                                if (groupedOptions.copy) setBisyncOptions(groupedOptions.copy)
+                                if (groupedOptions.filter) setFilterOptions(groupedOptions.filter)
+                                if (groupedOptions.config) setConfigOptions(groupedOptions.config)
+                            }
+                        })
+                    }}
+                    getOptions={() => ({
+                        ...bisyncOptions,
+                        ...filterOptions,
+                        ...configOptions,
+                    })}
+                />
+                <AnimatePresence mode="wait" initial={false}>
+                    {startBisyncMutation.isSuccess ? (
+                        <motion.div
+                            key="started-buttons"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1 gap-2"
+                        >
+                            <Dropdown shadow={platform() === 'windows' ? 'none' : undefined}>
+                                <DropdownTrigger>
+                                    <Button
+                                        fullWidth={true}
+                                        color="primary"
+                                        size="lg"
+                                        data-focus-visible="false"
+                                    >
+                                        NEW BISYNC
+                                    </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu>
+                                    <DropdownItem
+                                        key="reset-paths"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setSource(undefined)
+                                                setDest(undefined)
+                                                setJsonError(null)
+                                                startBisyncMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Paths
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-options"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setBisyncOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.copy,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setFilterOptionsJsonString('{}')
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setRemoteOptionsJsonString('{}')
+                                                setOuterBisyncOptions({})
+                                                setJsonError(null)
+                                                startBisyncMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset Options
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="reset-all"
+                                        onPress={() => {
+                                            startTransition(() => {
+                                                setBisyncOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.copy,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setFilterOptionsJsonString('{}')
+                                                setConfigOptionsJsonString(
+                                                    JSON.stringify(
+                                                        RCLONE_CONFIG_DEFAULTS.config,
+                                                        null,
+                                                        2
+                                                    )
+                                                )
+                                                setRemoteOptionsJsonString('{}')
+                                                setOuterBisyncOptions({})
+                                                setBisyncOptionsLocked(false)
+                                                setFilterOptionsLocked(false)
+                                                setConfigOptionsLocked(false)
+                                                setRemoteOptionsLocked(false)
+                                                setJsonError(null)
+                                                setSource(undefined)
+                                                setDest(undefined)
+                                                startBisyncMutation.reset()
+                                            })
+                                        }}
+                                    >
+                                        Reset All
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+
+                            <Button
+                                fullWidth={true}
+                                size="lg"
+                                color="secondary"
+                                onPress={async () => {
+                                    await openWindow({
+                                        name: 'Transfers',
+                                        url: '/transfers',
+                                    })
+                                }}
+                                data-focus-visible="false"
+                            >
+                                VIEW TRANSFERS
+                            </Button>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="start-button"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="flex flex-1"
+                        >
+                            <Button
+                                onPress={() => setTimeout(() => startBisyncMutation.mutate(), 100)}
+                                size="lg"
+                                fullWidth={true}
+                                type="button"
+                                color="primary"
+                                isDisabled={
+                                    startBisyncMutation.isPending ||
+                                    !!jsonError ||
+                                    !source ||
+                                    !dest ||
+                                    source === dest
+                                }
+                                isLoading={startBisyncMutation.isPending}
+                                endContent={buttonIcon}
+                                className="max-w-2xl gap-2"
+                                data-focus-visible="false"
+                            >
+                                {buttonText}
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <ButtonGroup variant="flat">
+                    <Tooltip content={'Schedule task'} placement="top" size="lg" color="foreground">
                         <Button
-                            fullWidth={true}
+                            size="lg"
+                            type="button"
                             color="primary"
-                            size="lg"
-                            onPress={() => {
-                                setBisyncOptionsJson('{}')
-                                setFilterOptionsJson('{}')
-                                setSources(undefined)
-                                setDest(undefined)
-                                setIsStarted(false)
-                            }}
-                            data-focus-visible="false"
-                        >
-                            RESET
-                        </Button>
-
-                        <Button
-                            fullWidth={true}
-                            size="lg"
-                            color="secondary"
-                            onPress={async () => {
-                                const createdWindow = await openWindow({
-                                    name: 'Jobs',
-                                    url: '/jobs',
-                                })
-                                await createdWindow.setFocus()
-                            }}
-                            data-focus-visible="false"
-                        >
-                            JOBS
-                        </Button>
-
-                        <Button
-                            size="lg"
                             isIconOnly={true}
-                            onPress={async () => {
-                                await getCurrentWindow().hide()
-                                await getCurrentWindow().destroy()
+                            onPress={() => {
+                                setTimeout(() => scheduleTaskMutation.mutate(), 100)
                             }}
-                            data-focus-visible="false"
                         >
-                            <XIcon />
+                            <ClockIcon className="size-6" />
                         </Button>
-                    </>
-                ) : (
-                    <Button
-                        onPress={handleStartBisync}
-                        size="lg"
-                        fullWidth={true}
-                        type="button"
-                        color="primary"
-                        isDisabled={
-                            isLoading ||
-                            !!jsonError ||
-                            !sources ||
-                            sources.length === 0 ||
-                            !dest ||
-                            sources[0] === dest
-                        }
-                        isLoading={isLoading}
-                        endContent={buttonIcon}
-                        className="max-w-2xl gap-2"
-                        data-focus-visible="false"
-                    >
-                        {buttonText}
-                    </Button>
-                )}
-            </div>
+                    </Tooltip>
+                    <CommandInfoButton
+                        content={`Performs bidirectional synchronization between two paths.
+
+Bisync keeps both Path1 and Path2 in sync by propagating changes in both directions. On each run, it compares the current state to the previous run and detects New, Newer, Older, and Deleted files on each side, then propagates those changes to the other path.
+
+Bisync retains the filesystem listings from the prior run. This history allows it to determine what has changed since the last sync. If something evil happens, bisync goes into a safe state to block damage by later runs — you may need to run with resync to recover.
+
+This is an advanced command — use with care. Unlike Copy or Sync which have a clear "source of truth", Bisync must resolve conflicts when both sides have changed. When a file changes on both sides and the versions differ, bisync will rename both versions as conflicts (e.g., file.conflict1, file.conflict2) so nothing is lost. Make sure you understand the behavior before using on important data.
+
+If you only need one-way synchronization (making destination match source), use the SYNC command instead.
+
+Here's a quick guide to using the Bisync command:
+
+1. SELECT PATHS
+Use the path selectors at the top to choose Path1 and Path2. Both paths will be kept in sync with each other — there is no "source" or "destination", changes flow both ways.
+
+2. CONFIGURE OPTIONS (Optional)
+Expand the accordion sections to customize your bisync operation. The Bisync section has important switches at the top:
+
+• resync — Required for the first run, or to reset bisync after an error. This makes both paths contain a matching superset of all files by copying Path2 to Path1, then Path1 to Path2. Only use resync when starting fresh, after changing filter settings, or recovering from an error — using it routinely would prevent deletions from syncing (deleted files would keep reappearing from the other side).
+
+• checkAccess — Safety check that looks for matching RCLONE_TEST files on both paths before syncing. You must first create these files yourself in both paths. This prevents data loss if a path is temporarily unavailable or mounted incorrectly.
+
+• force — Override safety checks like max-delete protection. Use with caution, as this bypasses safeguards designed to prevent accidental mass deletions.
+
+• createEmptySrcDirs — Sync empty directories as well as files. Without this, only files are synced and empty directories are ignored.
+
+• removeEmptyDirs — Remove directories that become empty after syncing. Not compatible with createEmptySrcDirs — use one or the other.
+
+• ignoreListingChecksum — Skip checksum retrieval when creating file listings, which can speed things up considerably on backends where hashes must be computed on the fly (like local). Note this only affects listing comparisons, not the actual sync operations.
+
+• resilient — Allow bisync to retry on the next run after certain errors, instead of requiring a resync. Useful for running bisync as a scheduled background process. Combine with --recover and --max-lock for a robust "set-it-and-forget-it" setup.
+
+• noCleanup — Don't delete temporary working files after the operation. Useful for debugging issues, but normally you should leave this off.
+
+3. OTHER OPTIONS
+Tap any chip on the right to add it to the JSON editor. Hover over chips to see what each option does.
+
+• Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
+
+• Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
+
+• Remotes — Override backend-specific settings for remotes involved in this operation.
+
+4. START BISYNC
+Once paths are selected, tap "START BISYNC" to begin. For your first run, make sure "resync" is enabled to establish the initial baseline. You can monitor progress on the Transfers page.`}
+                    />
+                    <CommandsDropdown currentCommand="bisync" />
+                </ButtonGroup>
+            </OperationWindowFooter>
         </div>
     )
 }

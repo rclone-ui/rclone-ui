@@ -50,28 +50,49 @@
 
 <br />
 
-## Features
-### 🖥️ Runs on all decks — Windows, Linux, macOS (x64, Arm, an’ Apple Silicon)
-### ✅ Sails with yer existing rclone (or we’ll fetch it fer ye) an’ keeps it shipshape (with yer aye-aye)
-### 🔗 Add/Edit/Remove (Scuttle) Remotes
-### ⚡️ Sync, Bisync, Copy, Move, Delete, Purge, Serve, Mount—pillagin’ made easy
-### ⭐️ Save precious time by settin’ default flags per Remote, per operation (Mount, Sync, Copy, an’ the like)
-### 🎛️ Tweak the flags (parrrrrameters) fer each voyage as ye see fit
-### 📚 Flag lore be embedded—no need t’ consult the oracle o’ Google!
-### 📂 File Hold—er, Browser—fer rummagin’ through yer treasure
-### 📡 Proxy—send yer packets through the fog
+<a href="https://get.rcloneui.com/showcase">
+  <img src=".github/rclone-video.png" alt="The GUI for Rclone">
+</a>
 
-<img src=".github/rclone-1.png" alt="Rclone UI">
+## Docker/Homelab/Server, Ye Scallywag
+Command yer server, homelab, or yer mum's vessel with **the simplest way t' manage remote **`rclone`** instances, arrr!**
 
-### ⏰ Scheduled Raids (cron)
-### 📊 Ship’s Log fer Jobs (spy all background maneuvers)
-### 🚀 Weigh anchor on boot (autostart) an’ auto-mount the drives
-### 🔒 Guard the Captain’s Quarters (Settings) with a secret word
-### 👁️ Keep commands or Remotes hidden from the crow’s-nest tray
-### ⚙️ Import/Export Maps (configs) — encrypt ’em with pass or command
-### ✍️ Signed by the Crown o’ Microsoft an’ Notarized on macOS—legit as a Letter o’ Marque
+#### Docker Compose
+```yaml
+services:
+  rclone:
+    image: rclone/rclone
+    container_name: rclone
+    command: rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+    ports:
+      - 5572:5572
+    volumes:
+      - ./config:/config/rclone
+      - /path/to/data:/data
+```
 
-<img src=".github/rclone-2.png" alt="Rclone UI">
+#### Docker CLI
+```bash
+docker run -d \
+  --name rclone \
+  -p 5572:5572 \
+  -v ./config:/config/rclone \
+  -v /path/to/data:/data \
+  rclone/rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+```
+
+#### Without Docker, Ye Landlubber
+Just fire up th' `rcd` daemon directly:
+
+```bash
+rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+```
+
+#### Notes from the Captain
+- After hoisting **`rclone`** using yer preferred method, open Rclone UI an' sail to Settings > Hosts.
+- Make certain yer firewall an' reverse proxy (nginx/caddy/traefik) be allowin' traffic on port **`5572`**.
+- Rclone UI can dock at any RCD port, so ye can customize the default **`5572`** port as ye please.
+- Use **`--rc-user`** an' **`--rc-pass`** instead o' **`--rc-no-auth`** in production waters, matey.
 
 ## Package Mangarrs
 - Flathub **`flatpak install com.rcloneui.RcloneUI`** or **[from th' store](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
@@ -79,6 +100,7 @@
 - Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
 - WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
+- NPM **`npx rclone-ui`**
 
 ## Downloads (hoist the booty!)
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
@@ -99,8 +121,16 @@
  </picture>
 </a>
 
-## Contribootin’
-We welcome yer code booty! Hoist an [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) or fire a [PR broadside](https://github.com/FTCHD/rclone-ui/compare), an’ let’s make this vessel swifter together 🎉🏴‍☠️
+## Contribootin'
+Ahoy, matey. We been awaitin' yer arrival.
+
+Some fine plunder t' tackle:
+- Patch an open [**Issue**](https://github.com/rclone-ui/rclone-ui/issues)
+- Hoist th' repo t' Vite 7 & React 19
+- Bring aboard th' React Compiler
+- Shift th' Cron magic over t' Rust
+
+🎁 **Merged PRs earn ye a Lifetime Letter o' Marque!**
 
 <br />
 

@@ -47,6 +47,14 @@ async function buildExternal() {
                 })
                 await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
             })(),
+            // Remove store/*.js files - preserve .ts files
+            (async () => {
+                const jsFiles = await glob('**/*.js', {
+                    cwd: join(projectRoot, 'store'),
+                    absolute: true,
+                })
+                await Promise.all(jsFiles.map((file) => unlink(file).catch(() => {})))
+            })(),
             // Remove main.js
             unlink(join(projectRoot, 'main.js')).catch(() => {}), // Ignore if file doesn't exist
         ])

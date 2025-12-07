@@ -1,3 +1,4 @@
+import { message } from '@tauri-apps/plugin-dialog'
 import {
     isPermissionGranted,
     requestPermission,
@@ -16,6 +17,11 @@ export default async function notify({ title, body }: { title: string; body: str
         sendNotification({
             title,
             body,
+        })
+    } else {
+        await message(body, {
+            title,
+            kind: 'info',
         })
     }
 }

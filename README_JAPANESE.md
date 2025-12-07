@@ -50,28 +50,49 @@
 
 <br />
 
-## 機能
-### 🖥️ Cross-platform：Windows・Linux・macOS（x64 / Arm / Apple Silicon）
-### ✅ 既存の rclone 環境でそのまま動作（必要ならインストールも可能）。アップデートはあなたの承認のもとで適用
-### 🔗 Remote の追加／編集／削除
-### ⚡️ Sync・Copy・Move・Delete・Purge・Serve・Mount など
-### ⭐️ 操作ごと（Mount/Sync/Copy など）に Remote 単位で default flags を設定して時短
-### 🎛️ 実行時にケースバイケースで flags（パラメータ）をカスタマイズ
-### 📚 各 flag のドキュメントを内蔵。ググる手間はもう不要！
-### 📂 File Browser
-### 📡 Proxy
+<a href="https://get.rcloneui.com/showcase">
+  <img src=".github/rclone-video.png" alt="The GUI for Rclone">
+</a>
 
-<img src=".github/rclone-1.png" alt="Rclone UI">
+## Docker/Homelab/サーバー利用
+**リモート **`rclone`** インスタンスを管理する最も簡単な方法**で、サーバー、Homelab、家族の PC を管理しましょう。
 
-### ⏰ スケジュール実行（cron）
-### 📊 Job Logs（すべてのバックグラウンド処理を可視化）
-### 🚀 OS 起動時に自動起動（autostart）・自動マウント（automount）
-### 🔒 Settings パネルにパスワードを設定
-### 👁️ トレイメニューからコマンドや Remote を非表示に
-### ⚙️ 設定のインポート／エクスポート（`pass` または `command` で暗号化）
-### ✍️ Windows は Microsoft 署名済み、macOS は公証（Notarized）済み
+#### Docker Compose
+```yaml
+services:
+  rclone:
+    image: rclone/rclone
+    container_name: rclone
+    command: rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+    ports:
+      - 5572:5572
+    volumes:
+      - ./config:/config/rclone
+      - /path/to/data:/data
+```
 
-<img src=".github/rclone-2.png" alt="Rclone UI">
+#### Docker CLI
+```bash
+docker run -d \
+  --name rclone \
+  -p 5572:5572 \
+  -v ./config:/config/rclone \
+  -v /path/to/data:/data \
+  rclone/rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+```
+
+#### Docker なしで使う
+`rcd` デーモンを直接起動してください：
+
+```bash
+rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
+```
+
+#### 注意事項
+- お好みの方法で **`rclone`** を起動したら、Rclone UI を開き Settings > Hosts に移動します。
+- ファイアウォールやリバースプロキシ（nginx/caddy/traefik）でポート **`5572`** へのトラフィックを許可してください。
+- Rclone UI は任意の RCD ポートに接続できるので、デフォルトの **`5572`** ポートをカスタマイズできます。
+- 本番環境では **`--rc-no-auth`** の代わりに **`--rc-user`** と **`--rc-pass`** を使用してください。
 
 ## パッケージマネージャー
 - Flathub **`flatpak install com.rcloneui.RcloneUI`** または **[ストアから](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
@@ -79,6 +100,7 @@
 - Scoop **`scoop bucket add extras`** と **`scoop install rclone-ui`**
 - Chocolatey **`choco install rclone-ui`**
 - WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
+- NPM **`npx rclone-ui`**
 
 ## ダウンロード
 - **Windows**（**[Arm](https://get.rcloneui.com/win-arm)**、**[x64](https://get.rcloneui.com/win)**）
@@ -100,7 +122,15 @@
 </a>
 
 ## コントリビューション
-貢献は大歓迎です！気軽に [issue](https://github.com/FTCHD/rclone-ui/issues/new?template=Blank+issue) を作成するか [PR](https://github.com/FTCHD/rclone-ui/compare) を送ってください。いっしょにもっと良いプロジェクトにしていきましょう 🎉🎉
+ようこそ、anon。お待ちしていました。
+
+取り組むと良い課題はこちらです：
+- オープンな [**Issue**](https://github.com/rclone-ui/rclone-ui/issues) を修正する
+- リポジトリを Vite 7 と React 19 にアップグレードする
+- React Compiler を導入する
+- Cron ロジックを Rust に移行する
+
+🎁 **マージされた PR にはライフタイムライセンスを贈呈！**
 
 <br />
 

@@ -7,13 +7,16 @@ import {
     Input,
     Switch,
     Textarea,
+    cn,
 } from '@heroui/react'
 import { Button } from '@heroui/react'
+import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
-import { useEffect, useState } from 'react'
+import { platform } from '@tauri-apps/plugin-os'
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { getConfigPath } from '../../lib/rclone/common'
-import { usePersistedStore } from '../../lib/store'
+import { useHostStore } from '../../store/host'
 
 export default function ConfigEditDrawer({
     id,
@@ -24,7 +27,7 @@ export default function ConfigEditDrawer({
     onClose: () => void
     isOpen: boolean
 }) {
-    const configFiles = usePersistedStore((state) => state.configFiles)
+    const configFiles = useHostStore((state) => state.configFiles)
     const initialConfig = configFiles.find((c) => c.id === id)
 
     const [configLabel, setConfigLabel] = useState<string | null>(null)
@@ -33,95 +36,74 @@ export default function ConfigEditDrawer({
     const [configContent, setConfigContent] = useState<string | null>(null)
 
     const [isPasswordCommand, setIsPasswordCommand] = useState(false)
-    const [isSaving, setIsSaving] = useState(false)
 
-    const isEncrypted = configContent?.includes('RCLONE_ENCRYPT_V0:')
+    const isEncrypted = useMemo(
+        () => configContent?.includes('RCLONE_ENCRYPT_V0:'),
+        [configContent]
+    )
 
-    async function handleUpdate({
-        label,
-        pass,
-        content,
-        passCommand,
-        isPasswordCommand,
-        isEncrypted,
-    }: {
-        label?: string
-        pass?: string
-        content?: string
-        passCommand?: string
-        isPasswordCommand?: boolean
-        isEncrypted?: boolean
-    }) {
-        if (!id) return
+    const updateConfigMutation = useMutation({
+        mutationFn: async ({
+            label,
+            pass,
+            content,
+            passCommand,
+            isPasswordCommand,
+            isEncrypted,
+        }: {
+            label: string
+            pass?: string
+            content: string
+            passCommand?: string
+            isPasswordCommand?: boolean
+            isEncrypted?: boolean
+        }) => {
+            if (!id) throw new Error('Config ID not found')
 
-        if (!label) {
-            await message('Label is required', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
+            const savedPass = isPasswordCommand ? undefined : pass
+            const savedPassCommand = isPasswordCommand ? passCommand : undefined
 
-        if (!content) {
-            await message('Content is required', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
-
-        if (isEncrypted && isPasswordCommand && !passCommand) {
-            await message('Password command is required for encrypted configs', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-            return
-        }
-
-        setIsSaving(true)
-
-        const savedPass = isPasswordCommand ? undefined : pass
-        const savedPassCommand = isPasswordCommand ? passCommand : undefined
-
-        try {
             const configPath = await getConfigPath({ id: id, validate: true })
             await writeTextFile(configPath, content)
 
-            usePersistedStore.getState().updateConfigFile(id, {
-                label,
+            useHostStore.getState().updateConfigFile(id, {
+                label: label,
                 pass: savedPass,
                 passCommand: savedPassCommand,
-                isEncrypted: isEncrypted,
+                isEncrypted: !!isEncrypted,
             })
 
+            return true
+        },
+        onSuccess: () => {
             onClose()
-        } catch (error) {
-            console.error('[handleUpdate] failed to save config', error)
+        },
+        onError: async (error) => {
+            console.error('[updateConfig] failed to save config', error)
             await message(error instanceof Error ? error.message : 'An unknown error occurred', {
                 title: 'Failed to save config',
                 kind: 'error',
                 okLabel: 'OK',
             })
-        }
-        setIsSaving(false)
-    }
+        },
+    })
 
-    async function initializeConfig() {
+    const initializeConfig = useCallback(async () => {
         if (!initialConfig) {
             return
         }
 
         const configPath = await getConfigPath({ id: initialConfig.id!, validate: true })
         const text = await readTextFile(configPath)
-        setConfigContent(text)
-        setConfigLabel(initialConfig.label)
-        setConfigPass(initialConfig.pass || null)
-        setConfigPassCommand(initialConfig.passCommand || null)
-        setIsPasswordCommand(initialConfig.passCommand !== null)
-    }
+
+        startTransition(() => {
+            setConfigContent(text)
+            setConfigLabel(initialConfig.label)
+            setConfigPass(initialConfig.pass || null)
+            setConfigPassCommand(initialConfig.passCommand || null)
+            setIsPasswordCommand(initialConfig.passCommand !== null)
+        })
+    }, [initialConfig])
 
     useEffect(() => {
         if (isOpen && configContent === null && configLabel === null) {
@@ -129,13 +111,14 @@ export default function ConfigEditDrawer({
         }
 
         if (!isOpen) {
-            setConfigContent(null)
-            setConfigLabel(null)
-            setConfigPass(null)
-            setConfigPassCommand(null)
-            setIsPasswordCommand(false)
+            startTransition(() => {
+                setConfigContent(null)
+                setConfigLabel(null)
+                setConfigPass(null)
+                setConfigPassCommand(null)
+                setIsPasswordCommand(false)
+            })
         }
-        // biome-ignore lint/correctness/useExhaustiveDependencies: <compiler>
     }, [isOpen, configLabel, initializeConfig, configContent])
 
     if (!id) {
@@ -150,29 +133,19 @@ export default function ConfigEditDrawer({
             onClose={onClose}
             hideCloseButton={true}
         >
-            <DrawerContent>
+            <DrawerContent
+                className={cn(
+                    'bg-content1/80 backdrop-blur-md dark:bg-content1/90',
+                    platform() === 'macos' && 'pt-5'
+                )}
+            >
                 {(close) => (
                     <>
                         <DrawerHeader className="flex flex-col gap-1">
                             Edit {configLabel}
                         </DrawerHeader>
                         <DrawerBody>
-                            <form
-                                id="config-form"
-                                className="flex flex-col gap-4"
-                                onSubmit={(e) => {
-                                    e.preventDefault()
-                                    handleUpdate({
-                                        label: configLabel || undefined,
-                                        pass: configPass || undefined,
-                                        content: configContent || undefined,
-                                        passCommand: configPassCommand || undefined,
-                                        isPasswordCommand: isPasswordCommand,
-                                        isEncrypted:
-                                            configContent?.includes('RCLONE_ENCRYPT_V0:') || false,
-                                    })
-                                }}
-                            >
+                            <div className="flex flex-col gap-4">
                                 <Input
                                     name="label"
                                     label="Name"
@@ -180,9 +153,10 @@ export default function ConfigEditDrawer({
                                     placeholder="Enter a name for your config"
                                     type="text"
                                     value={configLabel || ''}
-                                    autoComplete="off"
                                     autoCapitalize="off"
+                                    autoComplete="off"
                                     autoCorrect="off"
+                                    spellCheck="false"
                                     onValueChange={(value) => {
                                         setConfigLabel(value)
                                     }}
@@ -259,21 +233,6 @@ export default function ConfigEditDrawer({
                                         console.log(value)
                                         setConfigContent(value)
                                     }}
-                                    onKeyDown={(e) => {
-                                        //if it's tab key, add 2 spaces at the current text cursor position
-                                        if (e.key === 'Tab') {
-                                            e.preventDefault()
-                                            const text = e.currentTarget.value
-                                            const cursorPosition = e.currentTarget.selectionStart
-                                            const newText =
-                                                text.slice(0, cursorPosition) +
-                                                '  ' +
-                                                text.slice(cursorPosition)
-                                            e.currentTarget.value = newText
-                                            e.currentTarget.selectionStart = cursorPosition + 2
-                                            e.currentTarget.selectionEnd = cursorPosition + 2
-                                        }
-                                    }}
                                     autoCapitalize="off"
                                     autoComplete="off"
                                     autoCorrect="off"
@@ -288,7 +247,7 @@ export default function ConfigEditDrawer({
                                     }}
                                     data-focus-visible="false"
                                 />
-                            </form>
+                            </div>
                         </DrawerBody>
                         <DrawerFooter>
                             <Button
@@ -301,12 +260,51 @@ export default function ConfigEditDrawer({
                             </Button>
                             <Button
                                 color="primary"
-                                type="submit"
-                                form="config-form"
-                                isDisabled={isSaving}
+                                isDisabled={updateConfigMutation.isPending}
                                 data-focus-visible="false"
+                                onPress={async () => {
+                                    if (!configLabel) {
+                                        await message('Label is required', {
+                                            title: 'Failed to save config',
+                                            kind: 'error',
+                                            okLabel: 'OK',
+                                        })
+                                        return
+                                    }
+
+                                    if (!configContent) {
+                                        await message('Content is required', {
+                                            title: 'Failed to save config',
+                                            kind: 'error',
+                                            okLabel: 'OK',
+                                        })
+                                        return
+                                    }
+
+                                    if (isEncrypted && isPasswordCommand && !configPassCommand) {
+                                        await message(
+                                            'Password command is required for encrypted configs',
+                                            {
+                                                title: 'Failed to save config',
+                                                kind: 'error',
+                                                okLabel: 'OK',
+                                            }
+                                        )
+                                        return
+                                    }
+
+                                    updateConfigMutation.mutate({
+                                        label: configLabel,
+                                        pass: configPass || undefined,
+                                        content: configContent,
+                                        passCommand: configPassCommand || undefined,
+                                        isPasswordCommand: isPasswordCommand,
+                                        isEncrypted:
+                                            configContent?.includes('RCLONE_ENCRYPT_V0:') || false,
+                                    })
+                                }}
                             >
-                                {isSaving ? 'Saving...' : 'Save Changes'}
+                                {updateConfigMutation.isPending ? 'Saving...' : 'Save Changes'}
                             </Button>
                         </DrawerFooter>
                     </>
