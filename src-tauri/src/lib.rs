@@ -383,145 +383,12 @@ async fn prompt_text(
         return Ok(None);
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        let default_value = default.unwrap_or_default();
-        let is_sensitive = sensitive.unwrap_or(false);
-
-        if is_sensitive {
-            // Try zenity password dialog first
-            match std::process::Command::new("zenity")
-                .args(&["--password", "--title", &title, "--text", &message])
-                .output()
-            {
-                Ok(output) => {
-                    if output.status.success() {
-                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        return Ok(Some(result));
-                    } else {
-                        // Check if user cancelled (exit code 1) or other error
-                        let exit_code = output.status.code().unwrap_or(-1);
-                        if exit_code == 1 {
-                            // User clicked Cancel
-                            return Ok(None);
-                        }
-                        // For other errors, fall through to try kdialog
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!(
-                            "zenity password dialog failed (exit {}): {}",
-                            exit_code, stderr
-                        );
-                    }
-                }
-                Err(e) => {
-                    // Command not found or couldn't execute, try kdialog
-                    eprintln!("zenity not available: {}", e);
-                }
-            }
-
-            // Fallback to kdialog password
-            match std::process::Command::new("kdialog")
-                .args(&["--password", &message, "--title", &title])
-                .output()
-            {
-                Ok(output) => {
-                    if output.status.success() {
-                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        return Ok(Some(result));
-                    } else {
-                        let exit_code = output.status.code().unwrap_or(-1);
-                        if exit_code == 1 {
-                            // User clicked Cancel
-                            return Ok(None);
-                        }
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!(
-                            "kdialog password dialog failed (exit {}): {}",
-                            exit_code, stderr
-                        );
-                    }
-                }
-                Err(e) => {
-                    eprintln!("kdialog not available: {}", e);
-                }
-            }
-
-            return Err(
-                "No suitable password dialog found. Please install zenity or kdialog.".to_string(),
-            );
-        } else {
-            // Try zenity text entry first
-            match std::process::Command::new("zenity")
-                .args(&[
-                    "--entry",
-                    "--title",
-                    &title,
-                    "--text",
-                    &message,
-                    "--entry-text",
-                    &default_value,
-                ])
-                .output()
-            {
-                Ok(output) => {
-                    if output.status.success() {
-                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        return Ok(Some(result));
-                    } else {
-                        let exit_code = output.status.code().unwrap_or(-1);
-                        if exit_code == 1 {
-                            // User clicked Cancel
-                            return Ok(None);
-                        }
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!(
-                            "zenity entry dialog failed (exit {}): {}",
-                            exit_code, stderr
-                        );
-                    }
-                }
-                Err(e) => {
-                    eprintln!("zenity not available: {}", e);
-                }
-            }
-
-            // Fallback to kdialog input box
-            match std::process::Command::new("kdialog")
-                .args(&["--inputbox", &message, &default_value, "--title", &title])
-                .output()
-            {
-                Ok(output) => {
-                    if output.status.success() {
-                        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        return Ok(Some(result));
-                    } else {
-                        let exit_code = output.status.code().unwrap_or(-1);
-                        if exit_code == 1 {
-                            // User clicked Cancel
-                            return Ok(None);
-                        }
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        eprintln!("kdialog inputbox failed (exit {}): {}", exit_code, stderr);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("kdialog not available: {}", e);
-                }
-            }
-
-            return Err(
-                "No suitable input dialog found. Please install zenity or kdialog.".to_string(),
-            );
-        }
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         Err("Text input not supported on this platform".to_string())
     }
 }
 
-#[tauri::command]
 async fn tiny_prompt_text(
     title: String,
     message: String,
@@ -544,6 +411,24 @@ async fn tiny_prompt_text(
     .map_err(|error| error.to_string())?;
 
     Ok(result)
+}
+
+#[tauri::command]
+async fn prompt(
+    title: String,
+    message: String,
+    default: Option<String>,
+    sensitive: Option<bool>,
+) -> Result<Option<String>, String> {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        prompt_text(title, message, default, sensitive).await
+    }
+    
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        tiny_prompt_text(title, message, default, sensitive).await
+    }
 }
 
 #[tauri::command]
@@ -767,7 +652,7 @@ pub fn run() {
             get_uid,
             is_rclone_running,
             stop_rclone_processes,
-            tiny_prompt_text,
+            prompt,
             stop_pid,
             update_toolbar_shortcut,
             show_toolbar,
