@@ -730,7 +730,7 @@ const actions: ToolbarActionDefinition[] = [
         keywords: COMMAND_KEYWORDS.browse,
         getDefaultResult: () =>
             createBaseResult('Browse', 'Specify a remote to browse its files', {}, 37),
-        getResults: ({ query, paths }) => {
+        getResults: ({ query, paths, remotes }) => {
             if (query && !matchesKeyword(query, COMMAND_KEYWORDS.browse)) {
                 return []
             }
@@ -738,7 +738,24 @@ const actions: ToolbarActionDefinition[] = [
             const remotePaths = paths.filter((path) => !path.isLocal)
 
             if (remotePaths.length === 0) {
-                return [createBaseResult('Browse', 'Specify a remote to browse its files', {}, 37)]
+                if (remotes.length === 0) {
+                    return [
+                        createBaseResult('Browse', 'Specify a remote to browse its files', {}, 37),
+                    ]
+                }
+
+                const results: ToolbarActionResult[] = []
+                for (const remote of remotes) {
+                    results.push(
+                        createBaseResult(
+                            `Browse ${remote}`,
+                            COMMAND_DESCRIPTIONS.browse,
+                            { remote },
+                            140
+                        )
+                    )
+                }
+                return results
             }
 
             const results: ToolbarActionResult[] = []

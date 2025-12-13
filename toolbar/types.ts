@@ -46,6 +46,7 @@ export interface ToolbarActionContext {
     query: string
     fullQuery: string
     paths: ToolbarActionPath[]
+    remotes: string[]
 }
 
 export interface ToolbarActionDefaultContext {

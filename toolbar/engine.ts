@@ -37,6 +37,7 @@ export function runToolbarEngine(
               query: cleanedQuery,
               fullQuery: trimmed,
               paths: parsedPaths,
+              remotes,
           })
         : buildDefaultResults(actions, remotes)
 
@@ -107,42 +108,57 @@ function serializeResult(actionId: ToolbarCommandId, args: ToolbarActionArgs) {
     return `${actionId}:${JSON.stringify(args)}`
 }
 
-const WHITESPACE_SPLIT = /\s+/
 const TOKEN_TRIM_REGEX = /^[\"'`]+|[\"'`.,;!?]+$/g
 const REMOTE_PATH_REGEX = /^([^:\s]+):(.*)$/
 const WINDOWS_DRIVE_REGEX = /^[a-zA-Z]:[\\/]/
 const ALPHA_REGEX = /[a-zA-Z]/
 const WINDOWS_PREFIX_REGEX = /^([a-zA-Z]:)(.*)$/
+const QUOTED_STRING_REGEX = /^(["'`])(.+?)\1/
+const WHITESPACE_OR_COLON_REGEX = /[\s:]/
+const NON_WHITESPACE_TOKEN_REGEX = /^(\S+)/
 
 function extractPaths(
     input: string,
     remotes: string[],
     remoteTypes?: Record<string, string>
 ): ToolbarActionPath[] {
-    const matches = input.split(WHITESPACE_SPLIT).filter(Boolean)
     const seen = new Set<string>()
     const results: ToolbarActionPath[] = []
     const separator = sep()
 
+    const remoteLowerToOriginal = new Map<string, string>()
+    for (const remote of remotes) {
+        remoteLowerToOriginal.set(remote.toLowerCase(), remote)
+    }
+
     console.log('remotes', remotes)
 
-    for (const raw of matches) {
+    const tokens = tokenizeInput(input, remotes)
+
+    for (const raw of tokens) {
         const cleaned = stripToken(raw)
         if (!cleaned) continue
         let remoteName: string | undefined
         let remoteType: string | undefined
         let isLocal: boolean = false
 
-        // eagerly match remotes
-        if (remotes.includes(cleaned)) {
-            remoteName = cleaned
-            remoteType = remoteTypes?.[cleaned]
+        const matchedRemote = remoteLowerToOriginal.get(cleaned.toLowerCase())
+
+        // eagerly match remotes (case-insensitive)
+        if (matchedRemote) {
+            remoteName = matchedRemote
+            remoteType = remoteTypes?.[matchedRemote]
         } else if (isRemotePath(cleaned)) {
             // remote path match (e.g., "rct:/path/to/file")
             const match = REMOTE_PATH_REGEX.exec(cleaned)
-            if (match && remotes.includes(match[1])) {
-                remoteName = match[1]
-                remoteType = remoteTypes?.[match[1]]
+            if (match) {
+                const matchedPathRemote = remoteLowerToOriginal.get(match[1].toLowerCase())
+                if (matchedPathRemote) {
+                    remoteName = matchedPathRemote
+                    remoteType = remoteTypes?.[matchedPathRemote]
+                } else {
+                    continue
+                }
             } else {
                 continue
             }
@@ -151,11 +167,14 @@ function extractPaths(
         } else {
             continue
         }
-        if (!seen.has(cleaned)) {
-            seen.add(cleaned)
+
+        // Use the original remote name for the full path if matched
+        const fullPath = remoteName && !isRemotePath(cleaned) ? remoteName : cleaned
+        if (!seen.has(fullPath.toLowerCase())) {
+            seen.add(fullPath.toLowerCase())
             results.push({
-                full: cleaned,
-                readable: createReadablePath(cleaned, isLocal, separator),
+                full: fullPath,
+                readable: createReadablePath(fullPath, isLocal, separator),
                 isLocal,
                 remoteName,
                 remoteType,
@@ -255,6 +274,50 @@ function createLocalReadable(full: string, separator: string): string {
 
 function stripToken(token: string): string {
     return token.replace(TOKEN_TRIM_REGEX, '')
+}
+
+function tokenizeInput(input: string, remotes: string[]): string[] {
+    const tokens: string[] = []
+    let remaining = input.trim()
+
+    const sortedRemotes = [...remotes].sort((a, b) => b.length - a.length)
+    const remotesWithSpaces = sortedRemotes.filter((r) => r.includes(' '))
+
+    while (remaining.length > 0) {
+        remaining = remaining.trimStart()
+        if (!remaining) break
+
+        //quoted strings first
+        const quoteMatch = QUOTED_STRING_REGEX.exec(remaining)
+        if (quoteMatch) {
+            tokens.push(quoteMatch[2])
+            remaining = remaining.slice(quoteMatch[0].length)
+            continue
+        }
+
+        let matchedRemoteWithSpace = false
+        for (const remote of remotesWithSpaces) {
+            if (remaining.toLowerCase().startsWith(remote.toLowerCase())) {
+                const nextChar = remaining[remote.length]
+                if (!nextChar || WHITESPACE_OR_COLON_REGEX.test(nextChar)) {
+                    tokens.push(remote)
+                    remaining = remaining.slice(remote.length)
+                    matchedRemoteWithSpace = true
+                    break
+                }
+            }
+        }
+        if (matchedRemoteWithSpace) continue
+
+        // fallback
+        const wsMatch = NON_WHITESPACE_TOKEN_REGEX.exec(remaining)
+        if (wsMatch) {
+            tokens.push(wsMatch[1])
+            remaining = remaining.slice(wsMatch[0].length)
+        }
+    }
+
+    return tokens
 }
 
 function isRemotePath(token: string): boolean {
