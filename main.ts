@@ -453,6 +453,8 @@ async function startRclone() {
 }
 
 async function startupMounts() {
+    console.log('[startupMounts]')
+
     const remoteConfigList = useHostStore.getState().remoteConfigs
 
     const remotes = await queryClient.ensureQueryData({
@@ -460,14 +462,29 @@ async function startupMounts() {
         queryFn: async () => await rcloneClient('/config/listremotes').then((r) => r?.remotes),
         staleTime: 1000 * 60,
     })
+    console.log('[startupMounts] remotes', remotes)
 
     for (const remote in remotes) {
+        console.log('[startupMounts] remote', remote)
+
         const remoteConfig = remoteConfigList[remote]
-        if (!remoteConfig) continue
+        if (!remoteConfig) {
+            console.log('[startupMounts] remote config not found', remote)
+            continue
+        }
+        console.log('[startupMounts] remote config found', remoteConfig)
         if (remoteConfig.mountOnStart?.enabled && remoteConfig.mountOnStart?.mountPoint) {
+            console.log(
+                '[startupMounts] remote config mount on start enabled',
+                remoteConfig.mountOnStart
+            )
             try {
                 const isEmpty = await isDirectoryEmpty(remoteConfig.mountOnStart.mountPoint)
                 if (!isEmpty) {
+                    console.log(
+                        '[startupMounts] remote config mount point is not empty',
+                        remoteConfig.mountOnStart.mountPoint
+                    )
                     continue
                 }
 
@@ -480,6 +497,19 @@ async function startupMounts() {
                     configOptions,
                 } = remoteConfig.mountOnStart
 
+                console.log('[startupMounts] starting mount', {
+                    source: `${remote}:${remotePath}`,
+                    destination: mountPoint,
+                    options: {
+                        mount: mountOptions,
+                        vfs: vfsOptions,
+                        filter: filterOptions,
+                        config: configOptions,
+                    },
+                })
+
+                console.log('[startupMounts] starting mount')
+
                 await startMount({
                     source: `${remote}:${remotePath}`,
                     destination: mountPoint,
@@ -490,6 +520,8 @@ async function startupMounts() {
                         config: configOptions,
                     },
                 })
+
+                console.log('[startupMounts] mount started')
             } catch (error) {
                 console.error('Error mounting remote:', error)
                 Sentry.captureException(error)
