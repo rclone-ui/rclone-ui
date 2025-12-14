@@ -9,7 +9,7 @@ import { AlertCircleIcon, Clock7Icon, PauseIcon, PlayIcon, Trash2Icon } from 'lu
 import { useMemo, useState } from 'react'
 import { buildReadablePath } from '../../lib/format'
 import { useHostStore } from '../../store/host'
-import type { ScheduledTask } from '../../types/cron'
+import type { ScheduledTask } from '../../types/schedules'
 import CommandsDropdown from '../components/CommandsDropdown'
 
 export default function Schedules() {

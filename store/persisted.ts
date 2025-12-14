@@ -7,7 +7,7 @@ import { type StateStorage, createJSONStorage, persist } from 'zustand/middlewar
 import type { Host } from '../lib/hosts'
 import type { SERVE_TYPES } from '../lib/rclone/constants'
 import type { ConfigFile } from '../types/config'
-import type { ScheduledTask } from '../types/cron'
+import type { ScheduledTask } from '../types/schedules'
 import type { Template } from '../types/template'
 import type { RemoteConfig as HostRemoteConfig } from './host'
 

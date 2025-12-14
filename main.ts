@@ -35,7 +35,7 @@ import { openSmallWindow } from './lib/window'
 import { initHostStore, useHostStore } from './store/host'
 import { useStore } from './store/memory'
 import { usePersistedStore } from './store/persisted'
-import type { ScheduledTask } from './types/cron'
+import type { ScheduledTask } from './types/schedules'
 
 let currentRcloneChild: Child | null = null
 let rcloneListenersRegistered = false

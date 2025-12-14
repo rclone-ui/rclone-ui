@@ -2,7 +2,7 @@ import { LazyStore } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
 import { type StateStorage, createJSONStorage, persist } from 'zustand/middleware'
 import type { ConfigFile } from '../types/config'
-import type { ScheduledTask } from '../types/cron'
+import type { ScheduledTask } from '../types/schedules'
 
 let activeHostId: string | null = null
 let activeStore: LazyStore | null = null
