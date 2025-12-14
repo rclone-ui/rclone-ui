@@ -309,6 +309,7 @@ export default function RemoteAutoMountDrawer({
                                 />
 
                                 <OptionsSection
+                                    label="Mount Options"
                                     optionsJson={mountOnStartMountOptionsJson}
                                     setOptionsJson={setMountOnStartMountOptionsJson}
                                     globalOptions={globalFlags?.mount || {}}
@@ -316,6 +317,7 @@ export default function RemoteAutoMountDrawer({
                                 />
 
                                 <OptionsSection
+                                    label="VFS Options"
                                     optionsJson={mountOnStartVfsOptionsJson}
                                     setOptionsJson={setMountOnStartVfsOptionsJson}
                                     globalOptions={globalFlags?.vfs || {}}
@@ -323,6 +325,7 @@ export default function RemoteAutoMountDrawer({
                                 />
 
                                 <OptionsSection
+                                    label="Config Options"
                                     optionsJson={mountOnStartConfigOptionsJson}
                                     setOptionsJson={setMountOnStartConfigOptionsJson}
                                     globalOptions={globalFlags?.main || {}}
@@ -330,6 +333,7 @@ export default function RemoteAutoMountDrawer({
                                 />
 
                                 <OptionsSection
+                                    label="Filter Options"
                                     optionsJson={mountOnStartFilterOptionsJson}
                                     setOptionsJson={setMountOnStartFilterOptionsJson}
                                     globalOptions={globalFlags?.filter || {}}

@@ -485,7 +485,9 @@ async function startupMounts() {
                         '[startupMounts] remote config mount point is not empty',
                         remoteConfig.mountOnStart.mountPoint
                     )
-                    continue
+                    throw new Error(
+                        `Mount point for ${remote} is not empty, make sure ${remoteConfig.mountOnStart.mountPoint} is empty`
+                    )
                 }
 
                 const {
@@ -525,11 +527,16 @@ async function startupMounts() {
             } catch (error) {
                 console.error('Error mounting remote:', error)
                 Sentry.captureException(error)
-                await message(`Failed to mount ${remote} on startup.`, {
-                    title: 'Automount Error',
-                    kind: 'error',
-                    okLabel: 'Got it',
-                })
+                await message(
+                    error instanceof Error
+                        ? error.message
+                        : `Failed to mount ${remote} on startup.`,
+                    {
+                        title: 'Automount Error',
+                        kind: 'error',
+                        okLabel: 'Got it',
+                    }
+                )
             }
         }
     }
