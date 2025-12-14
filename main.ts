@@ -464,7 +464,7 @@ async function startupMounts() {
     })
     console.log('[startupMounts] remotes', remotes)
 
-    for (const remote in remotes) {
+    for (const remote of remotes) {
         console.log('[startupMounts] remote', remote)
 
         const remoteConfig = remoteConfigList[remote]
