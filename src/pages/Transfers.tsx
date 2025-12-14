@@ -74,6 +74,10 @@ export default function Transfers() {
             <div className="flex flex-col items-center justify-center w-full h-screen gap-8">
                 <h1 className="text-2xl font-bold">No transfers found</h1>
                 <CommandsDropdown title="Run a command" />
+                <RefreshButton
+                    isRefreshing={transfersQuery.isRefetching}
+                    onRefresh={transfersQuery.refetch}
+                />
             </div>
         )
     }
@@ -101,23 +105,9 @@ export default function Transfers() {
                 </Tab>
             </Tabs>
 
-            <Button
-                size="lg"
-                isIconOnly={true}
-                radius="full"
-                color="primary"
-                className="absolute bottom-5 right-6"
-                onPress={() => {
-                    setTimeout(async () => {
-                        transfersQuery.refetch()
-                    }, 100)
-                }}
-                startContent={
-                    <RefreshCcwIcon
-                        size={28}
-                        className={transfersQuery.isRefetching ? 'animate-spin' : ''}
-                    />
-                }
+            <RefreshButton
+                isRefreshing={transfersQuery.isRefetching}
+                onRefresh={transfersQuery.refetch}
             />
 
             {selectedJob && (
@@ -192,5 +182,28 @@ function JobCard({ job, onSelect }: { job: JobItem; onSelect: (job: JobItem) => 
                 </div>
             </CardBody>
         </Card>
+    )
+}
+
+function RefreshButton({
+    isRefreshing,
+    onRefresh,
+}: { isRefreshing: boolean; onRefresh: () => void }) {
+    return (
+        <Button
+            size="lg"
+            isIconOnly={true}
+            radius="full"
+            color="primary"
+            className="absolute bottom-5 right-6"
+            onPress={() => {
+                setTimeout(async () => {
+                    onRefresh()
+                }, 100)
+            }}
+            startContent={
+                <RefreshCcwIcon size={28} className={isRefreshing ? 'animate-spin' : ''} />
+            }
+        />
     )
 }
