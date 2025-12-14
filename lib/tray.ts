@@ -152,8 +152,8 @@ async function resolveTrayIconForTheme() {
 
             const pickedPath =
                 windowTheme === 'dark'
-                    ? `icons/favicon/icon${isLinux ? '-xs' : ''}.png`
-                    : `icons/favicon/icon-light${isLinux ? '-xs' : ''}.png`
+                    ? `icons/favicon/icon${isLinux ? '-padded' : ''}.png`
+                    : `icons/favicon/icon-light${isLinux ? '-padded' : ''}.png`
 
             return await resolveResource(pickedPath)
         } catch {
@@ -168,8 +168,8 @@ async function resolveTrayIconForTheme() {
 
     const pickedPath =
         existingTheme.tray === 'dark'
-            ? `icons/favicon/icon-light${isLinux ? '-xs' : ''}.png`
-            : `icons/favicon/icon${isLinux ? '-xs' : ''}.png`
+            ? `icons/favicon/icon-light${isLinux ? '-padded' : ''}.png`
+            : `icons/favicon/icon${isLinux ? '-padded' : ''}.png`
 
     return await resolveResource(pickedPath)
 }
