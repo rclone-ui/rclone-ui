@@ -18,7 +18,10 @@ export default function Schedules() {
     if (scheduledTasks.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-screen gap-8">
-                <h1 className="text-2xl font-bold text-center">No scheduled tasks found</h1>
+                <h1 className="text-2xl font-bold text-center">
+                    You can schedule tasks to run later. Schedule one below and keep the UI running
+                    in the background.
+                </h1>
                 <CommandsDropdown title="New scheduled task" />
             </div>
         )
