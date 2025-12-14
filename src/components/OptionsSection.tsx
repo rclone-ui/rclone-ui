@@ -4,6 +4,7 @@ import { startTransition, useCallback, useEffect, useState } from 'react'
 import { replaceSmartQuotes } from '../../lib/format'
 
 export default function OptionsSection({
+    label,
     optionsJson,
     setOptionsJson,
     globalOptions,
@@ -11,6 +12,7 @@ export default function OptionsSection({
     isLocked,
     setIsLocked,
 }: {
+    label?: string
     optionsJson: string
     setOptionsJson: (value: string) => void
     globalOptions: Record<string, unknown>
@@ -47,7 +49,7 @@ export default function OptionsSection({
                     'base': 'w-1/2',
                     inputWrapper: '!h-full !ring-0 !outline-offset-0 !outline-0',
                 }}
-                label="Custom Options"
+                label={label || 'Custom Options'}
                 description="Tap an option to add it. Scroll to see more. Hover to see details."
                 value={optionsJson}
                 onValueChange={(value) => {
