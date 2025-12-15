@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, PhysicalSize, Size, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use super::window::make_transparent;
@@ -6,12 +6,10 @@ use super::window::make_transparent;
 pub const DEFAULT_TOOLBAR_SHORTCUT: &str = "CmdOrCtrl+Shift+/";
 const TOOLBAR_WINDOW_LABEL: &str = "Toolbar";
 
-// Fixed physical size for the toolbar window on Windows (in physical pixels)
-// This avoids DPI scaling issues on multi-monitor setups with different scale factors
 #[cfg(target_os = "windows")]
-const TOOLBAR_PHYSICAL_WIDTH: u32 = 702;
+const TOOLBAR_WIDTH: f64 = 702.0;
 #[cfg(target_os = "windows")]
-const TOOLBAR_PHYSICAL_HEIGHT: u32 = 460;
+const TOOLBAR_HEIGHT: f64 = 460.0;
 
 fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri::Error> {
     let monitor = match app_handle.primary_monitor()? {
@@ -28,13 +26,16 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
     let physical_size = monitor.size();
     let physical_position = monitor.position();
 
-    // On Windows, use physical pixels directly to avoid DPI scaling issues
-    // across multiple monitors with different scale factors
+    // On Windows, use logical coordinates with scale factor for proper DPI handling
     #[cfg(target_os = "windows")]
     let builder = {
-        // Calculate position in physical pixels, centered on the primary monitor
-        let pos_x = physical_position.x + ((physical_size.width - TOOLBAR_PHYSICAL_WIDTH) / 2) as i32;
-        let pos_y = physical_position.y + (physical_size.height / 4) as i32;
+        let scale_factor = monitor.scale_factor();
+        let logical_size = physical_size.to_logical::<f64>(scale_factor);
+        let logical_position = physical_position.to_logical::<f64>(scale_factor);
+
+        // Calculate position in logical pixels, centered on the primary monitor
+        let pos_x = logical_position.x + (logical_size.width - TOOLBAR_WIDTH) / 2.0;
+        let pos_y = logical_position.y + logical_size.height / 4.0;
 
         WebviewWindowBuilder::new(
             app_handle,
@@ -42,9 +43,8 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
             tauri::WebviewUrl::App("/toolbar".into()),
         )
         .title(TOOLBAR_WINDOW_LABEL)
-        // Use initial size (will be corrected to physical pixels after creation)
-        .inner_size(TOOLBAR_PHYSICAL_WIDTH as f64, TOOLBAR_PHYSICAL_HEIGHT as f64)
-        .position(pos_x as f64, pos_y as f64)
+        .inner_size(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
+        .position(pos_x, pos_y)
         .resizable(false)
         .decorations(false)
         .shadow(false)
@@ -89,14 +89,6 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
     };
 
     let window = builder.build()?;
-
-    // On Windows, explicitly set the size in physical pixels to ensure
-    // consistent sizing regardless of which monitor's DPI context is used
-    #[cfg(target_os = "windows")]
-    {
-        let physical_size = PhysicalSize::new(TOOLBAR_PHYSICAL_WIDTH, TOOLBAR_PHYSICAL_HEIGHT);
-        window.set_size(Size::Physical(physical_size))?;
-    }
 
     window.set_zoom(1.0)?;
     window.hide()?;

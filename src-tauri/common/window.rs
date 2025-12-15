@@ -48,10 +48,12 @@ pub async fn open_full_window(
         .or_else(|| app_handle.available_monitors().ok()?.into_iter().next());
 
     let monitor = primary_monitor.ok_or("No monitor found")?;
-    let size = monitor.size();
+    let physical_size = monitor.size();
+    let scale_factor = monitor.scale_factor();
+    let logical_size = physical_size.to_logical::<f64>(scale_factor);
 
-    let width = size.width as f64;
-    let mut height = size.height as f64;
+    let width = logical_size.width;
+    let mut height = logical_size.height;
 
     if os == "windows" {
         height -= 100.0;
