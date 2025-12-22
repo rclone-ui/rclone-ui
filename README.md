@@ -5,7 +5,7 @@
 
 <h1 align="center">
   <a href="https://rcloneui.com">
-    <img src="./public/banner.png" alt="Rclone UI" width="100%">
+    <img src="./.github/banner.png" alt="Rclone UI" width="100%">
   </a>
   <br>
   <a href="https://rcloneui.com">
