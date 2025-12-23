@@ -61,7 +61,7 @@ export default function TemplatesDropdown({
                 onAction={(key) => {
                     if (key === 'add') {
                         setTimeout(async () => {
-                            const result = await invoke<string | null>('tiny_prompt_text', {
+                            const result = await invoke<string | null>('prompt', {
                                 title: 'Add Template',
                                 message: 'Enter a name for the template',
                                 default: '',

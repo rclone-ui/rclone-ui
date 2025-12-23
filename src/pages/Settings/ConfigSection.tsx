@@ -281,7 +281,7 @@ export default function ConfigSection() {
                 throw new Error('Remove the saved password before adding a password command.')
             }
 
-            const command = await invoke<string | null>('tiny_prompt_text', {
+            const command = await invoke<string | null>('prompt', {
                 title: 'Save Password Command',
                 message: `Enter a command that outputs the password for "${activeConfigFile.label}".`,
                 default: '',

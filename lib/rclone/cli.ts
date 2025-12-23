@@ -21,7 +21,7 @@ export interface RcloneCliCommandContext {
 export async function promptForConfigPassword(message: string) {
     console.log('[promptForConfigPassword] message:', message)
     try {
-        const result = await invoke<string | null>('tiny_prompt_text', {
+        const result = await invoke<string | null>('prompt', {
             title: 'Rclone UI',
             message: message.replace(/"/g, '“'),
             default: null,
