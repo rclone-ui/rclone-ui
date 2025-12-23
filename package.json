@@ -1,6 +1,6 @@
 {
     "name": "rclone-ui",
-    "version": "3.1.2",
+    "version": "3.1.3",
     "description": "The GUI for rclone & s3",
     "author": {
         "name": "Rclone UI",
