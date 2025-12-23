@@ -14,6 +14,7 @@ const RE_BACKSLASH = /\\/g
 const RE_PATH_SEPARATOR = /[/\\]/
 const RE_WINDOWS_EXTENDED_PATH = /(\/\/\?\/|\\\\\?\\)/
 const RE_WINDOWS_DRIVE_ROOT = /^:local:[a-zA-Z]:\/$/
+const RE_WINDOWS_DRIVE_LETTER = /^[a-zA-Z]:$/
 
 function serializeOptions(
     remotePath: string,
@@ -510,10 +511,19 @@ export async function startMount({
     }
 }) {
     const currentPlatform = platform()
-    const needsVolumeName = ['windows', 'macos'].includes(currentPlatform)
+    let needsVolumeName = currentPlatform === 'macos'
+
+    if (
+        currentPlatform === 'windows' &&
+        destination !== '*' &&
+        !RE_WINDOWS_DRIVE_LETTER.test(destination)
+    ) {
+        needsVolumeName = true
+    }
+
     const mountOptions = { ...(options.mount || {}) }
 
-    const hasVolumeName = 'volname' in mountOptions && mountOptions.volname && destination !== '*'
+    const hasVolumeName = 'volname' in mountOptions && mountOptions.volname
     if (!hasVolumeName && needsVolumeName) {
         const segments = source.split(RE_PATH_SEPARATOR).filter(Boolean)
         console.log('[Mount] segments', segments)
