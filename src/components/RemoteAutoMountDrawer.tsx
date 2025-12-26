@@ -301,10 +301,9 @@ export default function RemoteAutoMountDrawer({
                                         </Checkbox>
                                     }
                                     onValueChange={(value) => {
-                                        setConfig((prev) => ({
-                                            ...prev,
-                                            defaultMountPoint: value || undefined,
-                                        }))
+                                        setMountOnStart({
+                                            mountPoint: value,
+                                        })
                                     }}
                                 />
 
