@@ -616,16 +616,22 @@ pub fn run() {
 
     let _guard = tauri_plugin_sentry::minidump::init(&client);
 
-    let mut app = tauri::Builder::default()
-		.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-			if let Some(window) = app
-				.webview_windows()
-				.values()
-				.find(|w| w.label() != "main")
-			{
-				let _ = window.set_focus();
-			}
-		}))
+    let mut app = tauri::Builder::default();
+    
+    if !is_flathub() {
+        app = app
+            .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+                if let Some(window) = app
+                    .webview_windows()
+                    .values()
+                    .find(|w| w.label() != "main")
+                {
+                    let _ = window.set_focus();
+                }
+            }));
+    }
+    
+    app = app
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sentry::init_with_no_injection(&client))
         .plugin(tauri_plugin_clipboard_manager::init())
