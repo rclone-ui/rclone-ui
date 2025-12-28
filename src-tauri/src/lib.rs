@@ -631,7 +631,7 @@ pub fn run() {
             }));
     }
     
-    let app = builder
+    let mut app = builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sentry::init_with_no_injection(&client))
         .plugin(tauri_plugin_clipboard_manager::init())
