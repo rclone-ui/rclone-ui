@@ -424,7 +424,7 @@ async fn prompt(
     {
         prompt_text(title, message, default, sensitive).await
     }
-    
+
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         tiny_prompt_text(title, message, default, sensitive).await
@@ -617,7 +617,7 @@ pub fn run() {
     let _guard = tauri_plugin_sentry::minidump::init(&client);
 
     let mut builder = tauri::Builder::default();
-    
+
     if !is_flathub() {
         builder = builder
             .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -630,7 +630,7 @@ pub fn run() {
                 }
             }));
     }
-    
+
     let mut app = builder
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sentry::init_with_no_injection(&client))
@@ -672,10 +672,26 @@ pub fn run() {
             unlock_windows
         ])
         .setup(|app| {
-            #[cfg(any(windows, target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
-                app.deep_link().register_all()?;
+                // Flatpak/Flathub sandbox typically cannot write to system desktop/mime locations.
+                // Deep-link registration is best-effort; never fail app startup.
+                if is_flathub() {
+                    log::info!("skipping deep-link registration in Flatpak/Flathub");
+                } else {
+                    if let Err(err) = app.deep_link().register_all() {
+                        log::warn!("deep-link registration failed (continuing): {}", err);
+                    }
+                }
+            }
+
+            #[cfg(windows)]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(err) = app.deep_link().register_all() {
+                    log::warn!("deep-link registration failed (continuing): {}", err);
+                }
             }
 
             if let Err(err) = ensure_toolbar_window(&app.handle()) {
