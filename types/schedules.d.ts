@@ -9,6 +9,7 @@ import type {
 
 export type ScheduledTask = {
     id: string
+    name?: string
     cron: string
     isRunning: boolean
     isEnabled: boolean

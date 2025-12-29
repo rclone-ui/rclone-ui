@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, Tooltip } from '@heroui/react'
+import { Card, CardBody, CardHeader, Input, Tooltip } from '@heroui/react'
 import { Button, Chip } from '@heroui/react'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
@@ -6,7 +6,7 @@ import CronExpressionParser from 'cron-parser'
 import cronstrue from 'cronstrue'
 import { formatDistance } from 'date-fns'
 import { AlertCircleIcon, Clock7Icon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { buildReadablePath } from '../../lib/format'
 import { useHostStore } from '../../store/host'
 import type { ScheduledTask } from '../../types/schedules'
@@ -19,8 +19,7 @@ export default function Schedules() {
         return (
             <div className="flex flex-col items-center justify-center h-screen gap-8">
                 <h1 className="text-2xl font-bold text-center">
-                    You can schedule tasks to run later. Schedule one below and keep the UI running
-                    in the background.
+                    You can schedule tasks to run later, when the UI is in the background.
                 </h1>
                 <CommandsDropdown title="New scheduled task" />
             </div>
@@ -41,9 +40,17 @@ export default function Schedules() {
 
 function TaskCard({ task }: { task: ScheduledTask }) {
     const [isBusy, setIsBusy] = useState(false)
+    const [isEditingName, setIsEditingName] = useState(false)
+    const [editingName, setEditingName] = useState(task.name)
 
     const removeScheduledTask = useHostStore((state) => state.removeScheduledTask)
     const updateScheduledTask = useHostStore((state) => state.updateScheduledTask)
+
+    useEffect(() => {
+        if (!isEditingName) {
+            setEditingName(task.name)
+        }
+    }, [task.name, isEditingName])
 
     const parsed = useMemo(() => CronExpressionParser.parse(task.cron), [task.cron])
     const nextRun = useMemo(() => (parsed.hasNext() ? parsed.next().toDate() : null), [parsed])
@@ -107,10 +114,54 @@ function TaskCard({ task }: { task: ScheduledTask }) {
                             {task.operation.toUpperCase()}
                         </Chip>
                         <div className="flex flex-col gap-0">
-                            <div className="text-sm font-bold">
-                                {buildReadablePath(source, 'short')}
-                            </div>
+                            <Tooltip
+                                content="Tap to edit the name"
+                                placement="bottom"
+                                size="lg"
+                                color="foreground"
+                            >
+                                <Input
+                                    size="sm"
+                                    value={
+                                        isEditingName
+                                            ? editingName
+                                            : task.name || 'Untitled Schedule'
+                                    }
+                                    variant="bordered"
+                                    isReadOnly={!isEditingName}
+                                    classNames={{
+                                        'input': 'font-bold',
+                                        'inputWrapper': 'p-0 border-0 min-h-0 h-full w-64',
+                                    }}
+                                    autoCapitalize="off"
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    spellCheck="false"
+                                    onClick={(e) => {
+                                        setEditingName(task.name || 'Untitled Schedule')
+                                        setIsEditingName(true)
+                                        e.currentTarget.select()
+                                    }}
+                                    onBlur={() => {
+                                        updateScheduledTask(task.id, { name: editingName })
+                                        setIsEditingName(false)
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            updateScheduledTask(task.id, { name: editingName })
+                                            setIsEditingName(false)
+                                            e.currentTarget.blur()
+                                        } else if (e.key === 'Escape') {
+                                            setEditingName(task.name)
+                                            setIsEditingName(false)
+                                            e.currentTarget.blur()
+                                        }
+                                    }}
+                                    onValueChange={(newName) => setEditingName(newName)}
+                                />
+                            </Tooltip>
                             <div className="text-sm text-gray-500">
+                                {buildReadablePath(source, 'short')} {'→'}{' '}
                                 {'destination' in task.args
                                     ? buildReadablePath(task.args.destination, 'short')
                                     : 'N/A'}

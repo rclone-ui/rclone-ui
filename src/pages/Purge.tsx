@@ -12,6 +12,7 @@ import {
 } from '@heroui/react'
 import * as Sentry from '@sentry/browser'
 import { useMutation } from '@tanstack/react-query'
+import { invoke } from '@tauri-apps/api/core'
 import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import cronstrue from 'cronstrue'
@@ -95,7 +96,18 @@ export default function Purge() {
                 throw new Error('Invalid cron expression')
             }
 
+            const name = await invoke<string | null>('prompt', {
+                title: 'Schedule Name',
+                message: 'Enter a name for this schedule',
+                default: `New Schedule ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' })}`,
+            })
+
+            if (!name) {
+                throw new Error('Schedule name is required')
+            }
+
             useHostStore.getState().addScheduledTask({
+                name,
                 operation: 'purge',
                 cron: cronExpression,
                 args: {
