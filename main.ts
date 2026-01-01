@@ -280,6 +280,17 @@ async function registerRcloneWindowListeners() {
             }
         }
 
+        const cloudflaredTunnel = useStore.getState().cloudflaredTunnel
+        if (cloudflaredTunnel) {
+            try {
+                console.log('[close-app] stopping cloudflared tunnel')
+                await invoke('stop_cloudflared_tunnel', { pid: cloudflaredTunnel.pid })
+                useStore.setState({ cloudflaredTunnel: null })
+            } catch (error) {
+                console.error('[close-app] failed to stop cloudflared tunnel', error)
+            }
+        }
+
         const child = currentRcloneChild
 
         if (child) {
@@ -316,6 +327,17 @@ async function registerRcloneWindowListeners() {
             })
             if (!answer) {
                 return
+            }
+        }
+
+        const cloudflaredTunnel = useStore.getState().cloudflaredTunnel
+        if (cloudflaredTunnel) {
+            try {
+                console.log('[close-app] stopping cloudflared tunnel')
+                await invoke('stop_cloudflared_tunnel', { pid: cloudflaredTunnel.pid })
+                useStore.setState({ cloudflaredTunnel: null })
+            } catch (error) {
+                console.error('[close-app] failed to stop cloudflared tunnel', error)
             }
         }
 

@@ -14,6 +14,7 @@ import {
     MedalIcon,
     SatelliteDishIcon,
     ServerIcon,
+    TabletSmartphoneIcon,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -26,6 +27,7 @@ import ConfigSection from './ConfigSection'
 import GeneralSection from './GeneralSection'
 import HostsSection from './HostsSection'
 import LicenseSection from './LicenseSection'
+import MobileSection from './MobileSection'
 import ProxySection from './ProxySection'
 import RemotesSection from './RemotesSection'
 import ToolbarSection from './ToolbarSection'
@@ -254,6 +256,33 @@ export default function Settings() {
                     className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
                 >
                     <ProxySection />
+                </Tab>
+                <Tab
+                    key="mobile"
+                    title={
+                        <Tooltip
+                            content={
+                                currentHost?.id !== 'local'
+                                    ? 'Mobile access is only available when using your local machine, not a remote host'
+                                    : undefined
+                            }
+                            isDisabled={currentHost?.id === 'local'}
+                            placement="right"
+                            size="lg"
+                            color="foreground"
+                            className="max-w-48"
+                            offset={90}
+                        >
+                            <div className="flex items-center gap-2">
+                                <TabletSmartphoneIcon className="w-5 h-5" />
+                                <span>Mobile</span>
+                            </div>
+                        </Tooltip>
+                    }
+                    data-focus-visible="false"
+                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
+                >
+                    <MobileSection />
                 </Tab>
                 <Tab
                     key="license"

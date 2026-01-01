@@ -432,6 +432,166 @@ async fn prompt(
 }
 
 #[tauri::command]
+async fn start_cloudflared_tunnel(app: tauri::AppHandle) -> Result<(u32, String), String> {
+    use std::io::{BufRead, BufReader};
+    use std::process::{Command as SysCommand, Stdio};
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::Duration;
+
+    // Get the binary path
+    let app_local_data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("Failed to get app local data directory: {}", e))?;
+    
+    #[cfg(target_os = "windows")]
+    let binary_name = "cloudflared.exe";
+    #[cfg(not(target_os = "windows"))]
+    let binary_name = "cloudflared";
+    
+    let cloudflared_path = app_local_data_dir.join(binary_name);
+    
+    if !cloudflared_path.exists() {
+        return Err("Cloudflared binary not found".to_string());
+    }
+
+    // Start cloudflared tunnel
+    let mut child = SysCommand::new(&cloudflared_path)
+        .args(&["tunnel", "--url", "http://localhost:5572"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start cloudflared: {}", e))?;
+
+    let pid = child.id();
+    let tunnel_url = Arc::new(Mutex::new(String::new()));
+    let tunnel_url_clone = Arc::clone(&tunnel_url);
+
+    // Read stdout to extract tunnel URL
+    if let Some(stderr) = child.stderr.take() {
+        thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().flatten() {
+                if line.contains("trycloudflare.com") {
+                    // Extract the URL from the line
+                    if let Some(start) = line.find("https://") {
+                        if let Some(end) = line[start..].find(char::is_whitespace) {
+                            let url = &line[start..start + end];
+                            let mut tunnel_url = tunnel_url_clone.lock().unwrap();
+                            *tunnel_url = url.to_string();
+                        } else {
+                            let url = &line[start..];
+                            let mut tunnel_url = tunnel_url_clone.lock().unwrap();
+                            *tunnel_url = url.to_string();
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Wait for tunnel URL (max 15 seconds)
+    for _ in 0..150 {
+        thread::sleep(Duration::from_millis(100));
+        let url = tunnel_url.lock().unwrap();
+        if !url.is_empty() {
+            return Ok((pid, url.clone()));
+        }
+    }
+
+    // If we didn't get a URL, kill the process and return error
+    let _ = stop_pid(pid, Some(2000)).await;
+    Err("Failed to get tunnel URL from cloudflared".to_string())
+}
+
+#[tauri::command]
+async fn stop_cloudflared_tunnel(pid: u32) -> Result<(), String> {
+    use std::time::Duration;
+    
+    // Cloudflared takes ~5s to gracefully shut down, so give it enough time
+    match stop_pid(pid, Some(6000)).await {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // Wait a bit for the process to fully terminate
+            std::thread::sleep(Duration::from_millis(200));
+            
+            // Even if we get an error, the process might have stopped
+            // Check one more time if the process is actually gone
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            {
+                let alive = std::process::Command::new("kill")
+                    .args(&["-0", &pid.to_string()])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false);
+                
+                if !alive {
+                    // Process is gone, consider it a success
+                    return Ok(());
+                }
+            }
+            
+            #[cfg(target_os = "windows")]
+            {
+                let output = std::process::Command::new("tasklist")
+                    .args(&["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
+                    .output();
+                
+                if let Ok(output) = output {
+                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                    if stdout.trim().is_empty() 
+                        || stdout.contains("No tasks are running") 
+                        || !stdout.contains(&pid.to_string()) 
+                    {
+                        // Process is gone, consider it a success
+                        return Ok(());
+                    }
+                }
+            }
+            
+            // As a last resort, check if a process with this PID is still a cloudflared process
+            let system = System::new_all();
+            let mut cloudflared_still_running = false;
+            for (p, process) in system.processes() {
+                if p.as_u32() == pid {
+                    let name = process.name().to_string_lossy().to_lowercase();
+                    if name.contains("cloudflared") {
+                        cloudflared_still_running = true;
+                    }
+                    break;
+                }
+            }
+
+            if !cloudflared_still_running {
+                // PID either gone or reused by another process; treat as successfully stopped
+                return Ok(());
+            }
+
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
+fn extract_tgz(tgz_path: &str, output_folder: &str) -> Result<(), String> {
+    use flate2::read::GzDecoder;
+    use std::fs::File;
+    use tar::Archive;
+
+    let file = File::open(tgz_path).map_err(|e| e.to_string())?;
+    let tar = GzDecoder::new(file);
+    let mut archive = Archive::new(tar);
+
+    fs::create_dir_all(output_folder).map_err(|e| e.to_string())?;
+
+    archive.set_preserve_permissions(true);
+    archive.unpack(output_folder).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn test_proxy_connection(proxy_url: String) -> Result<String, String> {
     use std::time::Duration;
 
@@ -669,7 +829,10 @@ pub fn run() {
             open_window,
             open_small_window,
             lock_windows,
-            unlock_windows
+            unlock_windows,
+			start_cloudflared_tunnel,
+			stop_cloudflared_tunnel,
+			extract_tgz
         ])
         .setup(|app| {
             #[cfg(target_os = "linux")]

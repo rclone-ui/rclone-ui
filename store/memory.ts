@@ -21,6 +21,11 @@ interface State {
         app: 'light' | 'dark' | 'system'
         tray: 'light' | 'dark' | 'system'
     }
+
+    cloudflaredTunnel: {
+        pid: number
+        url: string
+    } | null
 }
 
 export const useStore = create<State>()(
@@ -37,6 +42,8 @@ export const useStore = create<State>()(
                 app: 'dark',
                 tray: 'system',
             },
+
+            cloudflaredTunnel: null,
         }),
         { name: 'shared-store' }
     )

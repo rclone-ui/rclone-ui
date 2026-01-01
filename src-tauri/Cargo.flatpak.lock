@@ -249,6 +249,7 @@ version = "3.2.0"
 dependencies = [
  "cocoa",
  "fix-path-env",
+ "flate2",
  "log",
  "machine-uid",
  "objc",
@@ -257,6 +258,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sysinfo",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
