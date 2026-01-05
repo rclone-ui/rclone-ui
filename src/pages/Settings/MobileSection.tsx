@@ -144,7 +144,11 @@ export default function MobileSection() {
                     <div className="flex flex-col items-center gap-4">
                         <p className="text-medium text-neutral-400">Scan the QR Code</p>
                         <div className="p-4 bg-white rounded-lg">
-                            <QRCodeSVG value={cloudflaredTunnel.url} size={200} level="M" />
+                            <QRCodeSVG
+                                value={JSON.stringify({ url: cloudflaredTunnel.url })}
+                                size={200}
+                                level="M"
+                            />
                         </div>
                         <Input
                             isReadOnly={true}
