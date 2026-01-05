@@ -674,15 +674,23 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "linux")]
             {
-                use tauri_plugin_deep_link::DeepLinkExt;
                 // Flatpak/Flathub sandbox typically cannot write to system desktop/mime locations.
                 // Deep-link registration is best-effort; never fail app startup.
                 if is_flathub() {
                     log::info!("skipping deep-link registration in Flatpak/Flathub");
                 } else {
+					use tauri_plugin_deep_link::DeepLinkExt;
                     if let Err(err) = app.deep_link().register_all() {
                         log::warn!("deep-link registration failed (continuing): {}", err);
                     }
+                }
+				
+                let cache_dir = app.path().cache_dir()?;
+                let package_info = app.package_info();
+                let app_name = package_info.name.as_str();
+                let app_cache = cache_dir.join(app_name);
+                if app_cache.exists() {
+                    let _ = fs::remove_dir_all(&app_cache);
                 }
             }
 

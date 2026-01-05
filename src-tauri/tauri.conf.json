@@ -51,7 +51,7 @@
         "homepage": "https://github.com/rclone-ui/rclone-ui",
         "publisher": "Rclone UI",
         "category": "Utility",
-        "copyright": "Copyright © 2025 Rclone UI.",
+        "copyright": "Copyright © 2026 Rclone UI.",
         "macOS": {
             "dmg": {
                 "appPosition": {
