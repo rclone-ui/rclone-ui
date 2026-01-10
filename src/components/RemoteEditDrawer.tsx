@@ -110,7 +110,8 @@ export default function RemoteEditDrawer({
 
             return updatedRemoteConfig
         },
-        onSuccess: (updatedRemoteConfig) => {
+        onSuccess: async (updatedRemoteConfig) => {
+            await rclone('/fscache/clear').catch()
             queryClient.setQueryData(
                 ['remote', remoteName, 'config'],
                 (old?: typeof remoteConfig) => ({
