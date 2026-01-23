@@ -757,18 +757,16 @@ async function checkVersion() {
     try {
         console.log('[checkVersion] fetching meta.json')
 
-        const metaJson = await fetch(
-            'https://raw.githubusercontent.com/rclone-ui/rclone-ui/refs/heads/main/meta.json'
-        )
+        const latestMeta = await fetch('https://rcloneui.com/latest')
         console.log('[checkVersion] meta.json fetched')
 
-        const metaJsonData = (await metaJson.json()) as {
+        const latestMetaData = (await latestMeta.json()) as {
             minimumVersion: string
             okVersion: string
         }
         console.log('[checkVersion] meta.json parsed')
 
-        const { minimumVersion, okVersion } = metaJsonData
+        const { minimumVersion, okVersion } = latestMetaData
 
         console.log('[checkVersion] minimumVersion', minimumVersion)
         console.log('[checkVersion] okVersion', okVersion)
