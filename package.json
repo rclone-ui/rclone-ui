@@ -1,6 +1,6 @@
 {
     "name": "rclone-ui",
-    "version": "3.2.2",
+    "version": "3.3.0",
     "description": "The GUI for rclone & s3",
     "author": {
         "name": "Rclone UI",
@@ -12,16 +12,7 @@
         "url": "https://github.com/rclone-ui/rclone-ui"
     },
     "homepage": "https://rcloneui.com",
-    "keywords": [
-        "rclone",
-        "gui",
-        "drive",
-        "s3",
-        "cloud",
-        "storage",
-        "sync",
-        "backup"
-    ],
+    "keywords": ["rclone", "gui", "drive", "s3", "cloud", "storage", "sync", "backup"],
     "license": "Apache-2.0",
     "scripts": {
         "dev": "node scripts/buildExternal.js && vite",
