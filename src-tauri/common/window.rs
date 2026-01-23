@@ -108,7 +108,9 @@ pub async fn open_window(
     let mut builder = WebviewWindowBuilder::new(&app_handle, &name, WebviewUrl::App(url.into()))
         .title(&name)
         .inner_size(width, height)
-        .resizable(false)
+        .min_inner_size(700.0, 700.0)
+        .max_inner_size(1000.0, 1000.0)
+        .resizable(true)
         .visible(false)
         .focused(false)
         .decorations(true)
@@ -152,11 +154,6 @@ pub async fn open_window(
     window.set_zoom(1.0).map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
-
-    if os != "windows" && os != "macos" {
-		window.set_resizable(true).map_err(|e| e.to_string())?;
-        window.set_resizable(false).map_err(|e| e.to_string())?;
-    }
 
     Ok(())
 }
