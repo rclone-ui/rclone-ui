@@ -12,7 +12,16 @@
         "url": "https://github.com/rclone-ui/rclone-ui"
     },
     "homepage": "https://rcloneui.com",
-    "keywords": ["rclone", "gui", "drive", "s3", "cloud", "storage", "sync", "backup"],
+    "keywords": [
+        "rclone",
+        "gui",
+        "drive",
+        "s3",
+        "cloud",
+        "storage",
+        "sync",
+        "backup"
+    ],
     "license": "Apache-2.0",
     "scripts": {
         "dev": "node scripts/buildExternal.js && vite",
@@ -63,6 +72,7 @@
         "fuse.js": "^7.1.0",
         "lucide-react": "^0.552.0",
         "p-retry": "^7.1.0",
+        "qrcode.react": "^4.2.0",
         "rclone-sdk": "^1.72.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
@@ -79,6 +89,7 @@
         "@total-typescript/ts-reset": "^0.6.1",
         "@types/canvas-confetti": "^1.9.0",
         "@types/node": "^22.10.7",
+        "@types/qrcode.react": "^1.0.5",
         "@types/react": "^18.3.1",
         "@types/react-dom": "^18.3.1",
         "@vitejs/plugin-react": "^4.7.0",
