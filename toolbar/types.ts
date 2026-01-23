@@ -20,6 +20,7 @@ export type ToolbarCommandId =
     | 'remoteAutoMount'
     | 'quit'
     | 'remoteList'
+    | 'vfs'
 
 export type ToolbarActionArgs = Record<string, any>
 
@@ -32,6 +33,7 @@ export interface ToolbarActionResult {
 
 export interface ToolbarActionOnPressContext {
     openWindow: (options: { name: string; url: string }) => Promise<unknown>
+    updateText: (text: string) => void
 }
 
 export interface ToolbarActionPath {

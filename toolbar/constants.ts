@@ -24,6 +24,7 @@ const REMOTE_EDIT_DESCRIPTION = 'Edit a remote.'
 const REMOTE_AUTO_MOUNT_DESCRIPTION = 'Configure auto mount options for a remote.'
 const REMOTE_LIST_DESCRIPTION = 'Show all configured remotes.'
 const QUIT_DESCRIPTION = 'Quit the application.'
+const VFS_DESCRIPTION = 'Forget the local cache for one or all remotes.'
 
 export const COMMAND_CONFIG = {
     copy: { route: '/copy', windowLabel: 'Copy' },
@@ -47,6 +48,7 @@ export const COMMAND_CONFIG = {
     remoteAutoMount: {},
     remoteList: {},
     quit: {},
+    vfs: {},
 } as const
 
 export const COMMAND_DESCRIPTIONS: Record<ToolbarCommandId, string> = {
@@ -71,6 +73,7 @@ export const COMMAND_DESCRIPTIONS: Record<ToolbarCommandId, string> = {
     remoteAutoMount: REMOTE_AUTO_MOUNT_DESCRIPTION,
     remoteList: REMOTE_LIST_DESCRIPTION,
     quit: QUIT_DESCRIPTION,
+    vfs: VFS_DESCRIPTION,
 }
 
 export const COMMAND_KEYWORDS: Record<ToolbarCommandId, string[]> = {
@@ -95,4 +98,5 @@ export const COMMAND_KEYWORDS: Record<ToolbarCommandId, string[]> = {
     remoteAutoMount: ['mount', 'remote', 'update', 'change'],
     remoteList: ['remote', 'list', 'show'],
     quit: ['quit', 'exit', 'close'],
+    vfs: ['vfs', 'cache', 'forget'],
 }

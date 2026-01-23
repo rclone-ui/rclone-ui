@@ -98,6 +98,15 @@ export default function Toolbar() {
         refetchInterval: 5_000,
     })
 
+    const { data: vfsList } = useQuery({
+        queryKey: ['vfs', 'list'],
+        queryFn: async () => {
+            const response = await rclone('/vfs/list')
+            return response?.vfses ?? []
+        },
+        refetchInterval: 5_000,
+    })
+
     const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data])
     const remoteTypes = useMemo(() => remoteTypesQuery.data ?? {}, [remoteTypesQuery.data])
 
@@ -115,12 +124,13 @@ export default function Toolbar() {
     useEffect(() => {
         console.log(`${mountList?.length} mounts`)
         console.log(`${serveList?.length} serves`)
+        console.log(`${vfsList?.length} vfses`)
 
         const { results } = runToolbarEngine(searchStringDebounced, remotes, remoteTypes)
         startTransition(() => {
             setEngineResults(results)
         })
-    }, [mountList, serveList, searchStringDebounced, remotes, remoteTypes])
+    }, [mountList, serveList, vfsList, searchStringDebounced, remotes, remoteTypes])
 
     useEffect(() => {
         let unlisten: (() => void) | undefined
@@ -190,15 +200,24 @@ export default function Toolbar() {
     }, [])
 
     const handleExecute = useCallback(async (result: ResolvedToolbarResult) => {
-        await closeToolbar()
-        setSearchString('')
+        let keepOpen = false
+
         try {
             const action = result.resolve()
             await action.onPress(result.args, {
                 openWindow,
+                updateText: (text: string) => {
+                    setSearchString(text)
+                    keepOpen = true
+                },
             })
         } catch (error) {
             console.error('[Toolbar] Failed to execute action', error)
+        }
+
+        if (!keepOpen) {
+            await closeToolbar()
+            setSearchString('')
         }
     }, [])
 

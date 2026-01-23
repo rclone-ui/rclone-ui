@@ -188,6 +188,7 @@ function TaskCard({ task }: { task: ScheduledTask }) {
                                 placement="bottom"
                                 size="lg"
                                 color="foreground"
+                                isDisabled={task.isRunning}
                             >
                                 <Chip
                                     isCloseable={false}

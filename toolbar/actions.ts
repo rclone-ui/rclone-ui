@@ -755,6 +755,7 @@ const actions: ToolbarActionDefinition[] = [
                         )
                     )
                 }
+                results.push(createBaseResult('Back', 'Return to menu', { _action: 'back' }, 50))
                 return results
             }
 
@@ -780,15 +781,17 @@ const actions: ToolbarActionDefinition[] = [
 
             return results
         },
-        onPress: async (args) => {
+        onPress: async (args, context) => {
+            if (args._action === 'back') {
+                context.updateText('')
+                return
+            }
+
             const remote =
                 typeof args.remote === 'string' && args.remote.length > 0 ? args.remote : undefined
 
             if (!remote) {
-                await notify({
-                    title: 'Error',
-                    body: 'Please specify a remote to browse',
-                })
+                context.updateText('Browse ')
                 return
             }
 
@@ -1144,6 +1147,115 @@ const actions: ToolbarActionDefinition[] = [
         },
         onPress: async () => {
             await getCurrentWindow().emit('close-app')
+        },
+    },
+    {
+        id: 'vfs',
+        label: 'VFS',
+        description: COMMAND_DESCRIPTIONS.vfs,
+        keywords: COMMAND_KEYWORDS.vfs,
+        getDefaultResult: () => createBaseResult('VFS', 'Specify a cache to forget', {}, 35),
+        getResults: ({ query }) => {
+            if (query && !matchesKeyword(query, COMMAND_KEYWORDS.vfs)) {
+                return []
+            }
+
+            const results: ToolbarActionResult[] = []
+
+            const activeVfses = queryClient.getQueryData(['vfs', 'list']) as string[] | undefined
+
+            if (activeVfses && activeVfses.length > 0) {
+                for (const vfs of activeVfses) {
+                    results.push(
+                        createBaseResult(
+                            `Forget ${vfs}`,
+                            'Clear the VFS directory cache',
+                            { _action: 'forget', _fs: vfs },
+                            180
+                        )
+                    )
+                }
+
+                if (activeVfses.length >= 2) {
+                    results.push(
+                        createBaseResult(
+                            `Forget All VFS Caches (${activeVfses.length} active)`,
+                            'Clear all VFS directory caches',
+                            { _action: 'forget_all' },
+                            170
+                        )
+                    )
+                }
+            } else {
+                results.push(
+                    createBaseResult('Back', 'No active VFS caches', { _action: 'back' }, 35)
+                )
+            }
+
+            return results
+        },
+        onPress: async (args, context) => {
+            if (!args._action) {
+                context.updateText('VFS ')
+                return
+            }
+
+            if (args._action === 'back') {
+                context.updateText('')
+                return
+            }
+
+            if (args._action === 'forget') {
+                const fs = args._fs as string
+                try {
+                    await rclone('/vfs/forget', {
+                        params: {
+                            query: {
+                                fs,
+                            },
+                        },
+                    })
+                    await notify({
+                        title: 'VFS Cache Cleared',
+                        body: `Directory cache for ${fs} has been cleared`,
+                    })
+                    queryClient.setQueryData(
+                        ['vfs', 'list'],
+                        (old: string[] | undefined) => old?.filter((v) => v !== fs) ?? []
+                    )
+                } catch (error) {
+                    console.error('[toolbar] failed to forget VFS cache', error)
+                    await message(
+                        error instanceof Error ? error.message : 'Failed to clear VFS cache',
+                        {
+                            title: 'VFS Forget',
+                            kind: 'error',
+                        }
+                    )
+                }
+                return
+            }
+
+            if (args._action === 'forget_all') {
+                try {
+                    await rclone('/vfs/forget')
+                    await notify({
+                        title: 'All VFS Caches Cleared',
+                        body: 'All VFS directory caches have been cleared',
+                    })
+                    queryClient.setQueryData(['vfs', 'list'], [])
+                } catch (error) {
+                    console.error('[toolbar] failed to forget all VFS caches', error)
+                    await message(
+                        error instanceof Error ? error.message : 'Failed to clear all VFS caches',
+                        {
+                            title: 'VFS Forget All',
+                            kind: 'error',
+                        }
+                    )
+                }
+                return
+            }
         },
     },
 ]

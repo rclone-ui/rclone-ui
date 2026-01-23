@@ -2,7 +2,7 @@
     "$schema": "https://schema.tauri.app/config/2",
     "productName": "Rclone UI",
     "mainBinaryName": "Rclone UI",
-    "version": "3.2.0",
+    "version": "3.2.2",
     "identifier": "com.rclone.ui",
     "build": {
         "frontendDist": "../dist",
@@ -51,7 +51,7 @@
         "homepage": "https://github.com/rclone-ui/rclone-ui",
         "publisher": "Rclone UI",
         "category": "Utility",
-        "copyright": "Copyright © 2025 Rclone UI.",
+        "copyright": "Copyright © 2026 Rclone UI.",
         "macOS": {
             "dmg": {
                 "appPosition": {
