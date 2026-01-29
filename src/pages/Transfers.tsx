@@ -66,7 +66,7 @@ export default function Transfers() {
         error: transfersQuery.error,
         activeCount: transfers.active.length,
         inactiveCount: transfers.inactive.length,
-        checkingJobs: transfers.active.filter((j) => j.isChecking).length,
+        // checkingJobs: transfers.active.filter((j) => j.isChecking).length,
     })
     console.log('[Transfers] data', JSON.stringify(transfers, null, 2))
 
