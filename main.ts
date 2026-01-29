@@ -598,73 +598,166 @@ async function resumeTasks() {
     console.log('[resumeTasks] resuming tasks')
 
     if (hasScheduledTasks) {
-        console.log('[resumeTasks] tasks already resumed')
+        console.log('[resumeTasks] already called, skipping (hasScheduledTasks=true)')
         return
     }
 
     const scheduledTasks = useHostStore.getState().scheduledTasks
     const activeConfigId = useHostStore.getState().activeConfigFile?.id
 
+    console.log('[resumeTasks] found', scheduledTasks.length, 'scheduled tasks')
+    console.log('[resumeTasks] activeConfigId:', activeConfigId)
+
     if (!activeConfigId) {
-        console.log('[resumeTasks] no active config id')
+        console.log('[resumeTasks] no active config id, cannot schedule tasks')
         return
     }
 
     hasScheduledTasks = true
 
-    console.log('[resumeTasks] resuming tasks for config', activeConfigId)
+    console.log('[resumeTasks] processing tasks for config:', activeConfigId)
+
+    let scheduledCount = 0
+    let skippedRunning = 0
+    let skippedConfigMismatch = 0
+    let skippedTimingIssue = 0
 
     for (const task of scheduledTasks) {
+        console.log('[resumeTasks] processing task:', {
+            id: task.id,
+            operation: task.operation,
+            cron: task.cron,
+            configId: task.configId,
+            isRunning: task.isRunning,
+            isEnabled: task.isEnabled,
+        })
+
         if (task.isRunning) {
+            console.log('[resumeTasks] task', task.id, 'was marked as running, resetting state')
             useHostStore.getState().updateScheduledTask(task.id, {
                 isRunning: false,
                 currentRunId: undefined,
                 lastRunError: 'Task closed prematurely',
             })
+            skippedRunning++
             continue
         }
 
         if (task.configId !== activeConfigId) {
+            console.log(
+                '[resumeTasks] task',
+                task.id,
+                'belongs to different config:',
+                task.configId,
+                '!==',
+                activeConfigId
+            )
+            skippedConfigMismatch++
             continue
         }
 
         try {
+            console.log('[resumeTasks] parsing cron expression:', task.cron)
             const cronInterval = CronExpressionParser.parse(task.cron)
             const nextRun = cronInterval.next().toDate()
-            const difference = nextRun.getTime() - Date.now()
+            const now = Date.now()
+            const difference = nextRun.getTime() - now
+
+            console.log('[resumeTasks] task', task.id, 'timing:', {
+                nextRun: nextRun.toISOString(),
+                now: new Date(now).toISOString(),
+                differenceMs: difference,
+                differenceMinutes: Math.round(difference / 60000),
+                maxAllowedMs: MAX_INT_MS,
+                withinLimit: difference <= MAX_INT_MS,
+                isPositive: difference > 0,
+            })
 
             if (difference <= MAX_INT_MS && difference > 0) {
+                console.log(
+                    '[resumeTasks] scheduling task',
+                    task.id,
+                    'to run in',
+                    Math.round(difference / 60000),
+                    'minutes'
+                )
                 setTimeout(async () => {
-                    console.log('running task', task)
+                    console.log(
+                        '[resumeTasks] timer fired for task',
+                        task.id,
+                        'at',
+                        new Date().toISOString()
+                    )
                     notify({
                         title: 'Task Started',
                         body: `Task ${task.operation} (${task.id}) started`,
                     })
                     await handleTask(task)
                 }, difference)
-                console.log('scheduled task', task.operation, task.id, nextRun)
+                scheduledCount++
+                console.log(
+                    '[resumeTasks] task',
+                    task.id,
+                    'scheduled successfully for',
+                    nextRun.toISOString()
+                )
+            } else {
+                console.log(
+                    '[resumeTasks] task',
+                    task.id,
+                    'NOT scheduled:',
+                    difference > MAX_INT_MS
+                        ? 'next run too far in future'
+                        : 'next run is in the past or now'
+                )
+                skippedTimingIssue++
             }
         } catch (error) {
-            console.error('Error scheduling task:', error)
+            console.error('[resumeTasks] error scheduling task', task.id, ':', error)
+            console.error('[resumeTasks] task details:', JSON.stringify(task, null, 2))
             Sentry.captureException(error)
         }
     }
 
-    console.log('[resumeTasks] tasks resumed')
+    console.log('[resumeTasks] summary:', {
+        totalTasks: scheduledTasks.length,
+        scheduledCount,
+        skippedRunning,
+        skippedConfigMismatch,
+        skippedTimingIssue,
+    })
 }
 
 async function handleTask(task: ScheduledTask) {
+    console.log('[handleTask] starting execution for task:', task.id, task.operation)
+
     const currentTask = useHostStore.getState().scheduledTasks.find((t) => t.id === task.id)
 
     if (!currentTask) {
+        console.log('[handleTask] task', task.id, 'not found in store, aborting')
         return
     }
 
+    console.log('[handleTask] found task in store:', {
+        id: currentTask.id,
+        isRunning: currentTask.isRunning,
+        currentRunId: currentTask.currentRunId,
+        isEnabled: currentTask.isEnabled,
+    })
+
     if (currentTask.isRunning) {
+        console.log(
+            '[handleTask] task',
+            task.id,
+            'already running (runId:',
+            currentTask.currentRunId,
+            '), aborting'
+        )
         return
     }
 
     const freshRunId = crypto.randomUUID()
+    console.log('[handleTask] generated freshRunId:', freshRunId)
 
     useHostStore.getState().updateScheduledTask(task.id, {
         isRunning: true,
@@ -672,82 +765,113 @@ async function handleTask(task: ScheduledTask) {
         lastRun: new Date().toISOString(),
     })
 
-    console.log('running task', task.operation, task.id)
+    console.log('[handleTask] running task', task.operation, task.id)
+    console.log('[handleTask] updated task state, isRunning=true, runId:', freshRunId)
 
     const currentRunId = useHostStore
         .getState()
         .scheduledTasks.find((t) => t.id === task.id)?.currentRunId
 
+    console.log('[handleTask] verifying runId - expected:', freshRunId, 'actual:', currentRunId)
+
     if (currentRunId !== freshRunId) {
+        console.log('[handleTask] runId mismatch, another execution may have started, aborting')
         return
     }
+
+    console.log(
+        '[handleTask] executing operation:',
+        task.operation,
+        'with args:',
+        JSON.stringify(task.args, null, 2)
+    )
 
     try {
         switch (task.operation) {
             case 'copy': {
+                console.log('[handleTask] starting copy operation')
                 const { sources, options, destination } = task.args
                 await startCopy({
                     sources,
                     destination,
                     options,
                 })
+                console.log('[handleTask] copy operation completed')
                 break
             }
             case 'move': {
+                console.log('[handleTask] starting move operation')
                 const { sources, options, destination } = task.args
                 await startMove({
                     sources,
                     destination,
                     options,
                 })
+                console.log('[handleTask] move operation completed')
                 break
             }
             case 'sync': {
+                console.log('[handleTask] starting sync operation')
                 const { source, destination, options } = task.args
                 await startSync({
                     source,
                     destination,
                     options,
                 })
+                console.log('[handleTask] sync operation completed')
                 break
             }
             case 'bisync': {
+                console.log('[handleTask] starting bisync operation')
                 const { source, destination, options } = task.args
                 await startBisync({
                     source,
                     destination,
                     options,
                 })
+                console.log('[handleTask] bisync operation completed')
                 break
             }
             case 'delete': {
+                console.log('[handleTask] starting delete operation')
                 const { sources, options } = task.args
                 await startDelete({
                     sources,
                     options,
                 })
+                console.log('[handleTask] delete operation completed')
                 break
             }
             case 'purge': {
+                console.log('[handleTask] starting purge operation')
                 const { sources, options } = task.args
                 await startPurge({
                     sources,
                     options,
                 })
+                console.log('[handleTask] purge operation completed')
                 break
             }
             default:
+                console.log('[handleTask] unknown operation encountered')
                 break
         }
+        console.log('[handleTask] task', task.id, 'completed successfully')
     } catch (err) {
         Sentry.captureException(err)
-        console.error('Failed to start task:', err)
+        console.error('[handleTask] task', task.id, 'failed with error:', err)
+        console.error('[handleTask] task args were:', JSON.stringify(task.args, null, 2))
         useHostStore.getState().updateScheduledTask(task.id, {
             isRunning: false,
             currentRunId: undefined,
             lastRunError: err instanceof Error ? err.message : 'Unknown error',
         })
     } finally {
+        console.log('[handleTask] cleaning up task', task.id, 'state')
+        useHostStore.getState().updateScheduledTask(task.id, {
+            isRunning: false,
+            currentRunId: undefined,
+        })
     }
 }
 
