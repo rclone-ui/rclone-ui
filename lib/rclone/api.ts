@@ -117,6 +117,12 @@ export async function startCopy({
         remotes?: Record<string, Record<string, FlagValue>>
     }
 }) {
+    console.log('[startCopy] starting', {
+        sources,
+        destination,
+        optionKeys: Object.keys(options),
+    })
+
     for (const source of sources) {
         const sourceExists = await hasStat(source)
         if (!sourceExists) {
@@ -228,6 +234,7 @@ export async function startCopy({
         pendingJobs.push(jobParams)
     }
 
+    console.log('[startCopy] submitting batch', { jobCount: pendingJobs.length })
     return startBatch(pendingJobs)
 }
 
@@ -245,6 +252,12 @@ export async function startMove({
         remotes?: Record<string, Record<string, FlagValue>>
     }
 }) {
+    console.log('[startMove] starting', {
+        sources,
+        destination,
+        optionKeys: Object.keys(options),
+    })
+
     for (const source of sources) {
         const sourceExists = await hasStat(source)
         if (!sourceExists) {
@@ -345,6 +358,7 @@ export async function startMove({
         pendingJobs.push(jobParams)
     }
 
+    console.log('[startMove] submitting batch', { jobCount: pendingJobs.length })
     return startBatch(pendingJobs)
 }
 
@@ -365,6 +379,7 @@ async function fetchJob(jobId: number, transferred: Awaited<ReturnType<typeof fe
             },
         },
     })
+    console.log('[fetchJob] job stats', jobId, JSON.stringify(job, null, 2))
 
     const jobStatus = await rclone('/job/status', {
         params: {
@@ -373,6 +388,7 @@ async function fetchJob(jobId: number, transferred: Awaited<ReturnType<typeof fe
             },
         },
     })
+    console.log('[fetchJob] job status', jobId, JSON.stringify(jobStatus, null, 2))
 
     let hasError = !!jobStatus?.error
 
@@ -438,13 +454,17 @@ async function fetchJob(jobId: number, transferred: Awaited<ReturnType<typeof fe
 }
 
 export async function listTransfers() {
-    console.log('[listTransfers]')
+    console.log('[listTransfers] starting')
 
     const allStats = await rclone('/core/stats')
+    console.log('[listTransfers] allStats', JSON.stringify(allStats, null, 2))
 
-    const transferring = allStats?.transferring
+    const transferring = allStats?.transferring || []
+
+    console.log('[listTransfers] transferring count:', transferring.length)
 
     const transferred = await fetchTransferred()
+    console.log('[listTransfers] transferred count:', transferred?.length || 0)
 
     const jobs = {
         active: [] as JobItem[],
@@ -479,6 +499,7 @@ export async function listTransfers() {
             .filter((id) => !activeJobIds.has(id))
             .sort((a, b) => a - b)
     )
+    console.log('[listTransfers] inactive job IDs:', Array.from(inactiveJobIds))
 
     for (const jobId of inactiveJobIds) {
         const job = await fetchJob(jobId, transferred)
@@ -490,6 +511,13 @@ export async function listTransfers() {
             })
         }
     }
+
+    console.log(
+        '[listTransfers] final result - active:',
+        jobs.active.length,
+        'inactive:',
+        jobs.inactive.length
+    )
 
     return jobs
 }
@@ -1090,7 +1118,11 @@ export async function startServe({
 }
 
 export async function startBatch(inputs: ({ _path: string } & Record<string, any>)[]) {
-    console.log('[startBatch] inputs', inputs)
+    console.log('[startBatch] starting batch operation', {
+        inputCount: inputs.length,
+        paths: inputs.map((i) => i._path),
+    })
+    console.log('[startBatch] inputs', JSON.stringify(inputs, null, 2))
 
     const r = await pRetry(
         async () =>
@@ -1104,6 +1136,8 @@ export async function startBatch(inputs: ({ _path: string } & Record<string, any
             retries: 3,
         }
     )
+
+    console.log('[startBatch] job created', { jobid: r.jobid })
 
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
@@ -1121,10 +1155,16 @@ export async function startBatch(inputs: ({ _path: string } & Record<string, any
         }
     ).catch(null)
 
-    console.log('jobStatus', JSON.stringify(jobStatus, null, 2))
+    console.log('[startBatch] jobStatus', {
+        jobid: r.jobid,
+        finished: jobStatus?.finished,
+        success: jobStatus?.success,
+        error: jobStatus?.error,
+    })
+    console.log('[startBatch] jobStatus full', JSON.stringify(jobStatus, null, 2))
 
     if (!jobStatus) {
-        console.error('Failed to start job:', r.jobid)
+        console.error('[startBatch] ERROR: job status is null', { jobid: r.jobid })
         throw new Error('Failed to start operation')
     }
 
@@ -1145,16 +1185,20 @@ export async function startBatch(inputs: ({ _path: string } & Record<string, any
                 })
                 .join('\n')
 
-            console.error('All batch operations failed:', errorMessages)
+            console.error('[startBatch] ERROR: all batch operations failed', {
+                jobid: r.jobid,
+                errorMessages,
+            })
             throw new Error(errorMessages)
         }
     }
 
     if (jobStatus.error) {
-        console.error('Failed to start job:', r.jobid, jobStatus.error)
+        console.error('[startBatch] ERROR: job failed', { jobid: r.jobid, error: jobStatus.error })
         throw new Error(jobStatus.error)
     }
 
+    console.log('[startBatch] SUCCESS', { jobid: r.jobid })
     return r.jobid
 }
 

@@ -63,24 +63,27 @@ export default async function rclone<
     path: Path,
     ...init: InitParam<Init>
 ): Promise<OpenApiMethodResponse<RCDClient, 'post', Path, Init>> {
-    console.log('[rclone] STARTING', path)
+    console.log('[rclone] REQUEST', path, {
+        params: init[0]?.params,
+        body: init[0]?.body,
+    })
 
     const client = await pRetry(() => getClient(), {
         'maxTimeout': 500,
     }) //! for some reason this still fails sometimes
 
     if (!client) {
+        console.error('[rclone] ERROR: Failed to get client after retries', path)
         throw new Error('Failed to get client after retries')
     }
 
-    console.log('[rclone] init', init)
     const result = await client.POST(
         path,
         ...(init as InitParam<OpenApiMaybeOptionalInit<Paths[Path], 'post'>>)
     )
 
     if (result?.error) {
-        console.log('[rclone] result?.error', result.error)
+        console.error('[rclone] ERROR', path, { error: result.error })
         const message =
             typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
 
@@ -89,22 +92,21 @@ export default async function rclone<
 
     const data = result.data as { error?: unknown } | undefined
     if (data?.error) {
-        console.log('[rclone] data?.error', data.error)
+        console.error('[rclone] DATA ERROR', path, { error: data.error })
         const message = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
 
         throw new Error(message)
     }
 
     if (!result.response.ok) {
-        console.log(
-            '[rclone] !result.response.ok',
-            result.response.status,
-            result.response.statusText
-        )
+        console.error('[rclone] HTTP ERROR', path, {
+            status: result.response.status,
+            statusText: result.response.statusText,
+        })
         throw new Error(`${result.response.status} ${result.response.statusText}`)
     }
 
-    console.log('[rclone] ENDING', path)
+    console.log('[rclone] RESPONSE', path, { hasData: !!result.data })
 
     return result.data as OpenApiMethodResponse<typeof client, 'post', Path, Init>
 }
