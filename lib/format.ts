@@ -1,6 +1,6 @@
 import { sep } from '@tauri-apps/api/path'
 
-const RE_WINDOWS_DRIVE = /^[a-zA-Z]:[/\\]/
+const RE_WINDOWS_DRIVE = /^[a-zA-Z]:([/\\]|$)/
 const RE_WINDOWS_DRIVE_WITH_SLASH = /^([a-zA-Z]:)\/?/
 const RE_LOCAL_WINDOWS_PATH = /^:local:([a-zA-Z]:\/?.*)$/
 const RE_PATH_SEPARATOR = /[/\\]/

@@ -595,6 +595,7 @@ export async function startMount({
                 retries: 3,
             }
         )
+        return
     }
 
     const {
@@ -715,10 +716,18 @@ export async function startMount({
                             global: mergedOptions,
                             remote: srcOptions,
                         }),
-                        mountPoint:
-                            platform() === 'windows'
-                                ? dstFullDirPath.replace(':local:', '').replace(RE_BACKSLASH, '/')
-                                : dstFullDirPath.replace(':local:', '/'),
+                        mountPoint: (() => {
+                            if (platform() !== 'windows') {
+                                return dstFullDirPath.replace(':local:', '/')
+                            }
+                            const mp = dstFullDirPath
+                                .replace(':local:', '')
+                                .replace(RE_BACKSLASH, '/')
+                            if (/^[a-zA-Z]:\/$/.test(mp)) {
+                                return mp.slice(0, -1)
+                            }
+                            return mp
+                        })(),
                         mount: 'nfsmount',
                     },
                 },
