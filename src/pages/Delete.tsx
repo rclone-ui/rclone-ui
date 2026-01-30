@@ -242,8 +242,9 @@ export default function Delete() {
         if (startDeleteMutation.isPending) return 'STARTING...'
         if (!sourceFs || sourceFs.length === 0) return 'Please select a source path'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        if (cronExpression) return 'START AND SCHEDULE DELETE'
         return 'START DELETE'
-    }, [startDeleteMutation.isPending, sourceFs, jsonError])
+    }, [startDeleteMutation.isPending, sourceFs, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startDeleteMutation.isPending) return

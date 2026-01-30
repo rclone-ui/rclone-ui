@@ -220,8 +220,9 @@ export default function Sync() {
         if (!dest) return 'Please select a destination path'
         if (source === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        if (cronExpression) return 'START AND SCHEDULE SYNC'
         return 'START SYNC'
-    }, [startSyncMutation.isPending, source, dest, jsonError])
+    }, [startSyncMutation.isPending, source, dest, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startSyncMutation.isPending) return

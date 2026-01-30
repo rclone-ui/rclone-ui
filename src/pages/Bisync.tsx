@@ -224,8 +224,9 @@ export default function Bisync() {
         if (!dest) return 'Please select a destination path'
         if (source === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        if (cronExpression) return 'START AND SCHEDULE BISYNC'
         return 'START BISYNC'
-    }, [startBisyncMutation.isPending, source, dest, jsonError])
+    }, [startBisyncMutation.isPending, source, dest, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startBisyncMutation.isPending) return

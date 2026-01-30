@@ -295,8 +295,9 @@ export default function Move() {
         if (!dest) return 'Please select a destination path'
         if (sources[0] === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        if (cronExpression) return 'START AND SCHEDULE MOVE'
         return 'START MOVE'
-    }, [startMoveMutation.isPending, sources, dest, jsonError])
+    }, [startMoveMutation.isPending, sources, dest, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startMoveMutation.isPending) return

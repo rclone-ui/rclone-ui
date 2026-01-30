@@ -137,8 +137,9 @@ export default function Purge() {
         if (startPurgeMutation.isPending) return 'STARTING...'
         if (!source) return 'Please select a source path'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        if (cronExpression) return 'START AND SCHEDULE PURGE'
         return 'START PURGE'
-    }, [startPurgeMutation.isPending, source, jsonError])
+    }, [startPurgeMutation.isPending, source, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startPurgeMutation.isPending) return

@@ -268,8 +268,9 @@ export default function Copy() {
         if (!dest) return 'Please select a destination path'
         if (sources[0] === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
+        if (cronExpression) return 'START AND SCHEDULE COPY'
         return 'START COPY'
-    }, [startCopyMutation.isPending, sources, dest, jsonError])
+    }, [startCopyMutation.isPending, sources, dest, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startCopyMutation.isPending) return
