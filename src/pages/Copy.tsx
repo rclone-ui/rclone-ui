@@ -12,7 +12,7 @@ import {
 } from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
-import { message } from '@tauri-apps/plugin-dialog'
+import { ask, message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import cronstrue from 'cronstrue'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -20,6 +20,7 @@ import {
     AlertOctagonIcon,
     ClockIcon,
     CopyIcon,
+    EyeIcon,
     FilterIcon,
     FoldersIcon,
     PlayIcon,
@@ -31,7 +32,7 @@ import { useSearchParams } from 'react-router-dom'
 import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import notify from '../../lib/notify'
-import { startCopy } from '../../lib/rclone/api'
+import { startCopy, startDryRun } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { openWindow } from '../../lib/window'
 import { useHostStore } from '../../store/host'
@@ -173,6 +174,47 @@ export default function Copy() {
             console.error('Error scheduling task:', error)
             await message(error instanceof Error ? error.message : 'Failed to schedule task', {
                 title: 'Schedule',
+                kind: 'error',
+            })
+        },
+    })
+
+    const dryRunMutation = useMutation({
+        mutationFn: async () => {
+            if (!sources || sources.length === 0 || !dest) {
+                throw new Error('Please select both a source and destination path')
+            }
+            return startDryRun(() =>
+                startCopy({
+                    sources,
+                    destination: dest,
+                    options: {
+                        config: configOptions,
+                        copy: copyOptions,
+                        filter: filterOptions,
+                        remotes: remoteOptions,
+                    },
+                })
+            )
+        },
+        onSuccess: async () => {
+            const result = await ask(
+                'Dry run started, you can check the results in the Transfers screen',
+                {
+                    title: 'Preview (Dry Run)',
+                    kind: 'info',
+                    okLabel: 'Open Transfers',
+                    cancelLabel: 'OK',
+                }
+            )
+            if (result) {
+                await openWindow({ name: 'Transfers', url: '/transfers' })
+            }
+        },
+        onError: async (error) => {
+            console.error('Error starting dry run:', error)
+            await message(error instanceof Error ? error.message : 'Failed to start dry run', {
+                title: 'Dry Run',
                 kind: 'error',
             })
         },
@@ -535,6 +577,35 @@ export default function Copy() {
                     )}
                 </AnimatePresence>
                 <ButtonGroup variant="flat">
+                    <Tooltip
+                        content="Preview (Dry Run)"
+                        placement="top"
+                        size="lg"
+                        color="foreground"
+                    >
+                        <Button
+                            size="lg"
+                            type="button"
+                            color="primary"
+                            isIconOnly={true}
+                            isLoading={dryRunMutation.isPending}
+                            onPress={() => {
+                                if (
+                                    dryRunMutation.isPending ||
+                                    !!jsonError ||
+                                    !sources ||
+                                    sources.length === 0 ||
+                                    !dest ||
+                                    sources[0] === dest
+                                ) {
+                                    return
+                                }
+                                setTimeout(() => dryRunMutation.mutate(), 100)
+                            }}
+                        >
+                            <EyeIcon className="size-6" />
+                        </Button>
+                    </Tooltip>
                     <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
                         <Button
                             size="lg"

@@ -16,6 +16,27 @@ const RE_WINDOWS_EXTENDED_PATH = /(\/\/\?\/|\\\\\?\\)/
 const RE_WINDOWS_DRIVE_ROOT = /^:local:[a-zA-Z]:\/$/
 const RE_WINDOWS_DRIVE_LETTER = /^[a-zA-Z]:$/
 
+export async function startDryRun<T>(operation: () => Promise<T>): Promise<T> {
+    await rclone('/options/set', {
+        params: {
+            query: {
+                main: { DryRun: true },
+            },
+        },
+    })
+    try {
+        return await operation()
+    } finally {
+        await rclone('/options/set', {
+            params: {
+                query: {
+                    main: { DryRun: false },
+                },
+            },
+        })
+    }
+}
+
 function serializeOptions(
     remotePath: string,
     options: {
