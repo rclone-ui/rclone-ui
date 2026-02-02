@@ -101,15 +101,12 @@ async function buildMenu() {
         id: 'issues',
         text: 'Issues?',
         action: async () => {
-            const confirmed = await ask(
-                'Please open an issue on Github and we will get it sorted in less than 48 hours, no matter if you have a license or not.',
-                {
-                    title: 'Sorry ):',
-                    kind: 'info',
-                    okLabel: 'Open Github',
-                    cancelLabel: 'Cancel',
-                }
-            )
+            const confirmed = await ask(`Please open an issue on Github and we'll get it sorted.`, {
+                title: 'Sorry ):',
+                kind: 'info',
+                okLabel: 'Open Github',
+                cancelLabel: 'Cancel',
+            })
             if (confirmed) {
                 await openUrl('https://github.com/rclone-ui/rclone-ui/issues')
             }
