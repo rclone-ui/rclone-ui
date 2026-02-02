@@ -160,7 +160,7 @@ function TaskCard({ task }: { task: ScheduledTask }) {
                                     onValueChange={(newName) => setEditingName(newName)}
                                 />
                             </Tooltip>
-                            <div className="text-sm text-gray-500">
+                            <div className="text-sm text-gray-500 text-start">
                                 {buildReadablePath(source, 'short')} {'→'}{' '}
                                 {'destination' in task.args
                                     ? buildReadablePath(task.args.destination, 'short')
