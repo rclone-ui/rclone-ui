@@ -14,7 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
-import { SquareIcon } from 'lucide-react'
+import { SearchCheckIcon, SquareIcon } from 'lucide-react'
 import { useMemo } from 'react'
 import { formatBytes } from '../../lib/format'
 import notify from '../../lib/notify'
@@ -126,6 +126,10 @@ export default function JobDetailsDrawer({
         () => jobGroupStatsQuery.data?.transferring || [],
         [jobGroupStatsQuery.data]
     )
+    const checking = useMemo(
+        () => jobGroupStatsQuery.data?.checking || [],
+        [jobGroupStatsQuery.data]
+    )
 
     return (
         <Drawer isOpen={isOpen} placement="bottom" size="2xl" onClose={onClose}>
@@ -167,6 +171,48 @@ export default function JobDetailsDrawer({
                                 </pre>
                             ) : null}
                         </Alert>
+                    ) : null}
+
+                    {selectedJob.isDryRun && (
+                        <Alert color="warning" variant="faded">
+                            This is a dry-run operation. No files were actually transferred.
+                        </Alert>
+                    )}
+
+                    {checking.length > 0 ? (
+                        <div className="flex flex-col gap-2 pb-4">
+                            <div className="flex flex-row items-center justify-between gap-2">
+                                <h3 className="flex flex-row items-center gap-2 text-lg font-medium">
+                                    <SearchCheckIcon className="w-5 h-5 text-warning" />
+                                    Checking
+                                </h3>
+                                {jobGroupStatsQuery.isLoading ? (
+                                    <Spinner />
+                                ) : (
+                                    <Chip size="sm" color="warning" variant="flat">
+                                        {checking.length} item{checking.length === 1 ? '' : 's'}
+                                    </Chip>
+                                )}
+                            </div>
+                            <p className="text-sm text-default-500">
+                                Files are being verified before transfer. This can take a while for
+                                large directories.
+                            </p>
+                            {checking.map((item, itemIndex) => {
+                                const size = item.size ? formatBytes(item.size) : 'Unknown size'
+                                return (
+                                    <div
+                                        key={item.name || itemIndex}
+                                        className="flex flex-row items-center justify-between gap-2 pb-2 border-b border-divider"
+                                    >
+                                        <p className="flex-1 line-clamp-1 min-w-80">{item.name}</p>
+                                        <p className="text-sm tabular-nums text-default-500">
+                                            {size}
+                                        </p>
+                                    </div>
+                                )
+                            })}
+                        </div>
                     ) : null}
 
                     <div className="flex flex-col gap-2">

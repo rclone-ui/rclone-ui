@@ -392,7 +392,13 @@ async function fetchTransferred() {
     return transferred
 }
 
-async function fetchJob(jobId: number, transferred: Awaited<ReturnType<typeof fetchTransferred>>) {
+async function fetchJob(
+    jobId: number,
+    transferred: Awaited<ReturnType<typeof fetchTransferred>>,
+    checkingItems: { group?: string; name?: string; size?: number }[]
+) {
+    console.log('[fetchJob] fetching job', jobId)
+
     const job = await rclone('/core/stats', {
         params: {
             query: {
@@ -412,20 +418,33 @@ async function fetchJob(jobId: number, transferred: Awaited<ReturnType<typeof fe
     console.log('[fetchJob] job status', jobId, JSON.stringify(jobStatus, null, 2))
 
     let hasError = !!jobStatus?.error
+    let isDryRun = false
 
     if (
-        !hasError &&
         jobStatus.output &&
         typeof jobStatus.output === 'object' &&
         'results' in jobStatus.output &&
         Array.isArray(jobStatus.output.results)
     ) {
-        hasError = jobStatus.output.results.some((result: any) => !!result?.error)
+        if (!hasError) {
+            hasError = jobStatus.output.results.some((result: any) => !!result?.error)
+        }
+        isDryRun = jobStatus.output.results.some((result: any) => {
+            const srcFs = result.input?.srcFs || ''
+            return srcFs.includes('dry_run') || srcFs.includes('dry-run')
+        })
     }
 
+    const jobCheckingItems = checkingItems.filter((c) => c.group === `job/${jobId}`)
+    const isChecking = jobCheckingItems.length > 0
+    const checkingCount = jobCheckingItems.length
+
+    console.log('[fetchJob] checking state', jobId, { isChecking, checkingCount })
+
     const relatedItems = transferred.filter((t) => t.group === `job/${jobId}`)
-    if (relatedItems.length === 0) {
-        console.log('[fetchJob] relatedItems not found', jobId)
+
+    if (relatedItems.length === 0 && !isChecking) {
+        console.log('[fetchJob] no relatedItems and not checking', jobId)
         return null
     }
 
@@ -455,6 +474,14 @@ async function fetchJob(jobId: number, transferred: Awaited<ReturnType<typeof fe
         }
     }
 
+    if (isChecking && sources.size === 0) {
+        for (const checkItem of jobCheckingItems) {
+            if (checkItem.name) {
+                sources.add(checkItem.name)
+            }
+        }
+    }
+
     if (sources.size === 0 && !hasError) {
         console.log('[fetchJob] source or hasError not found', jobId)
         return null
@@ -467,10 +494,13 @@ async function fetchJob(jobId: number, transferred: Awaited<ReturnType<typeof fe
         speed: job.speed,
 
         done: job.bytes === job.totalBytes,
-        progress: Math.round((job.bytes / job.totalBytes) * 100),
+        progress: job.totalBytes > 0 ? Math.round((job.bytes / job.totalBytes) * 100) : 0,
         hasError: hasError,
 
         sources: Array.from(sources),
+        isChecking,
+        checkingCount,
+        isDryRun,
     }
 }
 
@@ -481,8 +511,10 @@ export async function listTransfers() {
     console.log('[listTransfers] allStats', JSON.stringify(allStats, null, 2))
 
     const transferring = allStats?.transferring || []
+    const checking = allStats?.checking || []
 
     console.log('[listTransfers] transferring count:', transferring.length)
+    console.log('[listTransfers] checking count:', checking.length)
 
     const transferred = await fetchTransferred()
     console.log('[listTransfers] transferred count:', transferred?.length || 0)
@@ -492,19 +524,30 @@ export async function listTransfers() {
         inactive: [] as JobItem[],
     }
 
-    const activeJobIds = new Set(
+    const transferringJobIds = new Set(
         transferring
-            ?.filter((t) => t.group?.startsWith('job/'))
+            .filter((t) => t.group?.startsWith('job/'))
             .map((t) => Number(t.group!.split('/')[1]))
-            .sort((a, b) => a - b)
     )
-    console.log('[listTransfers] activeJobIds', activeJobIds.size)
+
+    const checkingJobIds = new Set(
+        checking
+            .filter((c) => c.group?.startsWith('job/'))
+            .map((c) => Number(c.group!.split('/')[1]))
+    )
+
+    const activeJobIds = new Set([...transferringJobIds, ...checkingJobIds])
+    const sortedActiveJobIds = Array.from(activeJobIds).sort((a, b) => a - b)
+
+    console.log('[listTransfers] transferring job IDs:', Array.from(transferringJobIds))
+    console.log('[listTransfers] checking job IDs:', Array.from(checkingJobIds))
+    console.log('[listTransfers] combined active job IDs:', sortedActiveJobIds)
 
     const isWindows = platform() === 'windows'
     console.log('[listTransfers] isWindows', isWindows)
 
-    for (const jobId of activeJobIds) {
-        const job = await fetchJob(jobId, transferred)
+    for (const jobId of sortedActiveJobIds) {
+        const job = await fetchJob(jobId, transferred, checking)
         if (job) {
             jobs.active.push({
                 ...job,
@@ -523,12 +566,14 @@ export async function listTransfers() {
     console.log('[listTransfers] inactive job IDs:', Array.from(inactiveJobIds))
 
     for (const jobId of inactiveJobIds) {
-        const job = await fetchJob(jobId, transferred)
+        const job = await fetchJob(jobId, transferred, checking)
         if (job) {
             jobs.inactive.push({
                 ...job,
                 speed: 0,
                 type: 'inactive',
+                isChecking: false,
+                checkingCount: 0,
             })
         }
     }

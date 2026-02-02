@@ -183,7 +183,7 @@ export default function Sync() {
                     source,
                     destination: dest,
                     options: {
-                        config: configOptions,
+                        config: { ...configOptions, dry_run: true },
                         sync: syncOptions,
                         filter: filterOptions,
                         remotes: remoteOptions,

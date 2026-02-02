@@ -189,7 +189,7 @@ export default function Copy() {
                     sources,
                     destination: dest,
                     options: {
-                        config: configOptions,
+                        config: { ...configOptions, dry_run: true },
                         copy: copyOptions,
                         filter: filterOptions,
                         remotes: remoteOptions,

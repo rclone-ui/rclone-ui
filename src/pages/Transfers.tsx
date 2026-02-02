@@ -2,7 +2,7 @@ import { Card, CardBody, Progress, Tab, Tabs, Tooltip, useDisclosure } from '@he
 import { Button, Chip, Spinner } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
-import { ChevronRightIcon, RefreshCcwIcon } from 'lucide-react'
+import { ChevronRightIcon, RefreshCcwIcon, SearchCheckIcon } from 'lucide-react'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { buildReadablePathMultiple, formatBytes } from '../../lib/format'
 import { listTransfers } from '../../lib/rclone/api'
@@ -154,7 +154,7 @@ function JobCard({ job, onSelect }: { job: JobItem; onSelect: (job: JobItem) => 
                         </Chip>
                     </Tooltip>
 
-                    <div className="flex flex-row items-center flex-1">
+                    <div className="flex flex-row items-center flex-1 gap-2">
                         {job.hasError && <p className="text-danger">ERROR: Tap to view details.</p>}
 
                         {!job.hasError && (
@@ -169,11 +169,37 @@ function JobCard({ job, onSelect }: { job: JobItem; onSelect: (job: JobItem) => 
                                     ) : null
                                 ) : null}
 
+                                {job.isDryRun && (
+                                    <Chip size="sm" variant="flat" color="warning">
+                                        DRY RUN
+                                    </Chip>
+                                )}
+
+                                {job.type === 'active' && job.isChecking ? (
+                                    <Tooltip
+                                        content={`Checking ${job.checkingCount} file${job.checkingCount === 1 ? '' : 's'} before transfer`}
+                                        color="foreground"
+                                    >
+                                        <Chip
+                                            size="sm"
+                                            variant="flat"
+                                            color="warning"
+                                            startContent={<SearchCheckIcon className="w-3 h-3" />}
+                                        >
+                                            Checking {job.checkingCount}
+                                        </Chip>
+                                    </Tooltip>
+                                ) : null}
+
                                 {job.type === 'active' ? (
                                     <Tooltip
                                         content={`${formatBytes(job.bytes)} out of ${formatBytes(job.totalBytes)}`}
                                     >
-                                        <Progress value={job.progress} isStriped={true} />
+                                        <Progress
+                                            value={job.progress}
+                                            isStriped={true}
+                                            isIndeterminate={job.isChecking && job.totalBytes === 0}
+                                        />
                                     </Tooltip>
                                 ) : null}
                             </>

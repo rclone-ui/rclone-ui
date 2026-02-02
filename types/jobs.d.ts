@@ -8,4 +8,7 @@ export type JobItem = {
     progress: number
     hasError: boolean
     sources: string[]
+    isChecking: boolean
+    checkingCount: number
+    isDryRun?: boolean
 }

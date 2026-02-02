@@ -210,7 +210,7 @@ export default function Delete() {
                     sources: [sourceFs],
                     options: {
                         filter: filterOptions,
-                        config: configOptions,
+                        config: { ...configOptions, dry_run: true },
                     },
                 })
             )

@@ -216,7 +216,7 @@ export default function Move() {
                     sources,
                     destination: dest,
                     options: {
-                        config: configOptions,
+                        config: { ...configOptions, dry_run: true },
                         move: moveOptions,
                         filter: filterOptions,
                         remotes: remoteOptions,
