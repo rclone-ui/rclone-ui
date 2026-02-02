@@ -128,11 +128,10 @@ jobs:
       - name: Override linuxdeploy (linux legacy only)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
-          TAURI_TOOLKIT_PATH="${XDG_CACHE_HOME:-$HOME/.cache}/tauri"
-          mkdir -p "$TAURI_TOOLKIT_PATH"
-          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-x86_64.AppImage -O "$TAURI_TOOLKIT_PATH/linuxdeploy-x86_64.AppImage"
-          chmod +x "$TAURI_TOOLKIT_PATH/linuxdeploy-x86_64.AppImage"
-          
+          cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage --force
+          echo "Installed tauri-cli version:"
+          cargo tauri --version
+        
       - name: install frontend dependencies
         run: npm install
 
@@ -182,6 +181,7 @@ jobs:
           # for updates
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: true
         with:
           tagName: v__VERSION__
           releaseName: 'v__VERSION__'
