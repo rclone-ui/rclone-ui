@@ -270,6 +270,7 @@ export function PathField({
                     setPath(item.path)
                 }}
                 isOpen={isOpen}
+                initialPaths={path ? [path] : []}
                 allowedKeys={allowedKeys}
                 allowFiles={showFiles}
                 allowMultiple={false}
@@ -399,6 +400,7 @@ export function MultiPathField({
                     setPaths(Array.from(newPaths))
                 }}
                 isOpen={isOpen}
+                initialPaths={paths}
             />
         </div>
     )

@@ -21,6 +21,7 @@ export type ToolbarCommandId =
     | 'quit'
     | 'remoteList'
     | 'vfs'
+    | 'commander'
 
 export type ToolbarActionArgs = Record<string, any>
 

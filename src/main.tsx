@@ -11,6 +11,7 @@ import { clearClient } from '../lib/rclone/client'
 import { initHostStore } from '../store/host'
 import { usePersistedStore } from '../store/persisted'
 import Bisync from './pages/Bisync'
+import Commander from './pages/Commander'
 import Copy from './pages/Copy'
 import Delete from './pages/Delete'
 import Download from './pages/Download'
@@ -55,7 +56,8 @@ forwardConsole('error', error)
 if (
     !window.location?.pathname.startsWith('/toolbar') &&
     !window.location?.pathname.startsWith('/startup') &&
-    !window.location?.pathname.startsWith('/onboarding')
+    !window.location?.pathname.startsWith('/onboarding') &&
+    !window.location?.pathname.startsWith('/commander')
 ) {
     import('./setupDragRegions').then(({ initTauriDragRegions }) => {
         initTauriDragRegions()
@@ -117,6 +119,10 @@ const router = createBrowserRouter([
     {
         path: '/bisync',
         element: <Bisync />,
+    },
+    {
+        path: '/commander',
+        element: <Commander />,
     },
     {
         path: '/mount',

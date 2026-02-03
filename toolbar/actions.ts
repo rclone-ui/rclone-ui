@@ -928,6 +928,27 @@ const actions: ToolbarActionDefinition[] = [
         },
     },
     {
+        id: 'commander',
+        label: 'Commander',
+        description: COMMAND_DESCRIPTIONS.commander,
+        keywords: COMMAND_KEYWORDS.commander,
+        getDefaultResult: () =>
+            createBaseResult('Commander', COMMAND_DESCRIPTIONS.commander, {}, 32),
+        getResults: ({ query }) => {
+            if (query && matchesKeyword(query, COMMAND_KEYWORDS.commander)) {
+                return [createBaseResult('Commander', COMMAND_DESCRIPTIONS.commander, {}, 32)]
+            }
+            return []
+        },
+        onPress: async () => {
+            await openFullWindow({
+                name: 'Commander',
+                url: '/commander',
+                hideTitleBar: true,
+            })
+        },
+    },
+    {
         id: 'github',
         label: 'GitHub',
         description: COMMAND_DESCRIPTIONS.github,
