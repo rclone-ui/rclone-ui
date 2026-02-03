@@ -127,6 +127,7 @@ const FilePanel = forwardRef<
         }
     }, [onDrop, nav.selectedRemote, nav.cwd])
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: <>
     useEffect(() => {
         if (onSelectionChange) {
             onSelectionChange(nav.getSelection())
@@ -253,10 +254,6 @@ const FilePanel = forwardRef<
         [onDrop]
     )
 
-    const handleContextMenu = useCallback((entry: Entry, event: React.MouseEvent) => {
-        // Context menu is handled at the Browser level
-    }, [])
-
     const handlePreviewClick = useCallback(
         (entry: Entry) => {
             if (entry.isDir) return
@@ -328,7 +325,8 @@ const FilePanel = forwardRef<
                             onDownload={onDownload}
                             draggable={selectionMode === 'drag' || selectionMode === 'both'}
                             onDragStart={handleDragStartInternal}
-                            onContextMenu={contextMenuItems ? handleContextMenu : undefined}
+                            // handled at the Browser level
+                            onContextMenu={contextMenuItems ? () => {} : undefined}
                             favoritedKeys={nav.favoritedKeys}
                             onToggleFavorite={handleToggleFavorite}
                             listHeight={listHeight}

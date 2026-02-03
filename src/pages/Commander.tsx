@@ -229,28 +229,13 @@ export default function Browser() {
                         </DropdownTrigger>
                         <DropdownMenu
                             onAction={(key) => {
-                                if (key === 'preview' && !contextMenu.entry.isDir) {
-                                    setPreviewItem(contextMenu.entry)
-                                } else if (key === 'copy-path') {
+                                if (key === 'copy-path') {
                                     navigator.clipboard.writeText(contextMenu.entry.fullPath)
-                                } else if (key === 'info') {
-                                    setPreviewItem(contextMenu.entry)
                                 }
                                 closeContextMenu()
                             }}
                         >
-                            {contextMenu.entry.isDir ? (
-                                <>
-                                    <DropdownItem key="copy-path">Copy Path</DropdownItem>
-                                    <DropdownItem key="info">Get Info</DropdownItem>
-                                </>
-                            ) : (
-                                <>
-                                    <DropdownItem key="preview">Preview</DropdownItem>
-                                    <DropdownItem key="copy-path">Copy Path</DropdownItem>
-                                    <DropdownItem key="info">Get Info</DropdownItem>
-                                </>
-                            )}
+                            <DropdownItem key="copy-path">Copy Path</DropdownItem>
                         </DropdownMenu>
                     </Dropdown>
                 </div>
