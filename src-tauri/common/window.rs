@@ -30,10 +30,12 @@ pub fn make_transparent(_window: &WebviewWindow) -> Result<(), tauri::Error> {
 }
 
 #[tauri::command]
+#[allow(unused_variables)]
 pub async fn open_full_window(
     app_handle: AppHandle,
     name: String,
     url: String,
+    hide_title_bar: Option<bool>,
 ) -> Result<(), String> {
     if let Some(existing) = app_handle.get_webview_window(&name) {
         existing.set_focus().map_err(|e| e.to_string())?;
@@ -59,17 +61,21 @@ pub async fn open_full_window(
         height -= 100.0;
     }
 
-    let window = WebviewWindowBuilder::new(&app_handle, &name, WebviewUrl::App(url.into()))
+    let mut builder = WebviewWindowBuilder::new(&app_handle, &name, WebviewUrl::App(url.into()))
         .title(&name)
         .inner_size(width, height)
         .resizable(true)
         .visible(false)
         .focused(false)
         .decorations(true)
-        // .additional_browser_args("--disable-pinch")
-        .zoom_hotkeys_enabled(false)
-        .build()
-        .map_err(|e| e.to_string())?;
+        .zoom_hotkeys_enabled(false);
+
+    #[cfg(target_os = "macos")]
+    if hide_title_bar.unwrap_or(false) {
+        builder = builder.title_bar_style(tauri::TitleBarStyle::Overlay);
+    }
+
+    let window = builder.build().map_err(|e| e.to_string())?;
 
     std::thread::sleep(std::time::Duration::from_millis(750));
 
