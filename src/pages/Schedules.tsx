@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader, Input, Tooltip } from '@heroui/react'
+import { Card, CardBody, CardHeader, Input, Tooltip, useDisclosure } from '@heroui/react'
 import { Button, Chip } from '@heroui/react'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
@@ -6,14 +6,25 @@ import CronExpressionParser from 'cron-parser'
 import cronstrue from 'cronstrue'
 import { formatDistance } from 'date-fns'
 import { AlertCircleIcon, Clock7Icon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { buildReadablePath } from '../../lib/format'
 import { useHostStore } from '../../store/host'
 import type { ScheduledTask } from '../../types/schedules'
 import CommandsDropdown from '../components/CommandsDropdown'
+import ScheduleEditDrawer from '../components/ScheduleEditDrawer'
 
 export default function Schedules() {
     const scheduledTasks = useHostStore((state) => state.scheduledTasks)
+    const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null)
+    const { isOpen, onOpen, onClose } = useDisclosure()
+
+    const handleOpenDrawer = useCallback(
+        (task: ScheduledTask) => {
+            setSelectedTask(task)
+            onOpen()
+        },
+        [onOpen]
+    )
 
     if (scheduledTasks.length === 0) {
         return (
@@ -32,13 +43,19 @@ export default function Schedules() {
                 <div className="w-full h-10 border-b bg-content1 border-divider" />
             )}
             {scheduledTasks.map((task) => (
-                <TaskCard key={task.id} task={task} />
+                <TaskCard key={task.id} task={task} onOpenDrawer={handleOpenDrawer} />
             ))}
+            {selectedTask && (
+                <ScheduleEditDrawer isOpen={isOpen} onClose={onClose} selectedTask={selectedTask} />
+            )}
         </div>
     )
 }
 
-function TaskCard({ task }: { task: ScheduledTask }) {
+function TaskCard({
+    task,
+    onOpenDrawer,
+}: { task: ScheduledTask; onOpenDrawer: (task: ScheduledTask) => void }) {
     const [isBusy, setIsBusy] = useState(false)
     const [isEditingName, setIsEditingName] = useState(false)
     const [editingName, setEditingName] = useState(task.name)
@@ -86,6 +103,8 @@ function TaskCard({ task }: { task: ScheduledTask }) {
             key={task.id}
             radius="none"
             shadow="none"
+            isPressable={true}
+            onPress={() => onOpenDrawer(task)}
             style={{
                 flexShrink: 0,
                 // border: '1px solid #e0e0e070',
