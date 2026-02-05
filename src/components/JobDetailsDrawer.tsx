@@ -14,10 +14,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
-import { SearchCheckIcon, SquareIcon } from 'lucide-react'
-import { useMemo } from 'react'
+import { ExternalLinkIcon, RefreshCwIcon, SearchCheckIcon, SquareIcon } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { formatBytes } from '../../lib/format'
 import notify from '../../lib/notify'
+import { startBatch } from '../../lib/rclone/api'
 import rclone from '../../lib/rclone/client'
 import type { JobItem } from '../../types/jobs'
 
@@ -25,12 +26,17 @@ export default function JobDetailsDrawer({
     isOpen,
     onClose,
     selectedJob,
+    onSelectJob,
 }: {
     isOpen: boolean
     onClose: () => void
     selectedJob: JobItem
+    onSelectJob?: (job: JobItem) => void
 }) {
     const queryClient = useQueryClient()
+    const [retryStatus, setRetryStatus] = useState<
+        Map<string, { status: 'pending' | 'started' | 'error'; jobId?: number; error?: string }>
+    >(new Map())
 
     const jobStatusQuery = useQuery({
         queryKey: ['jobs', 'status', selectedJob.id],
@@ -118,6 +124,30 @@ export default function JobDetailsDrawer({
         },
     })
 
+    const retryMutation = useMutation({
+        mutationFn: async ({
+            key,
+            input,
+        }: { key: string; input: { _path: string } & Record<string, any> }) => {
+            setRetryStatus((prev) => new Map(prev).set(key, { status: 'pending' }))
+            const jobId = await startBatch([input])
+            return { key, jobId }
+        },
+        onSuccess: ({ key, jobId }) => {
+            setRetryStatus((prev) => new Map(prev).set(key, { status: 'started', jobId }))
+            queryClient.refetchQueries({ queryKey: ['transfers', 'list', 'all'] })
+        },
+        onError: (error, { key }) => {
+            console.error('Failed to retry transfer:', error)
+            setRetryStatus((prev) =>
+                new Map(prev).set(key, {
+                    status: 'error',
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                })
+            )
+        },
+    })
+
     const transferred = useMemo(
         () => transferredQuery.data?.transferred || [],
         [transferredQuery.data]
@@ -130,6 +160,17 @@ export default function JobDetailsDrawer({
         () => jobGroupStatsQuery.data?.checking || [],
         [jobGroupStatsQuery.data]
     )
+
+    const errorInputMap = useMemo(() => {
+        const map = new Map<string, { _path: string } & Record<string, any>>()
+        for (const err of otherErrors) {
+            const input = err.input as { srcRemote?: string; _path: string } & Record<string, any>
+            if (input?.srcRemote) {
+                map.set(input.srcRemote, input)
+            }
+        }
+        return map
+    }, [otherErrors])
 
     return (
         <Drawer isOpen={isOpen} placement="bottom" size="2xl" onClose={onClose}>
@@ -277,18 +318,137 @@ export default function JobDetailsDrawer({
                             ) : null}
 
                             {transferred.map((item, itemIndex) => {
+                                const itemKey = item.name || `item-${itemIndex}`
+                                const itemRetryStatus = retryStatus.get(itemKey)
+                                const inputForRetry = item.name
+                                    ? errorInputMap.get(item.name)
+                                    : undefined
+                                const canRetry =
+                                    item.error && inputForRetry && !itemRetryStatus?.status
+
                                 return (
                                     <div
-                                        key={item.name || itemIndex}
+                                        key={itemKey}
                                         className="flex flex-row items-center justify-between gap-2 pb-2 border-b border-divider"
                                     >
                                         <p className="flex-1 line-clamp-1">{item.name}</p>
-                                        {item.error ? (
-                                            <p>{item.error}</p>
-                                        ) : item.completed_at ? (
-                                            <p>{new Date(item.completed_at).toLocaleString()}</p>
-                                        ) : null}
-                                        {/* <p>{item.what}</p> */}
+
+                                        {itemRetryStatus?.status === 'pending' && (
+                                            <div className="flex items-center gap-2 text-default-500">
+                                                <Spinner size="sm" />
+                                                <span className="text-sm">Retrying...</span>
+                                            </div>
+                                        )}
+
+                                        {itemRetryStatus?.status === 'started' &&
+                                            itemRetryStatus.jobId && (
+                                                <div className="flex items-center gap-2">
+                                                    <Chip size="sm" color="success" variant="flat">
+                                                        Job #{itemRetryStatus.jobId}
+                                                    </Chip>
+                                                    {onSelectJob && (
+                                                        <Tooltip
+                                                            content="View new job"
+                                                            color="foreground"
+                                                        >
+                                                            <Button
+                                                                isIconOnly={true}
+                                                                size="sm"
+                                                                variant="light"
+                                                                onPress={() => {
+                                                                    onClose()
+                                                                    setTimeout(() => {
+                                                                        onSelectJob({
+                                                                            id: itemRetryStatus.jobId!,
+                                                                            type: 'active',
+                                                                            bytes: 0,
+                                                                            totalBytes: 0,
+                                                                            speed: 0,
+                                                                            done: false,
+                                                                            progress: 0,
+                                                                            hasError: false,
+                                                                            sources: [],
+                                                                            isChecking: false,
+                                                                            checkingCount: 0,
+                                                                        })
+                                                                    }, 300)
+                                                                }}
+                                                            >
+                                                                <ExternalLinkIcon className="w-4 h-4" />
+                                                            </Button>
+                                                        </Tooltip>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                        {itemRetryStatus?.status === 'error' && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-danger">
+                                                    {itemRetryStatus.error || 'Retry failed'}
+                                                </span>
+                                                {inputForRetry && (
+                                                    <Tooltip
+                                                        content="Retry again"
+                                                        color="foreground"
+                                                    >
+                                                        <Button
+                                                            isIconOnly={true}
+                                                            size="sm"
+                                                            color="warning"
+                                                            variant="flat"
+                                                            onPress={() => {
+                                                                setRetryStatus((prev) => {
+                                                                    const newMap = new Map(prev)
+                                                                    newMap.delete(itemKey)
+                                                                    return newMap
+                                                                })
+                                                                retryMutation.mutate({
+                                                                    key: itemKey,
+                                                                    input: inputForRetry,
+                                                                })
+                                                            }}
+                                                        >
+                                                            <RefreshCwIcon className="w-4 h-4" />
+                                                        </Button>
+                                                    </Tooltip>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {!itemRetryStatus && item.error && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm text-danger line-clamp-1 max-w-64">
+                                                    {item.error}
+                                                </span>
+                                                {canRetry && inputForRetry && (
+                                                    <Tooltip
+                                                        content="Retry this file"
+                                                        color="foreground"
+                                                    >
+                                                        <Button
+                                                            isIconOnly={true}
+                                                            size="sm"
+                                                            color="danger"
+                                                            variant="flat"
+                                                            onPress={() =>
+                                                                retryMutation.mutate({
+                                                                    key: itemKey,
+                                                                    input: inputForRetry,
+                                                                })
+                                                            }
+                                                        >
+                                                            <RefreshCwIcon className="w-4 h-4" />
+                                                        </Button>
+                                                    </Tooltip>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {!itemRetryStatus && !item.error && item.completed_at && (
+                                            <p className="text-sm text-default-500">
+                                                {new Date(item.completed_at).toLocaleString()}
+                                            </p>
+                                        )}
                                     </div>
                                 )
                             })}

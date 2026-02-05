@@ -120,7 +120,12 @@ export default function Transfers() {
             />
 
             {selectedJob && (
-                <JobDetailsDrawer isOpen={isOpen} onClose={onClose} selectedJob={selectedJob} />
+                <JobDetailsDrawer
+                    isOpen={isOpen}
+                    onClose={onClose}
+                    selectedJob={selectedJob}
+                    onSelectJob={handleSelectJob}
+                />
             )}
         </>
     )
