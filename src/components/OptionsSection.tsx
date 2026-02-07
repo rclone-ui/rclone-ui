@@ -271,6 +271,7 @@ export default function OptionsSection({
                                     content: '!cursor-pointer',
                                 }}
                                 size="sm"
+                                as={'button'}
                             >
                                 {option.Name}
                             </Chip>
