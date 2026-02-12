@@ -10,7 +10,7 @@ import {
     Tooltip,
 } from '@heroui/react'
 import { platform } from '@tauri-apps/plugin-os'
-import { ArrowBigDownIcon, LassoSelectIcon } from 'lucide-react'
+import { EllipsisVerticalIcon } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import {
     FilePanel,
@@ -95,8 +95,8 @@ export default function PathSelector({
                             color="primary"
                             size="sm"
                             radius="full"
-                            startContent={<LassoSelectIcon className="size-5" />}
-                            className="gap-1.5 min-w-fit"
+                            startContent={<EllipsisVerticalIcon className="size-4" />}
+                            className="gap-0.5 min-w-fit"
                         >
                             SELECT
                         </Button>
@@ -140,15 +140,7 @@ export default function PathSelector({
                     size="lg"
                     color="foreground"
                 >
-                    <Button
-                        color="danger"
-                        size="sm"
-                        radius="full"
-                        variant="flat"
-                        onPress={onClose}
-                        startContent={<ArrowBigDownIcon className="size-4" />}
-                        className="gap-1 min-w-fit"
-                    >
+                    <Button color="danger" size="sm" radius="full" variant="flat" onPress={onClose}>
                         DISMISS
                     </Button>
                 </Tooltip>,
