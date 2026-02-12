@@ -26,6 +26,8 @@ interface State {
         pid: number
         url: string
     } | null
+
+    dryRunJobIds: number[]
 }
 
 export const useStore = create<State>()(
@@ -44,6 +46,8 @@ export const useStore = create<State>()(
             },
 
             cloudflaredTunnel: null,
+
+            dryRunJobIds: [],
         }),
         { name: 'shared-store' }
     )

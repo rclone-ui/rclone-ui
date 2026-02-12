@@ -3,6 +3,7 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import pRetry from 'p-retry'
 import { useHostStore } from '../../store/host'
+import { useStore } from '../../store/memory'
 import type { JobItem } from '../../types/jobs'
 import type { FlagValue } from '../../types/rclone'
 import { getFsInfo } from '../format'
@@ -18,20 +19,24 @@ const RE_WINDOWS_DRIVE_LETTER = /^[a-zA-Z]:$/
 
 export async function startDryRun<T>(operation: () => Promise<T>): Promise<T> {
     await rclone('/options/set', {
-        params: {
-            query: {
-                main: { DryRun: true },
-            },
+        // @ts-ignore
+        body: {
+            main: { DryRun: true },
         },
     })
     try {
-        return await operation()
+        const result = await operation()
+        if (typeof result === 'number') {
+            useStore.setState((state) => ({
+                dryRunJobIds: [...state.dryRunJobIds, result],
+            }))
+        }
+        return result
     } finally {
         await rclone('/options/set', {
-            params: {
-                query: {
-                    main: { DryRun: false },
-                },
+            // @ts-ignore
+            body: {
+                main: { DryRun: false },
             },
         })
     }
@@ -418,7 +423,7 @@ async function fetchJob(
     console.log('[fetchJob] job status', jobId, JSON.stringify(jobStatus, null, 2))
 
     let hasError = !!jobStatus?.error
-    let isDryRun = false
+    const isDryRun = useStore.getState().dryRunJobIds.includes(jobId)
 
     if (
         jobStatus.output &&
@@ -429,10 +434,6 @@ async function fetchJob(
         if (!hasError) {
             hasError = jobStatus.output.results.some((result: any) => !!result?.error)
         }
-        isDryRun = jobStatus.output.results.some((result: any) => {
-            const srcFs = result.input?.srcFs || ''
-            return srcFs.includes('dry_run') || srcFs.includes('dry-run')
-        })
     }
 
     const jobCheckingItems = checkingItems.filter((c) => c.group === `job/${jobId}`)
