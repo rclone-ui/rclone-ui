@@ -31,7 +31,7 @@ export async function promptForConfigPassword(message: string) {
 
         if (typeof result === 'string') {
             console.log('[promptForConfigPassword] password received, length:', result.length)
-            return result.trim()
+            return result
         }
 
         console.log('[promptForConfigPassword] no password received (cancelled or empty)')

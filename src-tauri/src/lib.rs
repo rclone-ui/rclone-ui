@@ -280,12 +280,21 @@ async fn prompt_text(
             .output()
             .map_err(|e| e.to_string())?;
 
+        let pid = std::process::id();
+        let _ = Command::new("osascript")
+            .arg("-e")
+            .arg(format!(
+                "tell application \"System Events\" to set frontmost of (first process whose unix id is {}) to true",
+                pid
+            ))
+            .output();
+
         if output.status.success() {
             let result = String::from_utf8_lossy(&output.stdout);
             // Parse AppleScript result: "text returned:VALUE, button returned:OK"
             if let Some(text_part) = result.split("text returned:").nth(1) {
                 if let Some(value) = text_part.split(", button returned:").next() {
-                    return Ok(Some(value.to_string()));
+                    return Ok(Some(value.trim().to_string()));
                 }
             }
         }
