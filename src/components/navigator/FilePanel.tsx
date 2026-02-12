@@ -36,6 +36,8 @@ const FilePanel = forwardRef<
         showPreviewColumn?: boolean
         onPreviewRequest?: (item: Entry) => void
         onDownload?: (item: Entry) => void
+        onRename?: (item: Entry) => void
+        onDelete?: (item: Entry) => void
         contextMenuItems?: ContextMenuItem[]
         allowedKeys?: AllowedKey[]
         renderToolbar?: (buttons: ToolbarButtons) => React.ReactNode[][]
@@ -57,6 +59,8 @@ const FilePanel = forwardRef<
         showPreviewColumn = true,
         onPreviewRequest,
         onDownload,
+        onRename,
+        onDelete,
         contextMenuItems,
         allowedKeys = ['REMOTES', 'LOCAL_FS'],
         renderToolbar,
@@ -301,7 +305,7 @@ const FilePanel = forwardRef<
 
                 <div className="relative flex flex-col w-full h-full overflow-hidden">
                     <div
-                        className={`sticky top-0 z-10 grid ${showPreviewColumn ? 'grid-cols-[2.5rem_1fr_6rem_9rem_5rem]' : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'} items-center py-2 bg-default-100`}
+                        className={`sticky top-0 z-10 grid ${showPreviewColumn ? 'grid-cols-[2.5rem_1fr_6rem_9rem_9rem]' : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'} items-center py-2 bg-default-100`}
                     >
                         <div />
                         <div className="pl-2 font-semibold text-small">Name</div>
@@ -323,6 +327,8 @@ const FilePanel = forwardRef<
                             showPreviewColumn={showPreviewColumn}
                             onPreviewClick={handlePreviewClick}
                             onDownload={onDownload}
+                            onRename={onRename}
+                            onDelete={onDelete}
                             draggable={selectionMode === 'drag' || selectionMode === 'both'}
                             onDragStart={handleDragStartInternal}
                             // handled at the Browser level

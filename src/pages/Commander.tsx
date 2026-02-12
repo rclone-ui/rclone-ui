@@ -17,7 +17,8 @@ import {
     Tooltip,
 } from '@heroui/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { message, save } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
+import { ask, message, save } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -148,6 +149,92 @@ export default function Browser() {
         setContextMenu(null)
     }, [])
 
+    const handleDelete = useCallback(
+        async (entry: Entry) => {
+            const confirmed = await ask(
+                `Are you sure you want to delete "${entry.name}"?`,
+                { title: 'Confirm Delete', kind: 'warning' }
+            )
+            if (!confirmed) return
+
+            try {
+                const source = entry.fullPath + (entry.isDir ? '/' : '')
+                const info = getFsInfo(source)
+                const endpoint = entry.isDir ? '/operations/purge' : '/operations/deletefile'
+
+                await rclone(endpoint as any, {
+                    params: {
+                        query: {
+                            fs: info.root,
+                            remote: info.filePath,
+                        },
+                    },
+                })
+
+                leftPanelRef.current?.refresh()
+                rightPanelRef.current?.refresh()
+            } catch (error) {
+                await message(error instanceof Error ? error.message : 'Delete failed', {
+                    title: 'Error',
+                    kind: 'error',
+                })
+            }
+        },
+        []
+    )
+
+    const handleRename = useCallback(
+        async (entry: Entry) => {
+            const newName = await invoke<string | null>('prompt', {
+                title: 'Rename',
+                message: `Enter a new name for "${entry.name}"`,
+                default: entry.name,
+                sensitive: false,
+            })
+            if (!newName || newName === entry.name) return
+
+            try {
+                const info = getFsInfo(entry.fullPath)
+                const parentDir = info.filePath.includes('/')
+                    ? info.filePath.slice(0, info.filePath.lastIndexOf('/') + 1)
+                    : ''
+                const dstRemote = `${parentDir}${newName}`
+
+                if (entry.isDir) {
+                    await rclone('/sync/move' as any, {
+                        params: {
+                            query: {
+                                srcFs: `${info.root}${info.filePath}/`,
+                                dstFs: `${info.root}${dstRemote}/`,
+                                deleteEmptySrcDirs: true,
+                            },
+                        },
+                    })
+                } else {
+                    await rclone('/operations/movefile' as any, {
+                        params: {
+                            query: {
+                                srcFs: info.root,
+                                srcRemote: info.filePath,
+                                dstFs: info.root,
+                                dstRemote,
+                            },
+                        },
+                    })
+                }
+
+                leftPanelRef.current?.refresh()
+                rightPanelRef.current?.refresh()
+            } catch (error) {
+                await message(error instanceof Error ? error.message : 'Rename failed', {
+                    title: 'Error',
+                    kind: 'error',
+                })
+            }
+        },
+        []
+    )
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'r' && (e.metaKey || e.ctrlKey)) {
@@ -183,6 +270,8 @@ export default function Browser() {
                         showPreviewColumn={true}
                         onDrop={(items, dest) => handleDrop(items, dest, 'left')}
                         onDownload={handleDownload}
+                        onRename={handleRename}
+                        onDelete={handleDelete}
                         allowedKeys={['REMOTES', 'LOCAL_FS', 'FAVORITES']}
                         isActive={true}
                     />
@@ -201,6 +290,8 @@ export default function Browser() {
                         showPreviewColumn={true}
                         onDrop={(items, dest) => handleDrop(items, dest, 'right')}
                         onDownload={handleDownload}
+                        onRename={handleRename}
+                        onDelete={handleDelete}
                         allowedKeys={['REMOTES', 'LOCAL_FS', 'FAVORITES']}
                         isActive={true}
                     />
