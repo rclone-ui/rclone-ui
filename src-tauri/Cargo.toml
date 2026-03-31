@@ -49,7 +49,7 @@ sysinfo = "0.37"
 tinyfiledialogs = "3.9.1"
 tauri-plugin-deep-link = "2"
 flate2 = "1.1.4"
-tar = "0.4.44"
+tar = "0.4.45"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
