@@ -35,12 +35,14 @@ export async function openWindow({
 export async function openSmallWindow({
     name,
     url,
+    transparent = true,
 }: {
     name: string
     url: string
+    transparent?: boolean
 }) {
     console.log('[openSmallWindow] ', name, url)
-    await invoke('open_small_window', { name, url })
+    await invoke('open_small_window', { name, url, transparent })
     return WebviewWindow.getByLabel(name)
 }
 

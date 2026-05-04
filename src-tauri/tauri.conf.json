@@ -14,15 +14,15 @@
         "windows": [
             {
                 "title": "Rclone UI",
-                "width": 0,
-                "height": 0,
+                "width": 1,
+                "height": 1,
                 "center": true,
                 "hiddenTitle": false,
                 "resizable": false,
                 "fullscreen": false,
                 "visible": false,
                 "decorations": false,
-                "focus": true,
+                "focus": false,
                 "url": "tray.html",
                 "alwaysOnTop": true,
                 "backgroundThrottling": "disabled",

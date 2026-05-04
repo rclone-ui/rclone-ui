@@ -438,7 +438,7 @@ async function startRclone() {
     if (!command) {
         console.error('[startRclone] initRclone returned without a runnable command')
         Sentry.captureException(new Error('initRclone returned without a runnable command.'))
-        return
+        return false
     }
 
     command.addListener('close', async (event) => {
@@ -476,6 +476,7 @@ async function startRclone() {
     console.log('[startRclone] running rclone')
 
     await new Promise((resolve) => setTimeout(resolve, 500))
+    return true
 }
 
 async function startupMounts() {
@@ -1118,10 +1119,16 @@ waitForHydration()
     .then(() => validateInstance())
     .then(() => checkAlreadyRunning())
     .then(() => startRclone())
-    .then(() => checkRclone())
-    .then(() => handleDeepLink())
-    .then(() => showStartup())
-    .then(() => startupMounts())
-    .then(() => resumeTasks())
-    .then(() => initTray())
+    .then(async (started) => {
+        if (!started) {
+            console.log('[main] rclone did not start, leaving startup window visible')
+            return
+        }
+        await checkRclone()
+        await handleDeepLink()
+        await showStartup()
+        await startupMounts()
+        await resumeTasks()
+        await initTray()
+    })
     .catch(console.error)

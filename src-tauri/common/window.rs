@@ -180,6 +180,7 @@ pub async fn open_small_window(
     app_handle: AppHandle,
     name: String,
     url: String,
+    transparent: Option<bool>,
 ) -> Result<(), String> {
 	if let Some(existing) = app_handle.get_webview_window(&name) {
         existing.set_focus().map_err(|e| e.to_string())?;
@@ -201,12 +202,16 @@ pub async fn open_small_window(
 
 	#[cfg(target_os = "linux")]
     {
-        builder = builder.transparent(true);
+        if transparent.unwrap_or(true) {
+            builder = builder.transparent(true);
+        }
     }
 
     let window = builder.build().map_err(|e| e.to_string())?;
 
-    window.center().map_err(|e| e.to_string())?;
+    if let Err(err) = window.center() {
+        log::warn!("failed to center small window before show: {}", err);
+    }
     window.set_zoom(1.0).map_err(|e| e.to_string())?;
 
     #[cfg(target_os = "macos")]
@@ -222,7 +227,9 @@ pub async fn open_small_window(
     window.set_always_on_top(true).map_err(|e| e.to_string())?;
 	
 	#[cfg(target_os = "linux")]
-	window.center().map_err(|e| e.to_string())?;
+	if let Err(err) = window.center() {
+        log::warn!("failed to center small window after show: {}", err);
+    }
 
     if os != "windows" && os != "macos" {
         window.set_resizable(true).map_err(|e| e.to_string())?;

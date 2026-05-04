@@ -1,10 +1,11 @@
-import { Button, Divider } from '@heroui/react'
+import { Button, Divider, Progress } from '@heroui/react'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
+import { formatBytes } from '../../lib/format'
 import { openSmallWindow } from '../../lib/window'
 import { useStore } from '../../store/memory'
 import { usePersistedStore } from '../../store/persisted'
@@ -43,6 +44,11 @@ export default function Startup() {
     const [titleIndex, setTitleIndex] = useState(0)
 
     const startupStatus = useStore((state) => state.startupStatus)
+    const startupMessage = useStore((state) => state.startupMessage)
+    const startupIsDownloading = useStore((state) => state.startupIsDownloading)
+    const startupDownloadedBytes = useStore((state) => state.startupDownloadedBytes)
+    const startupTotalBytes = useStore((state) => state.startupTotalBytes)
+    const startupDownloadSpeed = useStore((state) => state.startupDownloadSpeed)
     const toolbarShortcut = usePersistedStore((state) => state.toolbarShortcut)
 
     const shortcutDisplay = useMemo(() => {
@@ -65,6 +71,37 @@ export default function Startup() {
         () => startupStatus === 'error' || startupStatus === 'fatal',
         [startupStatus]
     )
+    const isBusy = useMemo(
+        () => startupStatus === 'initializing' || startupStatus === 'updating',
+        [startupStatus]
+    )
+    const downloadProgress = useMemo(() => {
+        if (!startupTotalBytes || startupTotalBytes <= 0) {
+            return null
+        }
+
+        return Math.min((startupDownloadedBytes / startupTotalBytes) * 100, 100)
+    }, [startupDownloadedBytes, startupTotalBytes])
+    const downloadProgressLabel = useMemo(() => {
+        if (!startupIsDownloading) {
+            return null
+        }
+
+        const downloaded = formatBytes(startupDownloadedBytes)
+        const total = startupTotalBytes ? formatBytes(startupTotalBytes) : 'Unknown size'
+        const speed = startupDownloadSpeed ? `${formatBytes(startupDownloadSpeed)}/s` : null
+
+        if (speed) {
+            return `${downloaded} / ${total} • ${speed}`
+        }
+
+        return `${downloaded} / ${total}`
+    }, [
+        startupDownloadSpeed,
+        startupDownloadedBytes,
+        startupIsDownloading,
+        startupTotalBytes,
+    ])
 
     useEffect(() => {
         let intervalId: NodeJS.Timeout | null = null
@@ -84,11 +121,16 @@ export default function Startup() {
         }
     }, [startupStatus])
 
-    // Close window when it loses focus
+    // Linux can emit focus changes while the startup window is still provisioning rclone.
     useEffect(() => {
         const currentWindow = getCurrentWindow()
         const unlisten = currentWindow.onFocusChanged(async ({ payload: focused }) => {
             if (!focused) {
+                const status = useStore.getState().startupStatus
+                const busy = status === 'initializing' || status === 'updating'
+                if (platform() === 'linux' && busy) {
+                    return
+                }
                 await currentWindow.hide()
                 await currentWindow.destroy()
             }
@@ -116,7 +158,8 @@ export default function Startup() {
                                 exit={{ opacity: 0 }}
                                 className="ml-2 text-2xl"
                             >
-                                Could not complete the operation, please try again later.
+                                {startupMessage ||
+                                    'Could not complete the operation, please try again later.'}
                             </motion.p>
                         )}
                         {startupStatus === 'initialized' && (
@@ -141,39 +184,40 @@ export default function Startup() {
                                 Rclone has just been updated, thanks for waiting!
                             </motion.p>
                         )}
-                        {startupStatus === 'initializing' && (
-                            <motion.p
-                                key="initializing"
+                        {isBusy && (
+                            <motion.div
+                                key="busy"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="ml-2 text-3xl"
+                                className="flex flex-col items-center gap-4 px-8"
                             >
-                                <span
-                                    key={titleIndex}
-                                    className="inline-block align-middle animate-fade-in-up"
-                                >
-                                    {GREET[titleIndex]}
-                                </span>{' '}
-                                <span className="inline-block align-middle">👋</span>
-                            </motion.p>
-                        )}
-                        {startupStatus === 'updating' && (
-                            <motion.p
-                                key="updating"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="ml-2 text-3xl"
-                            >
-                                <span
-                                    key={titleIndex}
-                                    className="inline-block align-middle animate-fade-in-up"
-                                >
-                                    {WAIT[titleIndex]}
-                                </span>{' '}
-                                <span className="inline-block align-middle">👋</span>
-                            </motion.p>
+                                <p className="ml-2 text-3xl">
+                                    <span
+                                        key={titleIndex}
+                                        className="inline-block align-middle animate-fade-in-up"
+                                    >
+                                        {startupStatus === 'updating'
+                                            ? WAIT[titleIndex % WAIT.length]
+                                            : GREET[titleIndex % GREET.length]}
+                                    </span>{' '}
+                                    <span className="inline-block align-middle">👋</span>
+                                </p>
+
+                                {startupIsDownloading && (
+                                    <div className="w-full max-w-md space-y-2">
+                                        <Progress
+                                            value={downloadProgress ?? undefined}
+                                            isIndeterminate={downloadProgress === null}
+                                            aria-label="Rclone download progress"
+                                            className="w-full"
+                                        />
+                                        <p className="text-sm text-center text-default-500">
+                                            {downloadProgressLabel}
+                                        </p>
+                                    </div>
+                                )}
+                            </motion.div>
                         )}
                     </AnimatePresence>
                 </div>
@@ -251,13 +295,13 @@ export default function Startup() {
                                 </Button>
                             </motion.div>
                         )}
-                        {startupStatus === 'initializing' && (
-                            <motion.p
-                                key="initializing"
+                        {isBusy && (
+                            <motion.div
+                                key="busy"
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                className="uppercase text-small"
+                                className="flex flex-col items-center w-full gap-4 px-8 text-center uppercase text-small"
                             >
                                 <motion.span
                                     animate={{ opacity: [1, 0.5, 1] }}
@@ -267,29 +311,23 @@ export default function Startup() {
                                         ease: 'easeInOut',
                                     }}
                                 >
-                                    Rclone is initializing
+                                    {startupMessage ||
+                                        (startupStatus === 'updating'
+                                            ? 'Rclone is updating'
+                                            : 'Rclone is initializing')}
                                 </motion.span>
-                            </motion.p>
-                        )}
-                        {startupStatus === 'updating' && (
-                            <motion.p
-                                key="updating"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                className="uppercase text-small"
-                            >
-                                <motion.span
-                                    animate={{ opacity: [1, 0.5, 1] }}
-                                    transition={{
-                                        repeat: Number.POSITIVE_INFINITY,
-                                        duration: 4,
-                                        ease: 'easeInOut',
-                                    }}
-                                >
-                                    Rclone is updating
-                                </motion.span>
-                            </motion.p>
+                                {startupIsDownloading && (
+                                    <Button
+                                        variant="flat"
+                                        color="default"
+                                        onPress={async () => {
+                                            await exit(0)
+                                        }}
+                                    >
+                                        Quit for now
+                                    </Button>
+                                )}
+                            </motion.div>
                         )}
                     </AnimatePresence>
                 </div>

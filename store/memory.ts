@@ -14,6 +14,11 @@ interface State {
         | 'fatal'
 
     startupDisplayed: boolean
+    startupMessage: string | null
+    startupIsDownloading: boolean
+    startupDownloadedBytes: number
+    startupTotalBytes: number | null
+    startupDownloadSpeed: number | null
 
     isRestartingRclone: boolean
 
@@ -37,6 +42,11 @@ export const useStore = create<State>()(
 
             startupStatus: null,
             startupDisplayed: false,
+            startupMessage: null,
+            startupIsDownloading: false,
+            startupDownloadedBytes: 0,
+            startupTotalBytes: null,
+            startupDownloadSpeed: null,
 
             isRestartingRclone: false,
 

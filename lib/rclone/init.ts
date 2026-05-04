@@ -25,6 +25,189 @@ import {
     shouldUpdateRclone,
 } from './common'
 
+function setStartupMessage(startupMessage: string | null) {
+    useStore.setState({ startupMessage })
+}
+
+function resetStartupDownloadState() {
+    useStore.setState({
+        startupIsDownloading: false,
+        startupDownloadedBytes: 0,
+        startupTotalBytes: null,
+        startupDownloadSpeed: null,
+    })
+}
+
+function setStartupDownloadState({
+    downloadedBytes,
+    totalBytes,
+    speedBytesPerSecond,
+}: {
+    downloadedBytes: number
+    totalBytes: number | null
+    speedBytesPerSecond: number | null
+}) {
+    useStore.setState({
+        startupIsDownloading: true,
+        startupDownloadedBytes: downloadedBytes,
+        startupTotalBytes: totalBytes,
+        startupDownloadSpeed: speedBytesPerSecond,
+    })
+}
+
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, errorMessage: string) {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+            reject(new Error(errorMessage))
+        }, timeoutMs)
+    })
+
+    try {
+        return await Promise.race([operation, timeout])
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId)
+        }
+    }
+}
+
+async function fetchTextWithTimeout(url: string, timeoutMs: number) {
+    const response = await withTimeout(
+        fetch(url),
+        timeoutMs,
+        `Request timed out after ${Math.round(timeoutMs / 1000)} seconds.`
+    )
+    if (!response.ok) {
+        throw new Error(`Request failed (${response.status}).`)
+    }
+
+    return await withTimeout(
+        response.text(),
+        timeoutMs,
+        `Reading response timed out after ${Math.round(timeoutMs / 1000)} seconds.`
+    )
+}
+
+async function downloadArrayBufferWithProgress(
+    url: string,
+    {
+        connectTimeoutMs = 30_000,
+        stallTimeoutMs = 45_000,
+        onProgress,
+    }: {
+        connectTimeoutMs?: number
+        stallTimeoutMs?: number
+        onProgress?: (progress: {
+            downloadedBytes: number
+            totalBytes: number | null
+            speedBytesPerSecond: number | null
+        }) => void
+    } = {}
+) {
+    const controller = new AbortController()
+    let stalled = false
+    let stallTimeoutId: ReturnType<typeof setTimeout> | undefined
+
+    const resetStallTimeout = () => {
+        if (stallTimeoutId) {
+            clearTimeout(stallTimeoutId)
+        }
+
+        stallTimeoutId = setTimeout(() => {
+            stalled = true
+            controller.abort()
+        }, stallTimeoutMs)
+    }
+
+    const response = await fetch(url, {
+        connectTimeout: connectTimeoutMs,
+        signal: controller.signal,
+    })
+
+    if (!response.ok) {
+        throw new Error(`Failed to download rclone (${response.status}).`)
+    }
+
+    const totalHeader = response.headers.get('content-length')
+    const parsedTotal = totalHeader ? Number.parseInt(totalHeader, 10) : Number.NaN
+    const totalBytes = Number.isFinite(parsedTotal) ? parsedTotal : null
+
+    onProgress?.({
+        downloadedBytes: 0,
+        totalBytes,
+        speedBytesPerSecond: null,
+    })
+
+    if (!response.body) {
+        const buffer = await response.arrayBuffer()
+        onProgress?.({
+            downloadedBytes: buffer.byteLength,
+            totalBytes: totalBytes ?? buffer.byteLength,
+            speedBytesPerSecond: null,
+        })
+        return buffer
+    }
+
+    const reader = response.body.getReader()
+    const chunks: Uint8Array[] = []
+    const startedAt = Date.now()
+    let downloadedBytes = 0
+
+    resetStallTimeout()
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read()
+
+            if (done) {
+                break
+            }
+
+            if (!value) {
+                continue
+            }
+
+            resetStallTimeout()
+
+            chunks.push(value)
+            downloadedBytes += value.byteLength
+
+            const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.001)
+
+            onProgress?.({
+                downloadedBytes,
+                totalBytes,
+                speedBytesPerSecond: downloadedBytes / elapsedSeconds,
+            })
+        }
+    } catch (error) {
+        if (controller.signal.aborted && stalled) {
+            throw new Error(
+                `Downloading rclone stalled for ${Math.round(stallTimeoutMs / 1000)} seconds.`
+            )
+        }
+
+        throw error
+    } finally {
+        if (stallTimeoutId) {
+            clearTimeout(stallTimeoutId)
+        }
+
+        reader.releaseLock()
+    }
+
+    const merged = new Uint8Array(downloadedBytes)
+    let offset = 0
+
+    for (const chunk of chunks) {
+        merged.set(chunk, offset)
+        offset += chunk.byteLength
+    }
+
+    return merged.buffer
+}
+
 export async function initRclone(args: string[]) {
     console.log('[initRclone] starting with args:', args)
 
@@ -36,12 +219,30 @@ export async function initRclone(args: string[]) {
     // rclone not available, let's download it
     if (!system && !internal) {
         console.log('[initRclone] no rclone installation found, provisioning...')
-        useStore.setState({ startupDisplayed: true, startupStatus: 'initializing' })
+        resetStartupDownloadState()
+        useStore.setState({
+            startupDisplayed: true,
+            startupStatus: 'initializing',
+            startupMessage: 'Preparing rclone for first launch',
+        })
         await openSmallWindow({
             name: 'Startup',
             url: '/startup',
+            transparent: platform() !== 'linux',
         })
-        const success = await provisionRclone()
+        const success = await provisionRclone().catch((error) => {
+            console.error(
+                '[initRclone] provision failed with error',
+                error instanceof Error ? error.message : error
+            )
+            Sentry.captureException(error)
+            setStartupMessage(
+                error instanceof Error
+                    ? error.message
+                    : 'Failed to prepare rclone. Please try again later.'
+            )
+            return false
+        })
         console.log('[initRclone] provision rclone result:', success)
         if (!success) {
             console.error('[initRclone] provision failed, setting fatal status')
@@ -50,7 +251,8 @@ export async function initRclone(args: string[]) {
         }
 
         console.log('[initRclone] provision succeeded')
-        useStore.setState({ startupStatus: 'initialized' })
+        resetStartupDownloadState()
+        useStore.setState({ startupStatus: 'initialized', startupMessage: null })
 
         if (!['windows', 'macos'].includes(platform())) {
             usePersistedStore.setState({ hideStartup: true })
@@ -65,11 +267,16 @@ export async function initRclone(args: string[]) {
     if (shouldUpdateRclone(rcloneVersion)) {
         console.log('[initRclone] needs update')
 
-        useStore.setState({ startupStatus: 'updating' })
+        resetStartupDownloadState()
+        useStore.setState({
+            startupStatus: 'updating',
+            startupMessage: 'Updating rclone',
+        })
 
         await openSmallWindow({
             name: 'Startup',
             url: '/startup',
+            transparent: platform() !== 'linux',
         })
 
         try {
@@ -82,7 +289,10 @@ export async function initRclone(args: string[]) {
                         '[initRclone] system rclone update failed or was cancelled by user, code:',
                         code
                     )
-                    useStore.setState({ startupStatus: 'error' })
+                    useStore.setState({
+                        startupStatus: 'error',
+                        startupMessage: 'Could not update the system rclone installation.',
+                    })
                     const skipping = await ask(
                         'You are running an outdated version of the CLI that could not be updated.\n\nPlease update manually and restart Rclone UI.',
                         {
@@ -99,11 +309,13 @@ export async function initRclone(args: string[]) {
                     }
                 } else {
                     console.log('[initRclone] system rclone updated successfully')
-                    useStore.setState({ startupStatus: 'updated' })
+                    resetStartupDownloadState()
+                    useStore.setState({ startupStatus: 'updated', startupMessage: null })
                 }
             }
             if (internal) {
                 console.log('[initRclone] updating internal rclone')
+                setStartupMessage('Updating the bundled rclone binary')
                 const instance = Command.create('rclone-internal', ['selfupdate'])
                 const updateResult = await instance.execute()
                 console.log('[initRclone] updateResult', JSON.stringify(updateResult, null, 2))
@@ -112,15 +324,23 @@ export async function initRclone(args: string[]) {
                         '[initRclone] internal rclone update failed, code:',
                         updateResult.code
                     )
-                    useStore.setState({ startupStatus: 'error' })
+                    useStore.setState({
+                        startupStatus: 'error',
+                        startupMessage: 'Could not update the bundled rclone binary.',
+                    })
                 } else {
                     console.log('[initRclone] internal rclone updated successfully')
-                    useStore.setState({ startupStatus: 'updated' })
+                    resetStartupDownloadState()
+                    useStore.setState({ startupStatus: 'updated', startupMessage: null })
                 }
             }
         } catch (error) {
             console.error('[initRclone] failed to update rclone', error)
-            useStore.setState({ startupStatus: 'error' })
+            useStore.setState({
+                startupStatus: 'error',
+                startupMessage:
+                    error instanceof Error ? error.message : 'Failed to update rclone.',
+            })
         }
 
         await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -385,10 +605,13 @@ export async function initRclone(args: string[]) {
  */
 export async function provisionRclone() {
     console.log('[provisionRclone] starting provisioning process')
+    resetStartupDownloadState()
+    setStartupMessage('Checking the latest rclone version')
 
     console.log('[provisionRclone] fetching latest version info')
-    const currentVersionString = await fetch('https://downloads.rclone.org/version.txt').then(
-        (res) => res.text()
+    const currentVersionString = await fetchTextWithTimeout(
+        'https://downloads.rclone.org/version.txt',
+        30_000
     )
     console.log('[provisionRclone] currentVersionString', currentVersionString)
 
@@ -400,6 +623,7 @@ export async function provisionRclone() {
         return false
     }
     console.log('[provisionRclone] currentVersion', currentVersion)
+    setStartupMessage(`Preparing rclone ${currentVersion}`)
 
     const currentPlatform = platform()
     console.log('[provisionRclone] currentPlatform', currentPlatform)
@@ -415,6 +639,7 @@ export async function provisionRclone() {
     console.log('[provisionRclone] tempDirPath', tempDirPath)
 
     console.log('[provisionRclone] detecting system architecture')
+    setStartupMessage('Detecting system architecture')
     const arch = (await invoke('get_arch')) as 'arm64' | 'amd64' | '386' | 'unknown'
     console.log('[provisionRclone] arch', arch)
 
@@ -428,10 +653,34 @@ export async function provisionRclone() {
     console.log('[provisionRclone] downloadUrl', downloadUrl)
 
     console.log('[provisionRclone] downloading rclone binary')
-    const downloadedFile = await fetch(downloadUrl).then((res) => res.arrayBuffer())
+    setStartupMessage(`Downloading rclone ${currentVersion}`)
+    let lastProgressUpdateAt = 0
+    const downloadedFile = await downloadArrayBufferWithProgress(downloadUrl, {
+        connectTimeoutMs: 30_000,
+        stallTimeoutMs: 45_000,
+        onProgress: ({ downloadedBytes, totalBytes, speedBytesPerSecond }) => {
+            const now = Date.now()
+            const isComplete = totalBytes !== null && downloadedBytes >= totalBytes
+
+            if (!isComplete && now - lastProgressUpdateAt < 250) {
+                return
+            }
+
+            lastProgressUpdateAt = now
+
+            setStartupDownloadState({
+                downloadedBytes,
+                totalBytes,
+                speedBytesPerSecond,
+            })
+        },
+    })
     console.log('[provisionRclone] download complete, size:', downloadedFile.byteLength)
+    setStartupMessage('Download complete')
 
     console.log('[provisionRclone] checking if temp rclone directory exists')
+    resetStartupDownloadState()
+    setStartupMessage('Preparing temporary files')
     let tempDirExists = false
     try {
         tempDirExists = await exists('rclone', {
@@ -480,6 +729,7 @@ export async function provisionRclone() {
     console.log('[provisionRclone] zipPath', zipPath)
 
     console.log('[provisionRclone] writing zip file to disk')
+    setStartupMessage('Saving rclone archive')
     try {
         await writeFile(zipPath, new Uint8Array(downloadedFile))
         console.log('[provisionRclone] wrote zip file successfully')
@@ -492,6 +742,7 @@ export async function provisionRclone() {
 
     const extractPath = `${tempDirPath}${sep()}rclone${sep()}extracted`
     console.log('[provisionRclone] extracting zip file to:', extractPath)
+    setStartupMessage('Extracting rclone')
     try {
         await invoke('unzip_file', {
             zipPath,
@@ -520,6 +771,7 @@ export async function provisionRclone() {
     console.log('[provisionRclone] rcloneBinaryPath', rcloneBinaryPath)
 
     console.log('[provisionRclone] verifying extracted binary exists')
+    setStartupMessage('Verifying extracted rclone')
     try {
         const binaryExists = await exists(rcloneBinaryPath)
         console.log('[provisionRclone] rcloneBinaryPathExists', binaryExists)
@@ -535,6 +787,7 @@ export async function provisionRclone() {
     }
 
     console.log('[provisionRclone] getting app local data directory')
+    setStartupMessage('Preparing application data folder')
     const appLocalDataDirPath = await appLocalDataDir()
     console.log('[provisionRclone] appLocalDataDirPath', appLocalDataDirPath)
 
@@ -554,6 +807,7 @@ export async function provisionRclone() {
     console.log('[provisionRclone] targetBinaryPath', targetBinaryPath)
 
     console.log('[provisionRclone] copying binary to final location')
+    setStartupMessage('Installing rclone')
     const maxCopyRetries = 3
     for (let attempt = 1; attempt <= maxCopyRetries; attempt++) {
         console.log(`[provisionRclone] copy attempt ${attempt}/${maxCopyRetries}`)
@@ -588,6 +842,7 @@ export async function provisionRclone() {
     }
 
     console.log('[provisionRclone] verifying installation')
+    setStartupMessage('Verifying rclone installation')
     const hasInstalled = await isInternalRcloneInstalled()
     console.log('[provisionRclone] installation verified:', hasInstalled)
 
@@ -597,6 +852,7 @@ export async function provisionRclone() {
     }
 
     console.log('[provisionRclone] rclone has been installed successfully')
+    setStartupMessage('Rclone is ready')
 
     return true
 }
