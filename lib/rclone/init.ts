@@ -150,7 +150,8 @@ async function downloadArrayBufferWithProgress(
     }
 
     const reader = response.body.getReader()
-    const chunks: Uint8Array[] = []
+    const chunks: Uint8Array[] = totalBytes === null ? [] : []
+    const preallocated = totalBytes !== null ? new Uint8Array(totalBytes) : null
     const startedAt = Date.now()
     let downloadedBytes = 0
 
@@ -170,7 +171,11 @@ async function downloadArrayBufferWithProgress(
 
             resetStallTimeout()
 
-            chunks.push(value)
+            if (preallocated) {
+                preallocated.set(value, downloadedBytes)
+            } else {
+                chunks.push(value)
+            }
             downloadedBytes += value.byteLength
 
             const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.001)
@@ -195,6 +200,10 @@ async function downloadArrayBufferWithProgress(
         }
 
         reader.releaseLock()
+    }
+
+    if (preallocated) {
+        return preallocated.buffer
     }
 
     const merged = new Uint8Array(downloadedBytes)

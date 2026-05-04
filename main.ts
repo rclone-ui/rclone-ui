@@ -395,7 +395,7 @@ async function registerRcloneWindowListeners() {
     rcloneListenersRegistered = true
 }
 
-async function startRclone() {
+async function startRclone(): Promise<boolean> {
     console.log('[startRclone]')
 
     await registerRcloneWindowListeners()
@@ -430,7 +430,8 @@ async function startRclone() {
                 okLabel: 'Exit',
             }
         )
-        return await exit(0)
+        await exit(0)
+        return false
     }
 
     const command = rclone?.system || rclone?.internal
