@@ -5,7 +5,6 @@ import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { openSmallWindow } from '../../lib/window'
 import { useStore } from '../../store/memory'
 import { usePersistedStore } from '../../store/persisted'
 
@@ -197,24 +196,7 @@ export default function Startup() {
 
                                         await currentWindow.hide()
 
-                                        if (
-                                            usePersistedStore
-                                                .getState()
-                                                .acknowledgements.includes('onboarding')
-                                        ) {
-                                            await invoke('show_toolbar')
-                                        } else {
-                                            usePersistedStore.setState((prev) => ({
-                                                acknowledgements: [
-                                                    ...prev.acknowledgements,
-                                                    'onboarding',
-                                                ],
-                                            }))
-                                            await openSmallWindow({
-                                                name: 'Onboarding',
-                                                url: '/onboarding',
-                                            })
-                                        }
+                                        await invoke('show_toolbar')
 
                                         await new Promise((resolve) => setTimeout(resolve, 690))
 

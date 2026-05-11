@@ -9,24 +9,12 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { usePersistedStore } from '../store/persisted'
-import { openSmallWindow, openWindow } from './window'
+import { openWindow } from './window'
 
 async function buildMenu() {
     console.log('[buildMenu]')
 
     const menuItems: (MenuItem | PredefinedMenuItem)[] = []
-
-    const onboardingMenuItem = await MenuItem.new({
-        id: 'onboarding',
-        text: 'Onboarding',
-        action: async () => {
-            await openSmallWindow({
-                name: 'Onboarding',
-                url: '/onboarding',
-            })
-        },
-    })
-    menuItems.push(onboardingMenuItem)
 
     const openMenuItem = await MenuItem.new({
         id: 'open',

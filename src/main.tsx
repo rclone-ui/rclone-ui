@@ -18,7 +18,6 @@ import Download from './pages/Download'
 import Home from './pages/Home'
 import Mount from './pages/Mount'
 import Move from './pages/Move'
-import Onboarding from './pages/Onboarding'
 import Purge from './pages/Purge'
 import Schedules from './pages/Schedules'
 import Serve from './pages/Serve'
@@ -56,7 +55,6 @@ forwardConsole('error', error)
 if (
     !window.location?.pathname.startsWith('/toolbar') &&
     !window.location?.pathname.startsWith('/startup') &&
-    !window.location?.pathname.startsWith('/onboarding') &&
     !window.location?.pathname.startsWith('/commander')
 ) {
     import('./setupDragRegions').then(({ initTauriDragRegions }) => {
@@ -145,10 +143,6 @@ const router = createBrowserRouter([
         element: <Toolbar />,
     },
     {
-        path: '/onboarding',
-        element: <Onboarding />,
-    },
-    {
         path: '/test',
         element: <Test />,
     },
@@ -189,8 +183,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
         <main
             className={
                 window.location?.pathname.startsWith('/toolbar') ||
-                window.location?.pathname.startsWith('/startup') ||
-                window.location?.pathname.startsWith('/onboarding')
+                window.location?.pathname.startsWith('/startup')
                     ? undefined
                     : 'bg-transparent dark:bg-[#121212] overflow-scroll overscroll-y-none'
             }
