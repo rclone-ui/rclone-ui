@@ -32,6 +32,7 @@ export const RE_BACKSLASH = /\\/g
 export const RE_TRAILING_SLASH = /\/+$/g
 export const RE_LEADING_SLASH = /^\/+/
 export const RE_PATH_SEPARATOR = /[/\\]/
+export const RE_TRAILING_SEPARATORS = /[\\/]+$/
 
 export const VIRTUAL_PADDING_COUNT = 2
 

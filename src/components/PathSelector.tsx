@@ -10,7 +10,7 @@ import {
     Tooltip,
 } from '@heroui/react'
 import { platform } from '@tauri-apps/plugin-os'
-import { EllipsisVerticalIcon } from 'lucide-react'
+import { MousePointerIcon, XIcon } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import {
     FilePanel,
@@ -83,26 +83,53 @@ export default function PathSelector({
 
     const renderToolbar = useCallback(
         (buttons: ToolbarButtons) => [
-            [buttons.BackButton, buttons.RefreshButton],
+            [
+                buttons.BackButton,
+                buttons.RefreshButton,
+                <Tooltip
+                    key="dismiss-tooltip"
+                    content="Close this window (Esc)"
+                    placement="top"
+                    size="lg"
+                    color="foreground"
+                >
+                    <Button
+                        color="danger"
+                        size="sm"
+                        radius="full"
+                        isIconOnly={true}
+                        onPress={onClose}
+                    >
+                        <XIcon className="size-4" />
+                    </Button>
+                </Tooltip>,
+            ],
             [
                 buttons.SearchInput,
+                buttons.NewFolderButton,
                 ...(allowMultiple
                     ? [
-                          <Dropdown
-                              key="select-dropdown"
-                              shadow={platform() === 'windows' ? 'none' : undefined}
+                          <Tooltip
+                              key="select-dropdown-tooltip"
+                              content="Select items"
+                              placement="top"
+                              size="lg"
+                              color="foreground"
                           >
-                              <DropdownTrigger>
-                                  <Button
-                                      color="primary"
-                                      size="sm"
-                                      radius="full"
-                                      startContent={<EllipsisVerticalIcon className="size-4" />}
-                                      className="gap-0.5 min-w-fit"
+                              <div>
+                                  <Dropdown
+                                      shadow={platform() === 'windows' ? 'none' : undefined}
                                   >
-                                      SELECT
-                                  </Button>
-                              </DropdownTrigger>
+                                      <DropdownTrigger>
+                                          <Button
+                                              color="primary"
+                                              size="sm"
+                                              radius="full"
+                                              isIconOnly={true}
+                                          >
+                                              <MousePointerIcon className="size-4" />
+                                          </Button>
+                                      </DropdownTrigger>
                               <DropdownMenu color="primary">
                                   <DropdownItem
                                       key="select-current"
@@ -140,20 +167,11 @@ export default function PathSelector({
                                       Deselect All
                                   </DropdownItem>
                               </DropdownMenu>
-                          </Dropdown>,
+                                  </Dropdown>
+                              </div>
+                          </Tooltip>,
                       ]
                     : []),
-                <Tooltip
-                    key="dismiss-tooltip"
-                    content="Close this window (Esc)"
-                    placement="top"
-                    size="lg"
-                    color="foreground"
-                >
-                    <Button color="danger" size="sm" radius="full" onPress={onClose}>
-                        DISMISS
-                    </Button>
-                </Tooltip>,
             ],
             [
                 allowMultiple ? (

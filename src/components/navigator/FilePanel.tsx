@@ -1,10 +1,12 @@
-import { Divider } from '@heroui/react'
+import { Button, Divider, Tooltip } from '@heroui/react'
+import { FolderPlusIcon } from 'lucide-react'
 import {
     forwardRef,
     startTransition,
     useCallback,
     useEffect,
     useImperativeHandle,
+    useMemo,
     useRef,
     useState,
 } from 'react'
@@ -15,6 +17,7 @@ import PathBreadcrumb from './PathBreadcrumb'
 import PreviewDrawer from './PreviewDrawer'
 import RemoteSidebar from './RemoteSidebar'
 import type { AllowedKey, ContextMenuItem, Entry, FilePanelHandle, SelectItem } from './types'
+import useCreateFolder from './useCreateFolder'
 import useFileNavigation from './useFileNavigation'
 import { RE_LEADING_SLASH, dragStateRef, dropTargetsRef, serializeRemotePath } from './utils'
 
@@ -80,6 +83,36 @@ const FilePanel = forwardRef<
         allowMultiple,
         isActive,
     })
+
+    const { canCreateFolder, createFolder } = useCreateFolder(
+        nav.selectedRemote,
+        nav.cwd,
+        nav.refresh
+    )
+
+    const newFolderButton = useMemo(
+        () =>
+            canCreateFolder ? (
+                <Tooltip
+                    key="new-folder-tooltip"
+                    content="Create a new folder in this directory"
+                    size="lg"
+                    color="foreground"
+                >
+                    <Button
+                        color="primary"
+                        size="sm"
+                        radius="full"
+                        startContent={<FolderPlusIcon className="size-4" />}
+                        className="gap-1 min-w-fit"
+                        onPress={createFolder}
+                    >
+                        NEW
+                    </Button>
+                </Tooltip>
+            ) : null,
+        [canCreateFolder, createFolder]
+    )
 
     const listRef = useRef<HTMLDivElement>(null)
     const panelRef = useRef<HTMLDivElement>(null)
@@ -348,6 +381,7 @@ const FilePanel = forwardRef<
                         onSearchChange={nav.setSearchTerm}
                         renderToolbar={renderToolbar}
                         visible={toolbarVisible && nav.selectedRemote !== 'UI_FAVORITES'}
+                        newFolderButton={newFolderButton}
                     />
                 </div>
             </div>

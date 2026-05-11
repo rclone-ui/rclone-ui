@@ -27,7 +27,6 @@ import {
     ChevronUpIcon,
     CopyIcon,
     ExternalLinkIcon,
-    FolderPlusIcon,
     LoaderIcon,
     MoveIcon,
     SearchCheckIcon,
@@ -40,13 +39,10 @@ import { getFsInfo } from '../../lib/format'
 import { formatBytes } from '../../lib/format.ts'
 import { startCopy, startMove } from '../../lib/rclone/api'
 import rclone from '../../lib/rclone/client'
-import { supportsPersistentEmptyFolders } from '../../lib/rclone/constants'
 import { openWindow } from '../../lib/window'
 import { FileIcon } from '../components/navigator'
-import { FilePanel, type FilePanelHandle, type ToolbarButtons } from '../components/navigator'
+import { FilePanel, type FilePanelHandle } from '../components/navigator'
 import type { Entry, SelectItem } from '../components/navigator/types'
-
-const RE_TRAILING_SEPARATORS = /[\\/]+$/
 
 export default function Browser() {
     const leftPanelRef = useRef<FilePanelHandle>(null)
@@ -78,60 +74,6 @@ export default function Browser() {
 
     const remotes = remotesQuery.data ?? []
     const firstRemote = remotes[0] ?? null
-    const [leftPanelLocation, setLeftPanelLocation] = useState<{
-        remote: string | null
-        path: string
-    }>({ remote: 'UI_LOCAL_FS', path: '' })
-    const [rightPanelLocation, setRightPanelLocation] = useState<{
-        remote: string | null
-        path: string
-    }>({ remote: null, path: '' })
-
-    const remoteTypesQuery = useQuery({
-        queryKey: ['remotes', 'types'],
-        queryFn: async () => {
-            const dump = await rclone('/config/dump')
-            const types: Record<string, string> = {}
-            if (dump && typeof dump === 'object') {
-                for (const [name, config] of Object.entries(dump)) {
-                    if (config && typeof config === 'object' && 'type' in config) {
-                        types[name] = (config as { type: string }).type
-                    }
-                }
-            }
-            return types
-        },
-        staleTime: 1000 * 60,
-    })
-
-    const remoteTypes = remoteTypesQuery.data ?? {}
-
-    const getBackendTypeForRemote = useCallback(
-        (remote: string | null) => {
-            if (!remote || remote === 'UI_FAVORITES') return null
-            if (remote === 'UI_LOCAL_FS') return 'local'
-            return remoteTypes[remote] ?? null
-        },
-        [remoteTypes]
-    )
-
-    const canCreateFolderAtRemote = useCallback(
-        (remote: string | null) => {
-            if (!remote || remote === 'UI_FAVORITES') return false
-            if (remote === 'UI_LOCAL_FS') return true
-            return supportsPersistentEmptyFolders(getBackendTypeForRemote(remote))
-        },
-        [getBackendTypeForRemote]
-    )
-
-    const handleLeftNavigate = useCallback((remote: string, path: string) => {
-        setLeftPanelLocation({ remote, path })
-    }, [])
-
-    const handleRightNavigate = useCallback((remote: string, path: string) => {
-        setRightPanelLocation({ remote, path })
-    }, [])
-
     const handleDrop = useCallback(
         (items: SelectItem[], destination: string, _sourceSide: 'left' | 'right') => {
             setDropOperation({ items, destination })
@@ -272,125 +214,6 @@ export default function Browser() {
         }
     }, [])
 
-    const handleCreateFolder = useCallback(
-        async (panelSide: 'left' | 'right') => {
-            const panelRef = panelSide === 'left' ? leftPanelRef : rightPanelRef
-            const panel = panelRef.current
-            if (!panel) return
-
-            const currentPath = panel.getCurrentPath()
-            if (!currentPath.remote || currentPath.remote === 'UI_FAVORITES') return
-
-            if (!canCreateFolderAtRemote(currentPath.remote)) {
-                await message(
-                    'This backend does not support persistent empty folders. Create a folder by uploading a file into it.',
-                    {
-                        title: 'Unsupported Backend',
-                        kind: 'warning',
-                    }
-                )
-                return
-            }
-
-            const folderName = await invoke<string | null>('prompt', {
-                title: 'New Folder',
-                message: 'Enter a name for the new folder',
-                default: 'New Folder',
-                sensitive: false,
-            })
-            const normalizedFolderName = folderName?.trim()
-            if (!normalizedFolderName) return
-
-            try {
-                const normalizedPath = currentPath.path.replace(RE_TRAILING_SEPARATORS, '')
-                const fullTargetPath =
-                    currentPath.remote === 'UI_LOCAL_FS'
-                        ? `${normalizedPath}${normalizedPath ? '/' : ''}${normalizedFolderName}`
-                        : `${currentPath.remote}:/${normalizedPath}${normalizedPath ? '/' : ''}${normalizedFolderName}`
-                const info = getFsInfo(fullTargetPath)
-
-                await rclone('/operations/mkdir' as any, {
-                    params: {
-                        query: {
-                            fs: info.root === ':local:' ? ':local:/' : info.root,
-                            remote: info.filePath,
-                        },
-                    },
-                })
-
-                panel.refresh()
-            } catch (error) {
-                await message(error instanceof Error ? error.message : 'Create folder failed', {
-                    title: 'Error',
-                    kind: 'error',
-                })
-            }
-        },
-        [canCreateFolderAtRemote]
-    )
-
-    const renderLeftToolbar = useCallback(
-        (buttons: ToolbarButtons) => [
-            [buttons.BackButton, buttons.RefreshButton],
-            [
-                buttons.SearchInput,
-                ...(canCreateFolderAtRemote(leftPanelLocation.remote)
-                    ? [
-                          <Tooltip
-                              key="left-new-folder-tooltip"
-                              content="Create a new folder in this directory"
-                              size="lg"
-                              color="foreground"
-                          >
-                              <Button
-                                  color="primary"
-                                  size="sm"
-                                  radius="full"
-                                  startContent={<FolderPlusIcon className="size-4" />}
-                                  className="gap-1 min-w-fit"
-                                  onPress={() => handleCreateFolder('left')}
-                              >
-                                  NEW FOLDER
-                              </Button>
-                          </Tooltip>,
-                      ]
-                    : []),
-            ],
-        ],
-        [canCreateFolderAtRemote, leftPanelLocation.remote, handleCreateFolder]
-    )
-
-    const renderRightToolbar = useCallback(
-        (buttons: ToolbarButtons) => [
-            [buttons.BackButton, buttons.RefreshButton],
-            [
-                buttons.SearchInput,
-                ...(canCreateFolderAtRemote(rightPanelLocation.remote)
-                    ? [
-                          <Tooltip
-                              key="right-new-folder-tooltip"
-                              content="Create a new folder in this directory"
-                              size="lg"
-                              color="foreground"
-                          >
-                              <Button
-                                  color="primary"
-                                  size="sm"
-                                  radius="full"
-                                  startContent={<FolderPlusIcon className="size-4" />}
-                                  className="gap-1 min-w-fit"
-                                  onPress={() => handleCreateFolder('right')}
-                              >
-                                  NEW FOLDER
-                              </Button>
-                          </Tooltip>,
-                      ]
-                    : []),
-            ],
-        ],
-        [canCreateFolderAtRemote, rightPanelLocation.remote, handleCreateFolder]
-    )
-
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'r' && (e.metaKey || e.ctrlKey)) {
@@ -428,8 +251,6 @@ export default function Browser() {
                         onDownload={handleDownload}
                         onRename={handleRename}
                         onDelete={handleDelete}
-                        onNavigate={handleLeftNavigate}
-                        renderToolbar={renderLeftToolbar}
                         allowedKeys={['REMOTES', 'LOCAL_FS', 'FAVORITES']}
                         isActive={true}
                     />
@@ -450,8 +271,6 @@ export default function Browser() {
                         onDownload={handleDownload}
                         onRename={handleRename}
                         onDelete={handleDelete}
-                        onNavigate={handleRightNavigate}
-                        renderToolbar={renderRightToolbar}
                         allowedKeys={['REMOTES', 'LOCAL_FS', 'FAVORITES']}
                         isActive={true}
                     />

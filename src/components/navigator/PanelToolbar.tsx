@@ -7,6 +7,7 @@ export type ToolbarButtons = {
     BackButton: ReactNode
     RefreshButton: ReactNode
     SearchInput: ReactNode
+    NewFolderButton: ReactNode
 }
 
 export default function PanelToolbar({
@@ -18,6 +19,7 @@ export default function PanelToolbar({
     onSearchChange,
     renderToolbar,
     visible = true,
+    newFolderButton,
 }: {
     onBack: () => void
     onRefresh: () => void
@@ -27,6 +29,7 @@ export default function PanelToolbar({
     onSearchChange: (term: string) => void
     renderToolbar?: (buttons: ToolbarButtons) => ReactNode[][]
     visible?: boolean
+    newFolderButton?: ReactNode
 }) {
     const BackButton = (
         <Tooltip content="Go to parent directory" size="lg" color="foreground">
@@ -78,10 +81,11 @@ export default function PanelToolbar({
         />
     )
 
-    const buttons: ToolbarButtons = { BackButton, RefreshButton, SearchInput }
+    const NewFolderButton = newFolderButton ?? null
+    const buttons: ToolbarButtons = { BackButton, RefreshButton, SearchInput, NewFolderButton }
     const groups = renderToolbar
         ? renderToolbar(buttons)
-        : [[BackButton, RefreshButton], [SearchInput]]
+        : [[BackButton, RefreshButton], [SearchInput, NewFolderButton]]
 
     const motionTransition = {
         enter: {
