@@ -86,90 +86,108 @@ export default function PathSelector({
             [buttons.BackButton, buttons.RefreshButton],
             [
                 buttons.SearchInput,
-                <Dropdown
-                    key="select-dropdown"
-                    shadow={platform() === 'windows' ? 'none' : undefined}
-                >
-                    <DropdownTrigger>
-                        <Button
-                            color="primary"
-                            size="sm"
-                            radius="full"
-                            startContent={<EllipsisVerticalIcon className="size-4" />}
-                            className="gap-0.5 min-w-fit"
-                        >
-                            SELECT
-                        </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu color="primary">
-                        <DropdownItem key="select-current" onPress={handleSelectCurrentFolder}>
-                            Current Folder (
-                            {currentPath.split(RE_PATH_SEPARATOR).pop() || currentRemote || 'root'})
-                        </DropdownItem>
-                        <DropdownItem
-                            key="select-files"
-                            onPress={() => panelRef.current?.selectAll('files')}
-                        >
-                            All Files
-                        </DropdownItem>
-                        <DropdownItem
-                            key="select-folders"
-                            onPress={() => panelRef.current?.selectAll('folders')}
-                        >
-                            All Folders
-                        </DropdownItem>
-                        <DropdownItem
-                            key="select-files-folders"
-                            onPress={() => panelRef.current?.selectAll('all')}
-                        >
-                            All Files & Folders
-                        </DropdownItem>
-                        <DropdownItem
-                            key="deselect-all"
-                            onPress={() => panelRef.current?.clearSelection()}
-                            color="danger"
-                        >
-                            Deselect All
-                        </DropdownItem>
-                    </DropdownMenu>
-                </Dropdown>,
+                ...(allowMultiple
+                    ? [
+                          <Dropdown
+                              key="select-dropdown"
+                              shadow={platform() === 'windows' ? 'none' : undefined}
+                          >
+                              <DropdownTrigger>
+                                  <Button
+                                      color="primary"
+                                      size="sm"
+                                      radius="full"
+                                      startContent={<EllipsisVerticalIcon className="size-4" />}
+                                      className="gap-0.5 min-w-fit"
+                                  >
+                                      SELECT
+                                  </Button>
+                              </DropdownTrigger>
+                              <DropdownMenu color="primary">
+                                  <DropdownItem
+                                      key="select-current"
+                                      onPress={handleSelectCurrentFolder}
+                                  >
+                                      Current Folder (
+                                      {currentPath.split(RE_PATH_SEPARATOR).pop() ||
+                                          currentRemote ||
+                                          'root'}
+                                      )
+                                  </DropdownItem>
+                                  <DropdownItem
+                                      key="select-files"
+                                      onPress={() => panelRef.current?.selectAll('files')}
+                                  >
+                                      All Files
+                                  </DropdownItem>
+                                  <DropdownItem
+                                      key="select-folders"
+                                      onPress={() => panelRef.current?.selectAll('folders')}
+                                  >
+                                      All Folders
+                                  </DropdownItem>
+                                  <DropdownItem
+                                      key="select-files-folders"
+                                      onPress={() => panelRef.current?.selectAll('all')}
+                                  >
+                                      All Files & Folders
+                                  </DropdownItem>
+                                  <DropdownItem
+                                      key="deselect-all"
+                                      onPress={() => panelRef.current?.clearSelection()}
+                                      color="danger"
+                                  >
+                                      Deselect All
+                                  </DropdownItem>
+                              </DropdownMenu>
+                          </Dropdown>,
+                      ]
+                    : []),
                 <Tooltip
                     key="dismiss-tooltip"
-                    content="Close this window"
+                    content="Close this window (Esc)"
                     placement="top"
                     size="lg"
                     color="foreground"
                 >
-                    <Button color="danger" size="sm" radius="full" variant="flat" onPress={onClose}>
+                    <Button color="danger" size="sm" radius="full" onPress={onClose}>
                         DISMISS
                     </Button>
                 </Tooltip>,
             ],
             [
-                <Tooltip
-                    key="pick-tooltip"
-                    content={selectedCount === 0 ? 'Tap on the checkbox to select items' : ''}
-                    placement="top"
-                    size="lg"
-                    color="foreground"
-                    isDisabled={selectedCount > 0}
-                >
-                    <div>
-                        <Button
-                            size="sm"
-                            color="primary"
-                            radius="full"
-                            onPress={handleConfirm}
-                            isDisabled={selectedCount === 0}
-                        >
-                            {selectedCount === 0
-                                ? '0 SELECTED'
-                                : allowMultiple
-                                  ? `PICK (${selectedCount})`
-                                  : 'PICK'}
-                        </Button>
-                    </div>
-                </Tooltip>,
+                allowMultiple ? (
+                    <Tooltip
+                        key="pick-tooltip"
+                        content={selectedCount === 0 ? 'Tap on the checkbox to select items' : ''}
+                        placement="top"
+                        size="lg"
+                        color="foreground"
+                        isDisabled={selectedCount > 0}
+                    >
+                        <div>
+                            <Button
+                                size="sm"
+                                color="primary"
+                                radius="full"
+                                onPress={handleConfirm}
+                                isDisabled={selectedCount === 0}
+                            >
+                                {selectedCount === 0 ? '0 SELECTED' : `PICK (${selectedCount})`}
+                            </Button>
+                        </div>
+                    </Tooltip>
+                ) : (
+                    <Button
+                        key="pick-button"
+                        size="sm"
+                        color="primary"
+                        radius="full"
+                        onPress={selectedCount === 0 ? handleSelectCurrentFolder : handleConfirm}
+                    >
+                        {selectedCount === 0 ? 'PICK CURRENT FOLDER' : 'PICK'}
+                    </Button>
+                ),
             ],
         ],
         [
