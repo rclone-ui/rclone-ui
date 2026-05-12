@@ -121,7 +121,7 @@ pub fn show_toolbar_window(app_handle: &AppHandle) -> Result<(), tauri::Error> {
         window.unminimize()?;
         window.set_focus()?;
         #[cfg(target_os = "linux")]
-        focus_window_linux(&window);
+        focus_window_linux(app_handle, &window);
     }
 
     Ok(())
@@ -138,7 +138,7 @@ fn open_toolbar(app_handle: &AppHandle) -> Result<(), tauri::Error> {
             window.unminimize()?;
             window.set_focus()?;
             #[cfg(target_os = "linux")]
-            focus_window_linux(&window);
+            focus_window_linux(app_handle, &window);
         }
     }
 
