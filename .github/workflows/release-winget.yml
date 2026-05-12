@@ -1,0 +1,14 @@
+name: Publish release to WinGet
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: vedantmgoyal9/winget-releaser@latest
+        with:
+          identifier: RcloneUI.RcloneUI
+          installers-regex: 'Rclone\.UI\_x64\.exe'
+          token: ${{ secrets.WINGET_ACC_TOKEN }}
