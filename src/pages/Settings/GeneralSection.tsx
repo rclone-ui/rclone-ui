@@ -32,7 +32,7 @@ export default function GeneralSection() {
     const flathubQuery = useQuery({
         queryKey: ['flathub'],
         queryFn: async () => {
-            const flathub = await invoke<boolean>('is_flathub')
+            const flathub = await invoke<boolean>('is_flatpak')
             return flathub
         },
     })

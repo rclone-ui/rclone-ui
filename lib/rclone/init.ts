@@ -28,7 +28,7 @@ import {
 export async function initRclone(args: string[]) {
     console.log('[initRclone] starting with args:', args)
 
-    const system = !(await invoke<boolean>('is_flathub')) && (await isSystemRcloneInstalled())
+    const system = !(await invoke<boolean>('is_flatpak')) && (await isSystemRcloneInstalled())
     console.log('[initRclone] system rclone installed:', system)
     let internal = await isInternalRcloneInstalled()
     console.log('[initRclone] internal rclone installed:', internal)

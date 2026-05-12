@@ -31,7 +31,7 @@ fn show_toolbar(app_handle: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn is_flathub() -> bool {
+fn is_flatpak() -> bool {
     std::path::Path::new("/.flatpak-info").exists() || std::env::var_os("FLATPAK_ID").is_some()
 }
 
@@ -787,7 +787,7 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
-    if !is_flathub() {
+    if !is_flatpak() {
         builder = builder
             .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
                 let _ = shortcut::show_toolbar_window(app);
@@ -827,7 +827,7 @@ pub fn run() {
             show_toolbar,
             update_system_rclone,
             test_proxy_connection,
-            is_flathub,
+            is_flatpak,
             open_full_window,
             open_window,
             open_small_window,
@@ -842,7 +842,7 @@ pub fn run() {
             {
                 // Flatpak/Flathub sandbox typically cannot write to system desktop/mime locations.
                 // Deep-link registration is best-effort; never fail app startup.
-                if is_flathub() {
+                if is_flatpak() {
                     log::info!("skipping deep-link registration in Flatpak/Flathub");
                 } else {
 					use tauri_plugin_deep_link::DeepLinkExt;
