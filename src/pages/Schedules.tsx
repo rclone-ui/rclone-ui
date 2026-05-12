@@ -29,7 +29,7 @@ export default function Schedules() {
     if (scheduledTasks.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-screen gap-8">
-                <h1 className="text-2xl font-bold text-center">
+                <h1 className="max-w-md text-2xl font-bold text-center">
                     You can schedule tasks to run later, when the UI is in the background.
                 </h1>
                 <CommandsDropdown title="New scheduled task" />
