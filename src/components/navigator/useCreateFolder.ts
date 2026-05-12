@@ -17,7 +17,7 @@ export default function useCreateFolder(
         queryKey: ['remote', remote, 'config'],
         queryFn: async () => {
             return await rclone('/config/get', {
-                params: { query: { name: remote } },
+                params: { query: { name: remote! } },
             })
         },
         enabled: !!remote && remote !== 'UI_LOCAL_FS' && remote !== 'UI_FAVORITES',
