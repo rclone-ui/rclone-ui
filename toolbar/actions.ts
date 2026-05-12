@@ -314,7 +314,10 @@ const actions: ToolbarActionDefinition[] = [
                 }
             }
 
-            const queryIsOnlyKeyword = !query || matchesKeyword(query, COMMAND_KEYWORDS.mount) && query.trim().split(/\s+/).length <= 1
+            const queryIsOnlyKeyword =
+                !query ||
+                (matchesKeyword(query, COMMAND_KEYWORDS.mount) &&
+                    query.trim().split(/\s+/).length <= 1)
 
             if (paths.length === 0 || queryIsOnlyKeyword) {
                 results.push(createBaseResult('Mount', COMMAND_DESCRIPTIONS.mount, {}, 42))
@@ -493,7 +496,10 @@ const actions: ToolbarActionDefinition[] = [
                 }
             }
 
-            const queryIsOnlyKeyword = !query || matchesKeyword(query, COMMAND_KEYWORDS.serve) && query.trim().split(/\s+/).length <= 1
+            const queryIsOnlyKeyword =
+                !query ||
+                (matchesKeyword(query, COMMAND_KEYWORDS.serve) &&
+                    query.trim().split(/\s+/).length <= 1)
 
             if (paths.length === 0 || queryIsOnlyKeyword) {
                 results.push(createBaseResult('Serve', COMMAND_DESCRIPTIONS.serve, {}, 40))
