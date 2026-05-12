@@ -64,6 +64,70 @@ pub fn is_linux_mint() -> bool {
 }
 
 #[tauri::command]
+pub fn has_flatpak_permissions() -> bool {
+    // Native app: no Flatpak permission needed.
+    if !is_flatpak() {
+        return true;
+    }
+
+    let Ok(contents) = std::fs::read_to_string("/.flatpak-info") else {
+        return false;
+    };
+
+    let mut in_context = false;
+
+    for line in contents.lines() {
+        let line = line.trim();
+
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        if line.starts_with('[') && line.ends_with(']') {
+            in_context = line == "[Context]";
+            continue;
+        }
+
+        if !in_context {
+            continue;
+        }
+
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+
+        if key.trim() != "filesystems" {
+            continue;
+        }
+
+        for raw in value.split(';') {
+            let item = raw.trim();
+
+            if item.is_empty() {
+                continue;
+            }
+
+            // Explicit negative override, e.g. !host
+            if item == "!host" || item.starts_with("!host:") {
+                return false;
+            }
+
+            // Writable host access
+            if item == "host" || item == "host:rw" || item == "host:create" {
+                return true;
+            }
+
+            // Read-only host access is not enough for full rclone filesystem usage
+            if item == "host:ro" {
+                return false;
+            }
+        }
+    }
+
+    false
+}
+
+#[tauri::command]
 fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
     // Open the zip file
     let file = File::open(zip_path).map_err(|e| e.to_string())?;
@@ -857,6 +921,7 @@ pub fn run() {
             test_proxy_connection,
             is_flatpak,
             is_linux_mint,
+            has_flatpak_permissions,
             open_full_window,
             open_window,
             open_small_window,
