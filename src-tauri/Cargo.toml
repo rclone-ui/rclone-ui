@@ -58,6 +58,7 @@ objc = "0.2"
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "5" }
 x11rb = "0.13"
+gtk = "0.18"
 
 [patch.crates-io]
 tao = { git = "https://github.com/tauri-apps/tao", branch = "fix-windows-white-flash" }

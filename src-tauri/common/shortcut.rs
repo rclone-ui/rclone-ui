@@ -2,6 +2,8 @@ use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use super::window::make_transparent;
+#[cfg(target_os = "linux")]
+use super::window::focus_window_linux;
 
 pub const DEFAULT_TOOLBAR_SHORTCUT: &str = "CmdOrCtrl+Shift+/";
 const TOOLBAR_WINDOW_LABEL: &str = "Toolbar";
@@ -118,6 +120,8 @@ pub fn show_toolbar_window(app_handle: &AppHandle) -> Result<(), tauri::Error> {
         window.show()?;
         window.unminimize()?;
         window.set_focus()?;
+        #[cfg(target_os = "linux")]
+        focus_window_linux(&window);
     }
 
     Ok(())
@@ -133,6 +137,8 @@ fn open_toolbar(app_handle: &AppHandle) -> Result<(), tauri::Error> {
             window.show()?;
             window.unminimize()?;
             window.set_focus()?;
+            #[cfg(target_os = "linux")]
+            focus_window_linux(&window);
         }
     }
 
