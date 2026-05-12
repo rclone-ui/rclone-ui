@@ -738,8 +738,6 @@ const actions: ToolbarActionDefinition[] = [
         label: 'Browse',
         description: COMMAND_DESCRIPTIONS.browse,
         keywords: COMMAND_KEYWORDS.browse,
-        getDefaultResult: () =>
-            createBaseResult('Browse', 'Specify a remote to browse its files', {}, 37),
         getResults: ({ query, paths, remotes }) => {
             if (query && !matchesKeyword(query, COMMAND_KEYWORDS.browse)) {
                 return []
