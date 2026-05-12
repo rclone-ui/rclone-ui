@@ -36,7 +36,7 @@ fn is_flatpak() -> bool {
 }
 
 #[tauri::command]
-pub fn is_linux_mint() -> bool {
+fn is_linux_mint() -> bool {
     #[cfg(not(target_os = "linux"))]
     {
         false
@@ -64,7 +64,7 @@ pub fn is_linux_mint() -> bool {
 }
 
 #[tauri::command]
-pub fn has_flatpak_permissions() -> bool {
+fn has_flatpak_permissions() -> bool {
     // Native app: no Flatpak permission needed.
     if !is_flatpak() {
         return true;
