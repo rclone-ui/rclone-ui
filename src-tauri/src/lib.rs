@@ -36,6 +36,34 @@ fn is_flatpak() -> bool {
 }
 
 #[tauri::command]
+pub fn is_linux_mint() -> bool {
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let paths: &[&str] = if is_flatpak() {
+            &["/run/host/os-release", "/etc/os-release", "/usr/lib/os-release"]
+        } else {
+            &["/etc/os-release", "/usr/lib/os-release"]
+        };
+
+        for path in paths {
+            if let Ok(contents) = std::fs::read_to_string(path) {
+                return contents.lines().any(|line| {
+                    let line = line.trim();
+                    line == "ID=linuxmint" || line == "ID=\"linuxmint\""
+                });
+            }
+        }
+
+        false
+    }
+}
+
+#[tauri::command]
 fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
     // Open the zip file
     let file = File::open(zip_path).map_err(|e| e.to_string())?;
@@ -828,6 +856,7 @@ pub fn run() {
             update_system_rclone,
             test_proxy_connection,
             is_flatpak,
+            is_linux_mint,
             open_full_window,
             open_window,
             open_small_window,
