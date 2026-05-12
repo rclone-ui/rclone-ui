@@ -480,6 +480,7 @@ export default function Toolbar() {
                     />
                     <input
                         ref={inputRef}
+                        autoFocus
                         data-tauri-drag-region={!isLinux}
                         autoCapitalize="off"
                         autoComplete="off"
