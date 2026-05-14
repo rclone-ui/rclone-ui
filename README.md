@@ -1,8 +1,3 @@
- <img src=".github/rclone-mobile.png" alt="Rclone Mobile" width="100%">
-
-<br />
-<br />
-
 <h1 align="center">
   <a href="https://rcloneui.com">
     <img src="./public/banner.png" alt="Rclone UI" width="100%">
