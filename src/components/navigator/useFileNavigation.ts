@@ -237,18 +237,18 @@ export default function useFileNavigation({
     )
 
     const selectRemote = useCallback(
-        async (remote: string | 'UI_LOCAL_FS' | 'UI_FAVORITES') => {
+        async (remote: string | 'UI_LOCAL_FS' | 'UI_FAVORITES', initialPath?: string) => {
             cleanupSelectionForRemote(remote)
             if (remote === 'UI_LOCAL_FS') {
-                const home = await homeDir()
+                const startPath = initialPath ?? (await homeDir())
                 startTransition(() => {
                     setSelectedRemote(remote)
-                    setCwd(home)
+                    setCwd(startPath)
                 })
             } else {
                 startTransition(() => {
                     setSelectedRemote(remote)
-                    setCwd('')
+                    setCwd(initialPath ?? '')
                 })
             }
         },

@@ -1,9 +1,11 @@
 import { Button, ScrollShadow, Tooltip, cn } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { platform } from '@tauri-apps/plugin-os'
-import { LaptopIcon, StarIcon } from 'lucide-react'
+import { StarIcon } from 'lucide-react'
+import { useMemo } from 'react'
 import rclone from '../../../lib/rclone/client.ts'
 import type { AllowedKey, RemoteString } from './types'
+import { getDiskIcon, getDiskLabel, shouldShowDisk } from './utils'
 
 function RemoteButton({
     remote,
@@ -51,19 +53,39 @@ function RemoteButton({
 export default function RemoteSidebar({
     position,
     selectedRemote,
+    cwd,
     onRemoteSelect,
     allowedKeys,
     remotes,
 }: {
     position: 'left' | 'right'
     selectedRemote: RemoteString
-    onRemoteSelect: (remote: string | 'UI_LOCAL_FS' | 'UI_FAVORITES') => void
+    cwd?: string
+    onRemoteSelect: (remote: string | 'UI_LOCAL_FS' | 'UI_FAVORITES', initialPath?: string) => void
     allowedKeys: AllowedKey[]
     remotes: string[]
 }) {
     const canShowFavorites = allowedKeys.includes('FAVORITES')
     const canShowLocal = allowedKeys.includes('LOCAL_FS')
     const canShowRemotes = allowedKeys.includes('REMOTES')
+
+    const disksQuery = useQuery({
+        queryKey: ['core', 'disks'],
+        queryFn: () => rclone('/core/disks'),
+        staleTime: 1000 * 60 * 5,
+        enabled: canShowLocal,
+    })
+
+    const disks = useMemo(
+        () => (disksQuery.data?.disks ?? []).filter(shouldShowDisk),
+        [disksQuery.data]
+    )
+
+    const activeDisk = useMemo(() => {
+        if (selectedRemote !== 'UI_LOCAL_FS' || !cwd) return null
+        const sorted = [...disks].sort((a, b) => b.length - a.length)
+        return sorted.find((disk) => cwd.startsWith(disk)) ?? null
+    }, [selectedRemote, cwd, disks])
 
     const orderClass = position === 'right' ? 'order-last' : 'order-first'
 
@@ -94,24 +116,30 @@ export default function RemoteSidebar({
                         </Button>
                     </Tooltip>
                 )}
-                {canShowLocal && (
-                    <Tooltip
-                        content="Local Filesystem"
-                        placement={position === 'left' ? 'right' : 'left'}
-                        color="foreground"
-                        size="lg"
-                    >
-                        <Button
-                            isIconOnly={true}
-                            className="shrink-0"
-                            size="lg"
-                            onPress={() => onRemoteSelect('UI_LOCAL_FS')}
-                            variant={selectedRemote === 'UI_LOCAL_FS' ? 'faded' : 'light'}
-                        >
-                            <LaptopIcon className="size-6" />
-                        </Button>
-                    </Tooltip>
-                )}
+                {canShowLocal &&
+                    disks.map((disk) => {
+                        const { icon: DiskIcon, className: iconColor } = getDiskIcon(disk)
+                        const label = getDiskLabel(disk)
+                        return (
+                            <Tooltip
+                                key={disk}
+                                content={label}
+                                placement={position === 'left' ? 'right' : 'left'}
+                                color="foreground"
+                                size="lg"
+                            >
+                                <Button
+                                    isIconOnly={true}
+                                    className="shrink-0"
+                                    size="lg"
+                                    onPress={() => onRemoteSelect('UI_LOCAL_FS', disk)}
+                                    variant={activeDisk === disk ? 'faded' : 'light'}
+                                >
+                                    <DiskIcon className={cn('size-6', iconColor)} />
+                                </Button>
+                            </Tooltip>
+                        )
+                    })}
                 {canShowRemotes &&
                     remotes.map((remote) => (
                         <RemoteButton

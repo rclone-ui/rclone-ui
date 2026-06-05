@@ -1,5 +1,14 @@
 import { dirname, join, sep } from '@tauri-apps/api/path'
 import { readDir } from '@tauri-apps/plugin-fs'
+import type { LucideIcon } from 'lucide-react'
+import {
+    DownloadIcon,
+    FileTextIcon,
+    HardDriveIcon,
+    HouseIcon,
+    MonitorIcon,
+    UsbIcon,
+} from 'lucide-react'
 import { createRef } from 'react'
 import rclone from '../../../lib/rclone/client.ts'
 import type { SelectItem } from './types'
@@ -175,6 +184,41 @@ export function getFileExtension(filename: string): string {
     const lastDot = filename.lastIndexOf('.')
     if (lastDot === -1 || lastDot === 0) return ''
     return filename.slice(lastDot + 1).toLowerCase()
+}
+
+export function getDiskLabel(disk: string): string {
+    const last = disk.split(/[/\\]/).filter(Boolean).pop()
+    return last ?? disk
+}
+
+const SHOWN_DISKS = new Set(['desktop', 'documents', 'downloads'])
+
+export function shouldShowDisk(disk: string): boolean {
+    if (disk === '/' || /^[A-Z]:[\\/]?$/i.test(disk)) return true
+    const last = disk.split(/[/\\]/).filter(Boolean).pop()?.toLowerCase()
+    if (last && SHOWN_DISKS.has(last)) return true
+    // Home folder: parent is a known users directory
+    if (/[\\/](?:Users|home)[\\/][^/\\]+\/?$/i.test(disk)) return true
+    // USB / external volumes
+    if (/[\\/](?:media|Volumes|mnt)[\\/]/i.test(disk)) return true
+    return false
+}
+
+export function getDiskIcon(disk: string): { icon: LucideIcon; className: string } {
+    const last = disk.split(/[/\\]/).filter(Boolean).pop()?.toLowerCase()
+    switch (last) {
+        case 'desktop':
+            return { icon: MonitorIcon, className: 'text-sky-400' }
+        case 'documents':
+            return { icon: FileTextIcon, className: 'text-blue-400' }
+        case 'downloads':
+            return { icon: DownloadIcon, className: 'text-green-400' }
+    }
+    if (disk === '/' || /^[A-Z]:[\\/]?$/i.test(disk))
+        return { icon: HardDriveIcon, className: 'text-zinc-400' }
+    if (/[\\/](?:media|Volumes|mnt)[\\/]/i.test(disk))
+        return { icon: UsbIcon, className: 'text-orange-400' }
+    return { icon: HouseIcon, className: 'text-amber-400' }
 }
 
 export function formatModTime(modTime: string | undefined): string {
