@@ -179,7 +179,7 @@ export default function FileList({
                 base: 'w-full p-0 m-0',
                 list: 'w-full p-0 m-0 gap-0',
             }}
-            // @ts-ignore
+            // @ts-ignore — scrollShadowProps exists on VirtualizedListbox but not on ListboxProps (HeroUI typing gap)
             scrollShadowProps={{
                 className: platform() !== 'macos' ? 'show-scrollbar' : undefined,
             }}
