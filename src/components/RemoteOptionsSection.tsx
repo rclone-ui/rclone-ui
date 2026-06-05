@@ -40,8 +40,6 @@ export default function RemoteOptionsSection({
 }) {
     const [optionsJsonStrings, setOptionsJsonStrings] = useState<Record<string, string>>({})
     const [options, setOptions] = useState<Record<string, Record<string, FlagValue[]>>>({})
-    // @ts-ignore
-    const [jsonError, setJsonError] = useState<string | null>(null)
 
     const backendsQuery = useQuery({
         queryKey: ['backends'],
@@ -200,34 +198,21 @@ export default function RemoteOptionsSection({
         })
     }, [options, setRemoteOptionsJsonString])
 
+    // OptionsSection calls setOptionsJson on every keystroke, including mid-edit
+    // when the JSON is temporarily invalid. OptionsSection shows "Invalid JSON"
+    // inline via its own isJsonValid state. The try/catch here just skips the
+    // update so we keep the last valid parsed options until the user fixes the JSON.
     useEffect(() => {
-        let remote: string | null = null
-        let parseError: string | null = null
-        const entries = Object.entries(optionsJsonStrings)
         const newOptions: Record<string, Record<string, FlagValue[]>> = {}
-
-        for (const [r, o] of entries) {
-            remote = r
+        for (const [r, o] of Object.entries(optionsJsonStrings)) {
             try {
                 newOptions[r] = JSON.parse(o) as Record<string, FlagValue[]>
-            } catch (e) {
-                console.error(`Error parsing ${remote} options:`, e)
-                parseError = e instanceof Error ? e.message : 'Unknown error'
-                break
+            } catch {
+                return
             }
         }
-
-        if (parseError) {
-            console.log('[RemoteOptionsSection] parseError', parseError)
-            setJsonError(`${remote}: ${parseError}`)
-            return
-        }
-
-        console.log('[RemoteOptionsSection] setting options to: ', newOptions)
-
         startTransition(() => {
             setOptions(newOptions)
-            setJsonError(null)
         })
     }, [optionsJsonStrings])
 

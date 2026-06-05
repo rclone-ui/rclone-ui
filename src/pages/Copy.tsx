@@ -239,10 +239,11 @@ export default function Copy() {
             const parsedConfig = JSON.parse(configOptionsJsonString) as Record<string, FlagValue>
 
             step = 'remote'
-            const parsedRemote = JSON.parse(remoteOptionsJsonString) as Record<
-                string,
-                Record<string, FlagValue>
-            >
+            const outerRemote = JSON.parse(remoteOptionsJsonString) as Record<string, string>
+            const parsedRemote: Record<string, Record<string, FlagValue>> = {}
+            for (const [key, val] of Object.entries(outerRemote)) {
+                parsedRemote[key] = JSON.parse(val) as Record<string, FlagValue>
+            }
 
             startTransition(() => {
                 setCopyOptions(parsedCopy)
