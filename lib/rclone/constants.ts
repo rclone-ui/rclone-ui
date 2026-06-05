@@ -113,6 +113,37 @@ export const SUPPORTS_ABOUT = [
     'local',
 ] as const
 
+export const SUPPORTS_LINK = [
+    'b2',
+    'box',
+    'drive',
+    'dropbox',
+    'fichier',
+    'filescom',
+    'gofile',
+    'imagekit',
+    'internetarchive',
+    'jottacloud',
+    'koofr',
+    'mailru',
+    'mega',
+    'onedrive',
+    'pikpak',
+    'pixeldrain',
+    'premiumizeme',
+    'pcloud',
+    's3',
+    'seafile',
+    'storj',
+    'sugarsync',
+    'yandex',
+] as const
+
+export function supportsPublicLink(backendType?: string | null): boolean {
+    if (!backendType) return false
+    return SUPPORTS_LINK.includes(backendType.toLowerCase() as any)
+}
+
 export const CANNOT_PERSIST_EMPTY_FOLDERS = [
     's3',
     'gcs',

@@ -1,6 +1,6 @@
 import { Button, Checkbox, Listbox, ListboxItem, cn } from '@heroui/react'
 import { platform } from '@tauri-apps/plugin-os'
-import { DownloadIcon, EyeIcon, PencilIcon, StarIcon, Trash2Icon } from 'lucide-react'
+import { DownloadIcon, EyeIcon, PencilIcon, Share2Icon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useCallback } from 'react'
 import { formatBytes } from '../../../lib/format.ts'
 import FileIcon from './FileIcon'
@@ -24,6 +24,7 @@ export default function FileList({
     favoritedKeys,
     onToggleFavorite,
     onDownload,
+    onShare,
     onRename,
     onDelete,
     listHeight,
@@ -44,6 +45,7 @@ export default function FileList({
     favoritedKeys?: Record<string, boolean>
     onToggleFavorite?: (entry: Entry, isFavorited: boolean) => void
     onDownload?: (entry: Entry) => void
+    onShare?: (entry: Entry) => void
     onRename?: (entry: Entry) => void
     onDelete?: (entry: Entry) => void
     listHeight: number
@@ -162,7 +164,7 @@ export default function FileList({
     }
 
     const gridCols = showPreviewColumn
-        ? 'grid-cols-[2.5rem_1fr_6rem_9rem_9rem]'
+        ? 'grid-cols-[2.5rem_1fr_6rem_9rem_11rem]'
         : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'
 
     return (
@@ -296,6 +298,17 @@ export default function FileList({
                                             onPress={() => onDownload(entry)}
                                         >
                                             <DownloadIcon className="size-5" />
+                                        </Button>
+                                    )}
+                                    {onShare && (
+                                        <Button
+                                            isIconOnly={true}
+                                            size="sm"
+                                            variant="light"
+                                            className="transition-opacity duration-300 opacity-0 group-hover:opacity-100"
+                                            onPress={() => onShare(entry)}
+                                        >
+                                            <Share2Icon className="size-4" />
                                         </Button>
                                     )}
                                     {onRename && (

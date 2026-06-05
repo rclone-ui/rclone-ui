@@ -18,6 +18,7 @@ import {
 } from '@heroui/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { ask, message, save } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -37,6 +38,7 @@ import { Group, Panel, Separator } from 'react-resizable-panels'
 import { getFsInfo } from '../../lib/format'
 // import { Document, Page, pdfjs } from 'react-pdf'
 import { formatBytes } from '../../lib/format.ts'
+import notify from '../../lib/notify'
 import { startCopy, startMove } from '../../lib/rclone/api'
 import rclone from '../../lib/rclone/client'
 import { openWindow } from '../../lib/window'
@@ -214,6 +216,36 @@ export default function Browser() {
         }
     }, [])
 
+    const handleShare = useCallback(async (entry: Entry) => {
+        try {
+            const { root, filePath } = getFsInfo(entry.fullPath)
+            const result = await rclone('/operations/publiclink', {
+                params: {
+                    query: {
+                        fs: root,
+                        remote: filePath,
+                    },
+                },
+            })
+            if (result?.url) {
+                await writeText(result.url)
+                await notify({
+                    title: 'Link Copied',
+                    body: `Public link for "${entry.name}" copied to clipboard`,
+                })
+            }
+        } catch (error) {
+            await message(
+                error instanceof Error ? error.message : 'Failed to generate public link',
+                {
+                    title: 'Share Error',
+                    kind: 'error',
+                    okLabel: 'OK',
+                }
+            )
+        }
+    }, [])
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'r' && (e.metaKey || e.ctrlKey)) {
@@ -249,6 +281,7 @@ export default function Browser() {
                         showPreviewColumn={true}
                         onDrop={(items, dest) => handleDrop(items, dest, 'left')}
                         onDownload={handleDownload}
+                        onShare={handleShare}
                         onRename={handleRename}
                         onDelete={handleDelete}
                         allowedKeys={['REMOTES', 'LOCAL_FS', 'FAVORITES']}
@@ -269,6 +302,7 @@ export default function Browser() {
                         showPreviewColumn={true}
                         onDrop={(items, dest) => handleDrop(items, dest, 'right')}
                         onDownload={handleDownload}
+                        onShare={handleShare}
                         onRename={handleRename}
                         onDelete={handleDelete}
                         allowedKeys={['REMOTES', 'LOCAL_FS', 'FAVORITES']}

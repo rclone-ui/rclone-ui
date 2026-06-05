@@ -1,4 +1,5 @@
 import { Button, Divider, Tooltip } from '@heroui/react'
+import { useQuery } from '@tanstack/react-query'
 import { FolderPlusIcon } from 'lucide-react'
 import {
     forwardRef,
@@ -10,6 +11,8 @@ import {
     useRef,
     useState,
 } from 'react'
+import { supportsPublicLink } from '../../../lib/rclone/constants'
+import rclone from '../../../lib/rclone/client'
 import { useHostStore } from '../../../store/host.ts'
 import FileList from './FileList'
 import PanelToolbar, { type ToolbarButtons } from './PanelToolbar'
@@ -39,6 +42,7 @@ const FilePanel = forwardRef<
         showPreviewColumn?: boolean
         onPreviewRequest?: (item: Entry) => void
         onDownload?: (item: Entry) => void
+        onShare?: (item: Entry) => void
         onRename?: (item: Entry) => void
         onDelete?: (item: Entry) => void
         contextMenuItems?: ContextMenuItem[]
@@ -62,6 +66,7 @@ const FilePanel = forwardRef<
         showPreviewColumn = true,
         onPreviewRequest,
         onDownload,
+        onShare,
         onRename,
         onDelete,
         contextMenuItems,
@@ -83,6 +88,18 @@ const FilePanel = forwardRef<
         allowMultiple,
         isActive,
     })
+
+    const remoteConfigQuery = useQuery({
+        queryKey: ['remote', nav.selectedRemote, 'config'],
+        queryFn: async () => {
+            return await rclone('/config/get', {
+                params: { query: { name: nav.selectedRemote! } },
+            })
+        },
+        enabled: nav.isRemote,
+    })
+
+    const canShare = supportsPublicLink(remoteConfigQuery.data?.type)
 
     const { canCreateFolder, createFolder } = useCreateFolder(
         nav.selectedRemote,
@@ -338,7 +355,7 @@ const FilePanel = forwardRef<
 
                 <div className="relative flex flex-col w-full h-full overflow-hidden">
                     <div
-                        className={`sticky top-0 z-10 grid ${showPreviewColumn ? 'grid-cols-[2.5rem_1fr_6rem_9rem_9rem]' : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'} items-center py-2 bg-default-100`}
+                        className={`sticky top-0 z-10 grid ${showPreviewColumn ? 'grid-cols-[2.5rem_1fr_6rem_9rem_11rem]' : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'} items-center py-2 bg-default-100`}
                     >
                         <div />
                         <div className="pl-2 font-semibold text-small">Name</div>
@@ -360,6 +377,7 @@ const FilePanel = forwardRef<
                             showPreviewColumn={showPreviewColumn}
                             onPreviewClick={handlePreviewClick}
                             onDownload={onDownload}
+                            onShare={canShare ? onShare : undefined}
                             onRename={onRename}
                             onDelete={onDelete}
                             draggable={selectionMode === 'drag' || selectionMode === 'both'}
