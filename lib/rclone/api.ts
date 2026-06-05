@@ -8,7 +8,7 @@ import type { JobItem } from '../../types/jobs'
 import type { FlagValue } from '../../types/rclone'
 import { getFsInfo } from '../format'
 import { restartActiveRclone, runRcloneCli } from './cli'
-import rclone from './client'
+import rclone, { rcloneAsync } from './client'
 import { parseRcloneOptions } from './common'
 
 const RE_BACKSLASH = /\\/g
@@ -19,7 +19,6 @@ const RE_WINDOWS_DRIVE_LETTER = /^[a-zA-Z]:$/
 
 export async function startDryRun<T>(operation: () => Promise<T>): Promise<T> {
     await rclone('/options/set', {
-        // @ts-ignore
         body: {
             main: { DryRun: true },
         },
@@ -34,7 +33,6 @@ export async function startDryRun<T>(operation: () => Promise<T>): Promise<T> {
         return result
     } finally {
         await rclone('/options/set', {
-            // @ts-ignore
             body: {
                 main: { DryRun: false },
             },
@@ -186,7 +184,7 @@ export async function startCopy({
 
     const dstOptions =
         options.remotes && dstRemoteName && dstRemoteName in options.remotes
-            ? (JSON.parse(options.remotes[dstRemoteName] as unknown as string) as any)
+            ? options.remotes[dstRemoteName]
             : undefined
 
     for (const source of sources) {
@@ -213,7 +211,7 @@ export async function startCopy({
 
         const srcOptions =
             options.remotes && srcRemoteName && srcRemoteName in options.remotes
-                ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+                ? options.remotes[srcRemoteName]
                 : undefined
 
         if (srcType === 'folder') {
@@ -318,7 +316,7 @@ export async function startMove({
 
     const dstOptions =
         options.remotes && dstRemoteName && dstRemoteName in options.remotes
-            ? (JSON.parse(options.remotes[dstRemoteName] as unknown as string) as any)
+            ? options.remotes[dstRemoteName]
             : undefined
 
     for (const source of sources) {
@@ -340,7 +338,7 @@ export async function startMove({
 
         const srcOptions =
             options.remotes && srcRemoteName && srcRemoteName in options.remotes
-                ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+                ? options.remotes[srcRemoteName]
                 : undefined
 
         if (srcType === 'folder') {
@@ -640,7 +638,7 @@ export async function startMount({
 
     const srcOptions =
         options.remotes && srcRemoteName && srcRemoteName in options.remotes
-            ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+            ? options.remotes[srcRemoteName]
             : undefined
 
     if (destination === '*' && currentPlatform === 'windows') {
@@ -662,7 +660,7 @@ export async function startMount({
                 retries: 3,
             }
         )
-        return response?.mountPoint as string | undefined
+        return response?.mountPoint
     }
 
     const {
@@ -837,17 +835,17 @@ export async function startBisync({
 
     const srcOptions =
         options.remotes && srcRemoteName && srcRemoteName in options.remotes
-            ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+            ? options.remotes[srcRemoteName]
             : undefined
 
     const dstOptions =
         options.remotes && dstRemoteName && dstRemoteName in options.remotes
-            ? (JSON.parse(options.remotes[dstRemoteName] as unknown as string) as any)
+            ? options.remotes[dstRemoteName]
             : undefined
 
     const r = await pRetry(
         async () =>
-            await rclone('/sync/bisync', {
+            await rcloneAsync('/sync/bisync', {
                 params: {
                     query: {
                         path1: serializeOptions(srcFullDirPath, {
@@ -857,7 +855,6 @@ export async function startBisync({
                         path2: serializeOptions(dstFullDirPath, {
                             remote: dstOptions,
                         }),
-                        _async: true,
                         ...(options.outer && Object.keys(options.outer).length > 0
                             ? Object.fromEntries(
                                   Object.entries(options.outer).map(([key, value]) => [
@@ -886,7 +883,7 @@ export async function startBisync({
             await rclone('/job/status', {
                 params: {
                     query: {
-                        jobid: r.jobid!,
+                        jobid: r.jobid,
                     },
                 },
             }),
@@ -940,17 +937,17 @@ export async function startSync({
 
     const srcOptions =
         options.remotes && srcRemoteName && srcRemoteName in options.remotes
-            ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+            ? options.remotes[srcRemoteName]
             : undefined
 
     const dstOptions =
         options.remotes && dstRemoteName && dstRemoteName in options.remotes
-            ? (JSON.parse(options.remotes[dstRemoteName] as unknown as string) as any)
+            ? options.remotes[dstRemoteName]
             : undefined
 
     const r = await pRetry(
         async () =>
-            await rclone('/sync/sync', {
+            await rcloneAsync('/sync/sync', {
                 params: {
                     query: {
                         srcFs: serializeOptions(srcFullDirPath, {
@@ -961,7 +958,6 @@ export async function startSync({
                             remote: dstOptions,
                         }),
                         createEmptySrcDirs: true,
-                        _async: true,
                     },
                 },
             }),
@@ -982,7 +978,7 @@ export async function startSync({
             await rclone('/job/status', {
                 params: {
                     query: {
-                        jobid: r.jobid!,
+                        jobid: r.jobid,
                     },
                 },
             }),
@@ -1058,7 +1054,7 @@ export async function startDelete({
 
         const srcOptions =
             options.remotes && srcRemoteName && srcRemoteName in options.remotes
-                ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+                ? options.remotes[srcRemoteName]
                 : undefined
 
         if (srcType === 'folder') {
@@ -1136,7 +1132,7 @@ export async function startPurge({
 
         const srcOptions =
             options.remotes && srcRemoteName && srcRemoteName in options.remotes
-                ? (JSON.parse(options.remotes[srcRemoteName] as unknown as string) as any)
+                ? options.remotes[srcRemoteName]
                 : undefined
 
         const jobParams: Parameters<typeof startBatch>[0][number] = {
