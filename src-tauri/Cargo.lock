@@ -280,7 +280,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-store",
  "tauri-plugin-updater",
- "tinyfiledialogs",
+ "tinyfiledialogs-rs",
  "x11rb",
  "zbus",
  "zip 0.6.6",
@@ -6420,10 +6420,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "tinyfiledialogs"
-version = "3.9.1"
+name = "tinyfiledialogs-rs"
+version = "3.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e25fa0bc43a6566e2cc6d7ac96df3fa5a57beba34445bead1b368ba8fe9ca568"
+checksum = "0c18ab3f79ad8deb90fa577326e01de4759d812893a94722c980642c73ac1274"
 dependencies = [
  "cc",
  "libc",
