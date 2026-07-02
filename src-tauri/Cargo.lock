@@ -8392,8 +8392,3 @@ dependencies = [
  "syn 2.0.117",
  "winnow 1.0.2",
 ]
-
-[[patch.unused]]
-name = "tao"
-version = "0.34.5"
-source = "git+https://github.com/tauri-apps/tao?branch=fix-windows-white-flash#cf28a8e8f205bf5cd7a41c4d7fc54ed9247c5f93"
