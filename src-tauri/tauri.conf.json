@@ -78,13 +78,13 @@
         },
         "linux": {
             "deb": {
-                "depends": ["libayatana-appindicator3-1 | libappindicator3-1"],
+                "depends": ["libayatana-appindicator3-1 | libappindicator3-1", "zenity | kdialog | yad"],
                 "files": {
                     "/usr/share/flatpak.metainfo.xml": "flatpak.metainfo.xml"
                 }
             },
             "rpm": {
-                "depends": ["(libappindicator-gtk3 or libayatana-appindicator-gtk3)"]
+                "depends": ["(libappindicator-gtk3 or libayatana-appindicator-gtk3)", "(zenity or kdialog or yad)"]
             }
         },
         "createUpdaterArtifacts": true
