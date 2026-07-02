@@ -1,3 +1,4 @@
+import { ask, message } from '@tauri-apps/plugin-dialog'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import pRetry from 'p-retry'
 import createRCDClient, {
@@ -10,6 +11,37 @@ import createRCDClient, {
     type RCDClient,
 } from 'rclone-sdk'
 import { usePersistedStore } from '../../store/persisted'
+
+const RE_RECONNECT = /rclone config reconnect (\S+?):/
+
+async function handleReconnectIfNeeded(errorMessage: string) {
+    const match = errorMessage.match(RE_RECONNECT)
+    if (!match) return
+    const remoteName = match[1]
+    const confirmed = await ask(
+        `Remote "${remoteName}" needs to be reconnected. This usually means the authentication token has expired.\n\nWould you like to reconnect now?`,
+        {
+            title: 'Reconnect Remote',
+            kind: 'warning',
+            okLabel: 'Reconnect',
+            cancelLabel: 'Dismiss',
+        }
+    )
+    if (!confirmed) return
+    try {
+        const { reconnectRemote } = await import('./api')
+        await reconnectRemote(remoteName)
+        await message(`Remote "${remoteName}" has been reconnected successfully.`, {
+            title: 'Reconnected',
+            kind: 'info',
+        })
+    } catch (err) {
+        await message(err instanceof Error ? err.message : 'Reconnection failed', {
+            title: 'Reconnect Error',
+            kind: 'error',
+        })
+    }
+}
 
 // const client = createRCDClient({
 //     baseUrl: 'http://localhost:5572',
@@ -85,18 +117,21 @@ export default async function rclone<
 
     if (result?.error) {
         console.error('[rclone] ERROR', path, { error: result.error })
-        const message =
+        const errMsg =
             typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
 
-        throw new Error(message)
+        await handleReconnectIfNeeded(errMsg)
+        throw new Error(errMsg)
     }
 
     const data = result.data as { error?: unknown } | undefined
     if (data?.error) {
         console.error('[rclone] DATA ERROR', path, { error: data.error })
-        const message = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+        const errMsg =
+            typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
 
-        throw new Error(message)
+        await handleReconnectIfNeeded(errMsg)
+        throw new Error(errMsg)
     }
 
     if (!result.response.ok) {
@@ -140,18 +175,21 @@ export async function rcloneAsync<
 
     if (result?.error) {
         console.error('[rclone] ERROR', path, { error: result.error })
-        const message =
+        const errMsg =
             typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
 
-        throw new Error(message)
+        await handleReconnectIfNeeded(errMsg)
+        throw new Error(errMsg)
     }
 
     const data = result.data as { error?: unknown } | undefined
     if (data?.error) {
         console.error('[rclone] DATA ERROR', path, { error: data.error })
-        const message = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+        const errMsg =
+            typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
 
-        throw new Error(message)
+        await handleReconnectIfNeeded(errMsg)
+        throw new Error(errMsg)
     }
 
     if (!result.response.ok) {

@@ -1357,6 +1357,19 @@ export async function setConfigPassword(options: {
     }
 }
 
+/* RECONNECT */
+export async function reconnectRemote(remoteName: string) {
+    await rclone('/config/update', {
+        params: {
+            query: {
+                name: remoteName,
+                parameters: '{}',
+            },
+        },
+    })
+    await rclone('/fscache/clear')
+}
+
 /* OTHERS */
 export async function fetchServeList() {
     try {
