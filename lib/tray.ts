@@ -9,6 +9,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { usePersistedStore } from '../store/persisted'
+import { CLOSE_APP, emitToMain } from './events'
 import { openWindow } from './window'
 
 async function buildMenu() {
@@ -136,7 +137,7 @@ async function buildMenu() {
         id: 'quit',
         text: 'Quit',
         action: async () => {
-            await getCurrentWindow().emit('close-app')
+            await emitToMain(CLOSE_APP)
         },
     })
     menuItems.push(quitItem)

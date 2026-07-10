@@ -10,7 +10,7 @@ import createRCDClient, {
     type OpenApiRequiredKeysOf,
     type RCDClient,
 } from 'rclone-sdk'
-import { usePersistedStore } from '../../store/persisted'
+import { selectCurrentHost, usePersistedStore } from '../../store/persisted'
 
 const RE_RECONNECT = /rclone config reconnect (\S+?):/
 
@@ -52,7 +52,7 @@ let client: RCDClient | null = null
 
 function getClient() {
     if (!client) {
-        const currentHost = usePersistedStore.getState().currentHost
+        const currentHost = selectCurrentHost(usePersistedStore.getState())
         if (!currentHost) {
             console.error('[rclone] No current host')
             throw new Error('No current host')
@@ -86,17 +86,19 @@ type InitParam<Init> = OpenApiRequiredKeysOf<Init> extends never
     ? [(Init & { [key: string]: unknown })?]
     : [Init & { [key: string]: unknown }]
 
-export default async function rclone<
-    Path extends OpenApiClientPathsWithMethod<RCDClient, 'post'>,
-    Init extends OpenApiMaybeOptionalInit<Paths[Path], 'post'> = OpenApiMaybeOptionalInit<
-        Paths[Path],
-        'post'
-    >,
->(
-    path: Path,
-    ...init: InitParam<Init>
-): Promise<OpenApiMethodResponse<RCDClient, 'post', Path, Init>> {
-    console.log('[rclone] REQUEST', path, {
+type RequestResult = {
+    error?: unknown
+    data?: unknown
+    response: Response
+}
+
+// Shared transport core for the sync (POST) and async (ASYNC) RC calls. The two exported wrappers
+// differ only in the client method, the log prefix, and the return cast; everything else — client
+// acquisition and the 3-branch error triage — is identical and has always been patched in both.
+async function request(mode: 'sync' | 'async', path: string, init: any[]): Promise<unknown> {
+    const label = mode === 'async' ? 'ASYNC ' : ''
+
+    console.log(`[rclone] ${label}REQUEST`, path, {
         params: init[0]?.params,
         body: init[0]?.body,
     })
@@ -110,10 +112,11 @@ export default async function rclone<
         throw new Error('Failed to get client after retries')
     }
 
-    const result = await client.POST(
-        path,
-        ...(init as InitParam<OpenApiMaybeOptionalInit<Paths[Path], 'post'>>)
-    )
+    const result = (
+        mode === 'async'
+            ? await client.ASYNC(path as any, ...(init as [any]))
+            : await client.POST(path as any, ...(init as [any]))
+    ) as RequestResult
 
     if (result?.error) {
         console.error('[rclone] ERROR', path, { error: result.error })
@@ -127,8 +130,7 @@ export default async function rclone<
     const data = result.data as { error?: unknown } | undefined
     if (data?.error) {
         console.error('[rclone] DATA ERROR', path, { error: data.error })
-        const errMsg =
-            typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
+        const errMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
 
         await handleReconnectIfNeeded(errMsg)
         throw new Error(errMsg)
@@ -142,12 +144,12 @@ export default async function rclone<
         throw new Error(`${result.response.status} ${result.response.statusText}`)
     }
 
-    console.log('[rclone] RESPONSE', path, { hasData: !!result.data })
+    console.log(`[rclone] ${label}RESPONSE`, path, { hasData: !!result.data })
 
-    return result.data as OpenApiMethodResponse<typeof client, 'post', Path, Init>
+    return result.data
 }
 
-export async function rcloneAsync<
+export default async function rclone<
     Path extends OpenApiClientPathsWithMethod<RCDClient, 'post'>,
     Init extends OpenApiMaybeOptionalInit<Paths[Path], 'post'> = OpenApiMaybeOptionalInit<
         Paths[Path],
@@ -156,51 +158,21 @@ export async function rcloneAsync<
 >(
     path: Path,
     ...init: InitParam<Init>
-): Promise<AsyncJobResponse> {
-    console.log('[rclone] ASYNC REQUEST', path, {
-        params: init[0]?.params,
-        body: init[0]?.body,
-    })
+): Promise<OpenApiMethodResponse<RCDClient, 'post', Path, Init>> {
+    return (await request('sync', path, init)) as OpenApiMethodResponse<
+        RCDClient,
+        'post',
+        Path,
+        Init
+    >
+}
 
-    const client = await pRetry(() => getClient(), {
-        'maxTimeout': 500,
-    })
-
-    if (!client) {
-        console.error('[rclone] ERROR: Failed to get client after retries', path)
-        throw new Error('Failed to get client after retries')
-    }
-
-    const result = await client.ASYNC(path, ...(init as [any]))
-
-    if (result?.error) {
-        console.error('[rclone] ERROR', path, { error: result.error })
-        const errMsg =
-            typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
-
-        await handleReconnectIfNeeded(errMsg)
-        throw new Error(errMsg)
-    }
-
-    const data = result.data as { error?: unknown } | undefined
-    if (data?.error) {
-        console.error('[rclone] DATA ERROR', path, { error: data.error })
-        const errMsg =
-            typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
-
-        await handleReconnectIfNeeded(errMsg)
-        throw new Error(errMsg)
-    }
-
-    if (!result.response.ok) {
-        console.error('[rclone] HTTP ERROR', path, {
-            status: result.response.status,
-            statusText: result.response.statusText,
-        })
-        throw new Error(`${result.response.status} ${result.response.statusText}`)
-    }
-
-    console.log('[rclone] ASYNC RESPONSE', path, { hasData: !!result.data })
-
-    return result.data as AsyncJobResponse
+export async function rcloneAsync<
+    Path extends OpenApiClientPathsWithMethod<RCDClient, 'post'>,
+    Init extends OpenApiMaybeOptionalInit<Paths[Path], 'post'> = OpenApiMaybeOptionalInit<
+        Paths[Path],
+        'post'
+    >,
+>(path: Path, ...init: InitParam<Init>): Promise<AsyncJobResponse> {
+    return (await request('async', path, init)) as AsyncJobResponse
 }

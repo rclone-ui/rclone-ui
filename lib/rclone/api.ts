@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/browser'
 import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import pRetry from 'p-retry'
-import { useHostStore } from '../../store/host'
+import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import { useStore } from '../../store/memory'
 import type { JobItem } from '../../types/jobs'
 import type { FlagValue } from '../../types/rclone'
@@ -108,23 +108,19 @@ function serializeOptions(
 }
 
 async function hasStat(path: string) {
-    try {
-        const { root, filePath } = getFsInfo(path)
-        const r = await rclone('/operations/stat', {
-            params: {
-                query: {
-                    fs: root === ':local:' ? ':local:/' : root,
-                    remote: filePath,
-                },
+    // No try/catch: a transport failure must propagate as the real error instead of being
+    // masked as "Source does not exist". A genuinely missing path returns a response with no
+    // item, which still yields false.
+    const { root, filePath } = getFsInfo(path)
+    const r = await rclone('/operations/stat', {
+        params: {
+            query: {
+                fs: root === ':local:' ? ':local:/' : root,
+                remote: filePath,
             },
-        })
-        if (!r || !r.item) {
-            return false
-        }
-        return true
-    } catch {
-        return false
-    }
+        },
+    })
+    return !!r?.item
 }
 
 export async function startCopy({
@@ -1280,7 +1276,7 @@ export async function removeConfigPassword() {
     console.log('[removeConfigPassword]')
 
     const state = useHostStore.getState()
-    const activeConfig = state.activeConfigFile
+    const activeConfig = selectActiveConfigFile(state)
 
     if (!activeConfig || !activeConfig.id) {
         throw new Error('No active configuration selected.')
@@ -1317,15 +1313,11 @@ export async function setConfigPassword(options: {
     console.log('[setConfigPassword]')
 
     const state = useHostStore.getState()
-    const activeConfig = state.activeConfigFile
+    const activeConfig = selectActiveConfigFile(state)
 
     if (!activeConfig || !activeConfig.id) {
         throw new Error('No active configuration selected.')
     }
-
-    // if (!activeConfig.isEncrypted) {
-    //     throw new Error('Configuration is not encrypted.')
-    // }
 
     const password = options.password
 

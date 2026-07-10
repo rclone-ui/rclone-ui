@@ -17,6 +17,7 @@ import { format } from 'date-fns'
 import { CalendarClockIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { buildReadablePath } from '../../lib/format'
+import { useNow } from '../../lib/hooks'
 import { useHostStore } from '../../store/host'
 import type { ScheduledTask } from '../../types/schedules'
 import CronEditor from './CronEditor'
@@ -51,9 +52,15 @@ export default function ScheduleEditDrawer({
         [selectedTask.args]
     )
 
+    // The drawer stays mounted after close, so "the next 5 runs" must be re-anchored to the
+    // current time on every open (and kept fresh while open) — paused while closed.
+    const now = useNow(isOpen ? 30_000 : null)
+
     const upcomingRuns = useMemo(() => {
         try {
-            const parsed = CronExpressionParser.parse(cronExpression)
+            const parsed = CronExpressionParser.parse(cronExpression, {
+                currentDate: new Date(now),
+            })
             const runs: Date[] = []
             for (let i = 0; i < 5; i++) {
                 if (parsed.hasNext()) {
@@ -64,7 +71,7 @@ export default function ScheduleEditDrawer({
         } catch {
             return []
         }
-    }, [cronExpression])
+    }, [cronExpression, now])
 
     const hasChanges = useMemo(
         () => cronExpression !== selectedTask.cron,

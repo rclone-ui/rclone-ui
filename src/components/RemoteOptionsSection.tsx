@@ -1,9 +1,9 @@
 import { Tab, Tabs } from '@heroui/react'
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { startTransition, useEffect, useMemo, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef } from 'react'
 import { getRemoteName } from '../../lib/format'
+import { remoteConfigQueryOptions } from '../../lib/hooks'
 import rclone from '../../lib/rclone/client'
-import type { FlagValue } from '../../types/rclone'
 import OptionsSection from '../components/OptionsSection'
 
 const IGNORED_OPTIONS = [
@@ -25,22 +25,23 @@ const IGNORED_OPTIONS = [
     'sse_customer_key_md5',
 ]
 
+// Pure view over the remotes option state owned by useOptionGroups: each tab renders the raw
+// per-remote JSON doc and writes through; parsing/retention/reset semantics live in the hook.
 export default function RemoteOptionsSection({
     selectedRemotes,
     remoteOptionsLocked,
-    remoteOptionsJsonString,
-    setRemoteOptionsJsonString,
+    remoteOptionsJson,
+    setRemoteOptionsJson,
+    reconcileRemotes,
     setRemoteOptionsLocked,
 }: {
     selectedRemotes: string[]
     remoteOptionsLocked: boolean
-    remoteOptionsJsonString: string
-    setRemoteOptionsJsonString: (value: string) => void
+    remoteOptionsJson: Record<string, string>
+    setRemoteOptionsJson: Dispatch<SetStateAction<Record<string, string>>>
+    reconcileRemotes: (remoteNames: string[], force?: boolean) => void
     setRemoteOptionsLocked: (value: boolean) => void
 }) {
-    const [optionsJsonStrings, setOptionsJsonStrings] = useState<Record<string, string>>({})
-    const [options, setOptions] = useState<Record<string, Record<string, FlagValue[]>>>({})
-
     const backendsQuery = useQuery({
         queryKey: ['backends'],
         queryFn: async () => {
@@ -73,32 +74,16 @@ export default function RemoteOptionsSection({
     )
 
     const remoteConfigQueries = useQueries({
-        queries: uniqueRemotes.map((remote) => ({
-            queryKey: ['remote', remote, 'config', 'withName'],
-            queryFn: async () => {
-                const remoteConfig = await rclone('/config/get', {
-                    params: {
-                        query: {
-                            name: remote,
-                        },
-                    },
-                })
-                return {
-                    name: remote,
-                    config: remoteConfig,
-                }
-            },
-        })),
+        queries: uniqueRemotes.map((remote) => remoteConfigQueryOptions(remote)),
     })
 
     const remoteConfigs = useMemo(
         () =>
             remoteConfigQueries
-                .map((query) => query.data)
+                .map((query, i) => ({ name: uniqueRemotes[i], config: query.data }))
                 .map((data) => {
-                    if (!data) return null
-
                     const { config, name } = data
+                    if (!config) return null
 
                     if (config.type === 's3') {
                         if (config.provider) {
@@ -149,81 +134,45 @@ export default function RemoteOptionsSection({
                     }
                 })
                 .filter(Boolean),
-        [remoteConfigQueries, backends]
+        [remoteConfigQueries, backends, uniqueRemotes]
     )
 
+    // Report the current unique remote names so the hook can rebuild the tab strings when the
+    // remote count changes (prune on deselect, seed on addition, discard mid-edit invalid text).
+    // The first call after (re)mounting forces the rebuild: the old per-tab strings were child
+    // state destroyed on unmount, so a remount always rebuilt every tab from the last-valid doc.
+    const isFirstReconcile = useRef(true)
     useEffect(() => {
-        console.log('[RemoteOptionsSection] optionsJsonStrings', optionsJsonStrings)
-    }, [optionsJsonStrings])
+        reconcileRemotes(uniqueRemotes, isFirstReconcile.current)
+        isFirstReconcile.current = false
+    }, [uniqueRemotes, reconcileRemotes])
 
-    useEffect(() => {
-        if (Object.keys(optionsJsonStrings).length === uniqueRemotes.length) {
-            console.log('[RemoteOptionsSection] optionsJsonStrings already set')
-            return
-        }
-        console.log(
-            '[RemoteOptionsSection] setting optionsJsonStrings, parsing remoteOptionsJsonString: ',
-            remoteOptionsJsonString
-        )
-        const parsed = JSON.parse(remoteOptionsJsonString) as Record<string, string>
-        console.log('[RemoteOptionsSection] setting optionsJsonStrings parsed', parsed)
-        const jsonStrings: Record<string, string> = uniqueRemotes.reduce(
-            (acc, curr) => {
-                console.log('[RemoteOptionsSection] curr', curr)
-                console.log('[RemoteOptionsSection] parsed[curr]', parsed[curr])
-                acc[curr] = parsed[curr] ?? '{}'
-                return acc
-            },
-            {} as Record<string, string>
-        )
-        console.log('[RemoteOptionsSection] setting optionsJsonStrings to: ', jsonStrings)
-        startTransition(() => {
-            setOptionsJsonStrings(jsonStrings)
-        })
-    }, [uniqueRemotes, optionsJsonStrings, remoteOptionsJsonString])
-
-    useEffect(() => {
-        const stringified = JSON.stringify(
-            Object.entries(options).reduce(
-                (acc, [r, o]) => {
-                    acc[r] = JSON.stringify(o, null, 2)
-                    return acc
-                },
-                {} as Record<string, string>
-            )
-        )
-        console.log('[RemoteOptionsSection] stringified', stringified)
-        startTransition(() => {
-            setRemoteOptionsJsonString(stringified)
-        })
-    }, [options, setRemoteOptionsJsonString])
-
-    // OptionsSection calls setOptionsJson on every keystroke, including mid-edit
-    // when the JSON is temporarily invalid. OptionsSection shows "Invalid JSON"
-    // inline via its own isJsonValid state. The try/catch here just skips the
-    // update so we keep the last valid parsed options until the user fixes the JSON.
-    useEffect(() => {
-        const newOptions: Record<string, Record<string, FlagValue[]>> = {}
-        for (const [r, o] of Object.entries(optionsJsonStrings)) {
-            try {
-                newOptions[r] = JSON.parse(o) as Record<string, FlagValue[]>
-            } catch {
-                return
-            }
-        }
-        startTransition(() => {
-            setOptions(newOptions)
-        })
-    }, [optionsJsonStrings])
-
-    return (
-        <Tabs
-            items={remoteConfigs.map((data) => ({
+    const tabItems = useMemo(
+        () =>
+            remoteConfigs.map((data) => ({
                 id: data.name,
                 label: data.name.toUpperCase(),
                 options: data.options,
                 config: data.config,
-            }))}
+            })),
+        [remoteConfigs]
+    )
+
+    const setOptionsJsonByRemote = useMemo(() => {
+        const map: Record<string, (json: string) => void> = {}
+        for (const data of remoteConfigs) {
+            map[data.name] = (json: string) =>
+                setRemoteOptionsJson((prev) => ({
+                    ...prev,
+                    [data.name]: json,
+                }))
+        }
+        return map
+    }, [remoteConfigs, setRemoteOptionsJson])
+
+    return (
+        <Tabs
+            items={tabItems}
             fullWidth={true}
             variant="bordered"
             destroyInactiveTabPanel={false}
@@ -232,13 +181,8 @@ export default function RemoteOptionsSection({
             {(item) => (
                 <Tab key={item.id} title={item.label}>
                     <OptionsSection
-                        optionsJson={optionsJsonStrings[item.id]}
-                        setOptionsJson={(json) =>
-                            setOptionsJsonStrings((prev) => ({
-                                ...prev,
-                                [item.id]: json,
-                            }))
-                        }
+                        optionsJson={remoteOptionsJson[item.id] ?? '{}'}
+                        setOptionsJson={setOptionsJsonByRemote[item.id]}
                         globalOptions={item.config}
                         availableOptions={item.options}
                         isLocked={remoteOptionsLocked}

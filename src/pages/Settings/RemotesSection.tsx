@@ -6,8 +6,8 @@ import {
     DropdownItem,
     DropdownMenu,
     DropdownTrigger,
-    Spinner,
     Input,
+    Spinner,
 } from '@heroui/react'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, message } from '@tauri-apps/plugin-dialog'
@@ -23,7 +23,9 @@ import {
 } from 'lucide-react'
 import { type ReactNode, startTransition, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { onErrorDialog } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
+import { remoteConfigQueryOptions } from '../../../lib/hooks'
 import rclone from '../../../lib/rclone/client'
 import { SUPPORTS_ABOUT } from '../../../lib/rclone/constants'
 import { usePersistedStore } from '../../../store/persisted'
@@ -53,42 +55,38 @@ export default function RemotesSection() {
 
     const remoteConfigQueries = useQueries({
         queries: remotes.map((remote) => ({
-            queryKey: ['remotes', remote, 'config', 'sortable'],
-            queryFn: async () => {
-                const config = await rclone('/config/get', {
-                    params: { query: { name: remote } },
-                })
-                return { remote, type: config?.type ?? null }
-            },
+            ...remoteConfigQueryOptions(remote),
             staleTime: 1000 * 60,
         })),
     })
 
-    const sortedRemotes = useMemo(
-        () =>
-            [...remotes].sort((a, b) => {
-                const configA = remoteConfigQueries.find((q) => q.data?.remote === a)?.data
-                const configB = remoteConfigQueries.find((q) => q.data?.remote === b)?.data
+    const sortedRemotes = useMemo(() => {
+        // useQueries preserves input order, so remoteConfigQueries[i] corresponds to remotes[i].
+        const typeByRemote = new Map<string, string | null>()
+        remotes.forEach((remote, i) => {
+            typeByRemote.set(remote, remoteConfigQueries[i]?.data?.type ?? null)
+        })
 
-                const aSupportsAbout = configA?.type ? SUPPORTS_ABOUT.includes(configA.type) : false
-                const bSupportsAbout = configB?.type ? SUPPORTS_ABOUT.includes(configB.type) : false
+        return [...remotes].sort((a, b) => {
+            const aType = typeByRemote.get(a)
+            const bType = typeByRemote.get(b)
 
-                if (aSupportsAbout && !bSupportsAbout) return -1
-                if (!aSupportsAbout && bSupportsAbout) return 1
+            const aSupportsAbout = aType ? SUPPORTS_ABOUT.includes(aType) : false
+            const bSupportsAbout = bType ? SUPPORTS_ABOUT.includes(bType) : false
 
-                return a.localeCompare(b)
-            }),
-        [remotes, remoteConfigQueries]
-    )
+            if (aSupportsAbout && !bSupportsAbout) return -1
+            if (!aSupportsAbout && bSupportsAbout) return 1
+
+            return a.localeCompare(b)
+        })
+    }, [remotes, remoteConfigQueries])
 
     const [searchQuery, setSearchQuery] = useState('')
 
     const filteredRemotes = useMemo(
         () =>
             searchQuery
-                ? sortedRemotes.filter((r) =>
-                      r.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
+                ? sortedRemotes.filter((r) => r.toLowerCase().includes(searchQuery.toLowerCase()))
                 : sortedRemotes,
         [sortedRemotes, searchQuery]
     )
@@ -116,13 +114,10 @@ export default function RemotesSection() {
                 ...(old ?? []).filter((r) => r !== remote),
             ])
         },
-        onError: async (error) => {
-            console.error('Failed to delete remote:', error)
-            await message(error instanceof Error ? error.message : 'Unknown error occurred', {
-                title: 'Could not delete remote',
-                kind: 'error',
-            })
-        },
+        onError: onErrorDialog('Could not delete remote', 'Unknown error occurred', {
+            capture: false,
+            log: ['Failed to delete remote:'],
+        }),
     })
 
     const Placeholder = useMemo(() => {
@@ -334,18 +329,7 @@ function RemoteCard({
     onConfigPress: () => void
     onDeletePress: () => void
 }) {
-    const { data: remoteConfigData } = useQuery({
-        queryKey: ['remotes', remote, 'config'],
-        queryFn: async () => {
-            return await rclone('/config/get', {
-                params: {
-                    query: {
-                        name: remote,
-                    },
-                },
-            })
-        },
-    })
+    const { data: remoteConfigData } = useQuery(remoteConfigQueryOptions(remote))
 
     const type = useMemo(() => remoteConfigData?.type ?? null, [remoteConfigData?.type])
     const provider = useMemo(() => remoteConfigData?.provider ?? null, [remoteConfigData?.provider])

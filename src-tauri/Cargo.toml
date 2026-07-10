@@ -24,7 +24,6 @@ log = "0.4"
 tauri = { version = "2.11.1", features = [ "tray-icon",  "image-ico",
     "image-png", "config-json5" ] }
 tauri-plugin-log = "2.8.0"
-tauri-plugin-shell = "2.3.5"
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-opener = "2.5.4"
@@ -50,6 +49,7 @@ tinyfiledialogs = { package = "tinyfiledialogs-rs", version = "3.21.3", features
 tauri-plugin-deep-link = "2.4.9"
 flate2 = "1.1.9"
 tar = "0.4.45"
+sha2 = "0.10"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
@@ -59,3 +59,7 @@ objc = "0.2"
 zbus = { version = "5" }
 x11rb = "0.13"
 gtk = "0.18"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winreg = "0.52"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

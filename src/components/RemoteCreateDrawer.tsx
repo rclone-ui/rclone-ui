@@ -109,6 +109,7 @@ export default function RemoteCreateDrawer({
                         kind: 'error',
                     }
                 )
+                return
             }
 
             await message(errorMessage, {

@@ -1,8 +1,9 @@
 import { LazyStore } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
-import { type StateStorage, createJSONStorage, persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { ConfigFile } from '../types/config'
 import type { ScheduledTask } from '../types/schedules'
+import { createTauriStateStorage, waitForStoreHydration } from './lib'
 
 let activeHostId: string | null = null
 let activeStore: LazyStore | null = null
@@ -10,15 +11,8 @@ let disposeKeyChange: (() => void) | null = null
 
 export async function initHostStore(hostId: string) {
     if (activeHostId === hostId && activeStore) {
-        async function waitForHostStoreHydration() {
-            await new Promise((resolve) => setTimeout(resolve, 50))
-            if (!useHostStore.persist.hasHydrated()) {
-                await waitForHostStoreHydration()
-            }
-            console.log('[waitForHostStoreHydration] host store hydrated')
-        }
-
-        await waitForHostStoreHydration()
+        await waitForStoreHydration(() => useHostStore.persist.hasHydrated())
+        console.log('[waitForHostStoreHydration] host store hydrated')
         return
     }
 
@@ -44,25 +38,6 @@ export async function initHostStore(hostId: string) {
     // trigger a rehydration to load the new file's content into the store
     await useHostStore.persist.rehydrate()
 }
-
-const getStorage = (): StateStorage => ({
-    getItem: async (name: string): Promise<string | null> => {
-        if (!activeStore) return null
-        // console.log('[HostStore] getItem', { name, host: activeHostId })
-        return (await activeStore.get(name)) ?? null
-    },
-    setItem: async (name: string, value: string): Promise<void> => {
-        if (!activeStore) return
-        console.log('[HostStore] setItem', { name, value })
-        await activeStore.set(name, value)
-        await activeStore.save()
-    },
-    removeItem: async (name: string): Promise<void> => {
-        if (!activeStore) return
-        await activeStore.delete(name)
-        await activeStore.save()
-    },
-})
 
 export interface RemoteConfig {
     mountOnStart?: {
@@ -103,11 +78,16 @@ interface HostState {
     configFiles: ConfigFile[]
     addConfigFile: (configFile: ConfigFile) => void
     removeConfigFile: (id: string) => void
-    activeConfigFile: ConfigFile | null
-    setActiveConfigFile: (configFile: string) => void
+    activeConfigId: string | null
+    setActiveConfigFile: (id: string) => void
     updateConfigFile: (id: string, configFile: Partial<ConfigFile>) => void
 
     lastSkippedVersion: string | undefined
+
+    // Resolved-once location of the "default" rclone config for this host. Pinned so switching
+    // the rclone binary never relocates where the user's remotes are read from.
+    defaultConfigPath: string | undefined
+    setDefaultConfigPath: (path: string | undefined) => void
 }
 
 export const useHostStore = create<HostState>()(
@@ -138,7 +118,7 @@ export const useHostStore = create<HostState>()(
                 >
             ) => {
                 const state = get()
-                const configId = state.activeConfigFile?.id
+                const configId = state.activeConfigId
 
                 if (!configId) {
                     console.error('No active config file for scheduled task')
@@ -178,29 +158,52 @@ export const useHostStore = create<HostState>()(
                 set((state) => ({
                     configFiles: state.configFiles.filter((f) => f.id !== id),
                 })),
-            activeConfigFile: null,
+            activeConfigId: null,
             setActiveConfigFile: (id: string) =>
                 set((state) => ({
-                    activeConfigFile: state.configFiles.find((f) => f.id === id) || null,
+                    activeConfigId: state.configFiles.some((f) => f.id === id) ? id : null,
                 })),
             updateConfigFile: (id: string, configFile: Partial<ConfigFile>) =>
                 set((state) => ({
                     configFiles: state.configFiles.map((f) =>
                         f.id === id ? { ...f, ...configFile } : f
                     ),
-                    activeConfigFile:
-                        state.activeConfigFile?.id === id
-                            ? { ...state.activeConfigFile, ...configFile }
-                            : state.activeConfigFile,
                 })),
 
             lastSkippedVersion: undefined,
+
+            defaultConfigPath: undefined,
+            setDefaultConfigPath: (path: string | undefined) =>
+                set((_) => ({ defaultConfigPath: path })),
         }),
         {
             name: 'host-store',
-            storage: createJSONStorage(getStorage),
+            storage: createJSONStorage(() => createTauriStateStorage(() => activeStore)),
             skipHydration: true,
-            version: 1,
+            version: 2,
+            migrate: (persistedState, version) => {
+                // v1 stored the full active ConfigFile object; v2 stores just its id. Also handles
+                // the version-1 blob written by the persisted-store's legacy migration, whose
+                // configFiles can be undefined.
+                if (version < 2 && persistedState) {
+                    const { activeConfigFile, configFiles, ...rest } = persistedState as {
+                        activeConfigFile?: ConfigFile | null
+                        configFiles?: ConfigFile[]
+                        [key: string]: unknown
+                    }
+                    return {
+                        ...rest,
+                        configFiles: configFiles ?? [],
+                        activeConfigId: activeConfigFile?.id ?? null,
+                    }
+                }
+                return persistedState
+            },
         }
     )
 )
+
+/** Resolves the active ConfigFile object from the stored id, or null if it no longer exists. */
+export function selectActiveConfigFile(state: HostState): ConfigFile | null {
+    return state.configFiles.find((f) => f.id === state.activeConfigId) ?? null
+}

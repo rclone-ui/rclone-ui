@@ -319,14 +319,26 @@ export default function useFileNavigation({
         setRefreshKey((k) => k + 1)
     }, [selectedRemote, cwd])
 
-    // Initialize on first mount if no initial values provided
+    // Initialize once per activation. The guard is set inside the branches (the remotes branch
+    // only once the list has loaded, so late data can still finish the job) — after that, dep
+    // churn (e.g. a /config/listremotes refetch minting a new `remotes` identity) can no longer
+    // yank live navigation back to the initial location. Deliberately no effect cleanup:
+    // cancelling the pending homeDir() write would strand the panel on isLoading.
+    const hasInitializedRef = useRef(false)
     useEffect(() => {
-        if (!isActive) return
+        if (!isActive) {
+            // Deactivation re-arms initialization so a closed-and-reopened drawer (PathSelector
+            // passes isActive={isOpen}) still resets to its initial location.
+            hasInitializedRef.current = false
+            return
+        }
+        if (hasInitializedRef.current) return
 
         const hasInitial = initialRemote !== undefined
         const needsLocalPath = initialRemote === 'UI_LOCAL_FS' && !initialPath
 
         if (needsLocalPath || (!hasInitial && canShowLocal)) {
+            hasInitializedRef.current = true
             setIsLoading(true)
             homeDir().then((home) => {
                 startTransition(() => {
@@ -337,12 +349,22 @@ export default function useFileNavigation({
                 setIsLoading(false)
             })
         } else if (!hasInitial && canShowFavorites) {
+            hasInitializedRef.current = true
             startTransition(() => setSelectedRemote('UI_FAVORITES'))
-        } else if (!hasInitial && canShowRemotes && remotes.length > 0) {
-            startTransition(() => {
-                setSelectedRemote(remotes[0])
-                setCwd('')
-            })
+        } else if (!hasInitial && canShowRemotes) {
+            // remotes still loading (empty list): stay uninitialized so the arrival re-run
+            // completes the initialization.
+            if (remotes.length > 0) {
+                hasInitializedRef.current = true
+                startTransition(() => {
+                    setSelectedRemote(remotes[0])
+                    setCwd('')
+                })
+            }
+        } else {
+            // hasInitial with a concrete remote/path: state was already seeded by the useState
+            // initializers; nothing to apply.
+            hasInitializedRef.current = true
         }
     }, [
         isActive,
@@ -355,6 +377,7 @@ export default function useFileNavigation({
     ])
 
     // Load directory content when remote/cwd changes
+    // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional re-run trigger the body doesn't read — refresh() evicts the cacheRef entry, clears items, and bumps it to force a refetch of the current directory; removing it breaks the Refresh button (empty panel, isLoading stuck true)
     useEffect(() => {
         if (!isActive) return
 

@@ -18,7 +18,6 @@ pub fn make_transparent(window: &WebviewWindow) -> Result<(), tauri::Error> {
         let ns_window: id = msg_send![webview_obj, window];
         let bg_color = NSColor::colorWithSRGBRed_green_blue_alpha_(nil, 0.0, 0.0, 0.0, 0.0);
         let _: id = msg_send![ns_window, setBackgroundColor: bg_color];
-        // let _: () = msg_send![ns_window, setIgnoresMouseEvents:true];
     })?;
 
     Ok(())
@@ -155,8 +154,6 @@ pub async fn open_window(
 ) -> Result<(), String> {
     if let Some(existing) = app_handle.get_webview_window(&name) {
         existing.set_focus().map_err(|e| e.to_string())?;
-        #[cfg(target_os = "linux")]
-        focus_window_linux(&app_handle, &existing);
         return Ok(());
     }
 
@@ -285,8 +282,6 @@ pub async fn open_small_window(
         focus_window_linux(&app_handle, &existing);
         return Ok(());
     }
-
-    let os = std::env::consts::OS;
 
     let mut builder = WebviewWindowBuilder::new(&app_handle, &name, WebviewUrl::App(url.into()))
         .title(&name)

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { platform } from '@tauri-apps/plugin-os'
 import { StarIcon } from 'lucide-react'
 import { useMemo } from 'react'
+import { useRemoteConfig } from '../../../lib/hooks'
 import rclone from '../../../lib/rclone/client.ts'
 import type { AllowedKey, RemoteString } from './types'
 import { getDiskIcon, getDiskLabel, shouldShowDisk } from './utils'
@@ -16,18 +17,7 @@ function RemoteButton({
     onSelect: (remote: string) => void
     isSelected: boolean
 }) {
-    const remoteConfigQuery = useQuery({
-        queryKey: ['remote', remote, 'config'],
-        queryFn: async () => {
-            return await rclone('/config/get', {
-                params: {
-                    query: {
-                        name: remote,
-                    },
-                },
-            })
-        },
-    })
+    const remoteConfigQuery = useRemoteConfig(remote)
 
     const info = remoteConfigQuery.data ?? null
 

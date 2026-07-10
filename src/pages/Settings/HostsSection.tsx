@@ -4,13 +4,13 @@ import { ask, message } from '@tauri-apps/plugin-dialog'
 import { PlusIcon, RefreshCcwIcon, Trash2Icon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { type Host, LABEL_FOR_OS, LOCAL_HOST_ID, getHostInfo } from '../../../lib/hosts'
-import { usePersistedStore } from '../../../store/persisted'
+import { useCurrentHost, usePersistedStore } from '../../../store/persisted'
 import HostAddDrawer from '../../components/HostAddDrawer'
 import BaseSection from './BaseSection'
 
 export default function HostsSection() {
     const hosts = usePersistedStore((state) => state.hosts)
-    const currentHost = usePersistedStore((state) => state.currentHost)
+    const currentHost = useCurrentHost()
 
     const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false)
 
@@ -89,9 +89,7 @@ function HostCard({
                 return
             }
 
-            usePersistedStore.setState({
-                currentHost: host,
-            })
+            usePersistedStore.getState().setCurrentHost(host.id)
         },
         onError: () => {
             message('Failed to change host. Please try again.', {
@@ -119,11 +117,6 @@ function HostCard({
             usePersistedStore.setState((state) => ({
                 hosts: state.hosts.map((h) => (h.id === host.id ? { ...h, ...hostInfo } : h)),
             }))
-            if (isActive) {
-                usePersistedStore.setState((state) => ({
-                    currentHost: { ...state.currentHost!, ...hostInfo },
-                }))
-            }
         },
         onError: () => {
             message('Failed to update host. Please try again.', {

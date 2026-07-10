@@ -1,4 +1,5 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { platform } from '@tauri-apps/plugin-os'
 import pRetry from 'p-retry'
 import createRCDClient from 'rclone-sdk'
 
@@ -13,6 +14,25 @@ export interface Host {
 }
 
 export const LOCAL_HOST_ID = 'local' as const
+
+// The rclone RC daemon port. Keep in sync with the hardcoded port in the Rust
+// start_cloudflared_tunnel command.
+export const RC_PORT = 5572
+export const RC_LOCAL_URL = `http://localhost:${RC_PORT}`
+
+/** The canonical local-machine host, used as the fallback whenever no reachable host is selected. */
+export function makeLocalHost(): Host {
+    const os = platform()
+    return {
+        id: LOCAL_HOST_ID,
+        name: 'Local Machine',
+        url: RC_LOCAL_URL,
+        // platform() is wider than Host['os'] (ios/android/freebsd/...); desktop builds only see
+        // these three — anything else falls back to linux, mirroring getHostInfo's normalization.
+        os: os === 'windows' || os === 'macos' ? os : 'linux',
+        cliVersion: 'unknown',
+    }
+}
 
 export const LABEL_FOR_OS = {
     windows: 'Windows',
@@ -42,8 +62,6 @@ export async function getHostInfo({
     if (authUser && authPassword) {
         authHeader = `Basic ${btoa(`${authUser}:${authPassword}`)}`
     }
-
-    console.log('[getHostInfo] authHeader', authHeader)
 
     const rcloneClient = createRCDClient({
         baseUrl: url,

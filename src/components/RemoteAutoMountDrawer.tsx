@@ -8,6 +8,7 @@ import { message, open } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { FolderOpen } from 'lucide-react'
 import { startTransition, useCallback, useEffect, useState } from 'react'
+import { onErrorDialog } from '../../lib/errors'
 import { useFlags } from '../../lib/hooks'
 import { lockWindows, unlockWindows } from '../../lib/window'
 import { type RemoteConfig, useHostStore } from '../../store/host'
@@ -165,13 +166,10 @@ export default function RemoteAutoMountDrawer({
                 setButtonText('Save Changes')
             }, 1200)
         },
-        onError: async (error) => {
-            console.error('Failed to update remote:', error)
-            await message(error instanceof Error ? error.message : 'Unknown error occurred', {
-                title: 'Could not update remote',
-                kind: 'error',
-            })
-        },
+        onError: onErrorDialog('Could not update remote', 'Unknown error occurred', {
+            capture: false,
+            log: ['Failed to update remote:'],
+        }),
     })
 
     const setMountOnStart = useCallback(

@@ -19,7 +19,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-import { ask, message, save } from '@tauri-apps/plugin-dialog'
+import { ask, save } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
+import { onErrorDialog, reportError } from '../../lib/errors'
 import { getFsInfo } from '../../lib/format'
 // import { Document, Page, pdfjs } from 'react-pdf'
 import { formatBytes } from '../../lib/format.ts'
@@ -123,9 +124,10 @@ export default function Browser() {
                 const jobId = result?.jobid
                 if (jobId) handleJobStarted(jobId)
             } catch (error) {
-                await message(error instanceof Error ? error.message : 'Download failed', {
+                await reportError(error, {
                     title: 'Error',
-                    kind: 'error',
+                    fallback: 'Download failed',
+                    capture: false,
                 })
             }
         },
@@ -160,9 +162,10 @@ export default function Browser() {
             leftPanelRef.current?.refresh()
             rightPanelRef.current?.refresh()
         } catch (error) {
-            await message(error instanceof Error ? error.message : 'Delete failed', {
+            await reportError(error, {
                 title: 'Error',
-                kind: 'error',
+                fallback: 'Delete failed',
+                capture: false,
             })
         }
     }, [])
@@ -209,9 +212,10 @@ export default function Browser() {
             leftPanelRef.current?.refresh()
             rightPanelRef.current?.refresh()
         } catch (error) {
-            await message(error instanceof Error ? error.message : 'Rename failed', {
+            await reportError(error, {
                 title: 'Error',
-                kind: 'error',
+                fallback: 'Rename failed',
+                capture: false,
             })
         }
     }, [])
@@ -235,14 +239,12 @@ export default function Browser() {
                 })
             }
         } catch (error) {
-            await message(
-                error instanceof Error ? error.message : 'Failed to generate public link',
-                {
-                    title: 'Share Error',
-                    kind: 'error',
-                    okLabel: 'OK',
-                }
-            )
+            await reportError(error, {
+                title: 'Share Error',
+                fallback: 'Failed to generate public link',
+                okLabel: 'OK',
+                capture: false,
+            })
         }
     }, [])
 
@@ -616,12 +618,7 @@ function OperationDialog({
             onComplete?.()
             onClose()
         },
-        onError: async (error) => {
-            await message(error instanceof Error ? error.message : 'Copy operation failed', {
-                title: 'Error',
-                kind: 'error',
-            })
-        },
+        onError: onErrorDialog('Error', 'Copy operation failed', { capture: false }),
     })
 
     const moveMutation = useMutation({
@@ -645,12 +642,7 @@ function OperationDialog({
             onComplete?.()
             onClose()
         },
-        onError: async (error) => {
-            await message(error instanceof Error ? error.message : 'Move operation failed', {
-                title: 'Error',
-                kind: 'error',
-            })
-        },
+        onError: onErrorDialog('Error', 'Move operation failed', { capture: false }),
     })
 
     const handleConfirm = useCallback(() => {

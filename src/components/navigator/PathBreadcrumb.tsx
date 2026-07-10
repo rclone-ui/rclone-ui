@@ -1,9 +1,8 @@
 import { Button, Input, Tooltip, cn } from '@heroui/react'
-import { useQuery } from '@tanstack/react-query'
 import { platform } from '@tauri-apps/plugin-os'
 import { CheckIcon, ChevronRightIcon, LaptopIcon, PencilIcon, StarIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import rclone from '../../../lib/rclone/client.ts'
+import { useRemoteConfig } from '../../../lib/hooks'
 import type { RemoteString } from './types'
 import { getPathSegments } from './utils'
 
@@ -25,16 +24,7 @@ export default function PathBreadcrumb({
     const [isInputMode, setIsInputMode] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
-    const remoteConfigQuery = useQuery({
-        queryKey: ['remote', remote, 'config'],
-        queryFn: async () => {
-            if (!remote || remote === 'UI_LOCAL_FS' || remote === 'UI_FAVORITES') return null
-            return await rclone('/config/get', {
-                params: { query: { name: remote } },
-            })
-        },
-        enabled: !!remote && remote !== 'UI_LOCAL_FS' && remote !== 'UI_FAVORITES',
-    })
+    const remoteConfigQuery = useRemoteConfig(remote)
 
     const remoteType = remoteConfigQuery.data?.type
 

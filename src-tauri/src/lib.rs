@@ -1,18 +1,18 @@
 use machine_uid;
 use sentry;
-use std::fs::{self, File};
-use std::path::Path;
+use std::fs;
 use sysinfo::System;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_sentry;
 use tinyfiledialogs as tfd;
-use zip::ZipArchive;
 
 #[path = "../common/shortcut.rs"]
 mod shortcut;
 
 #[path = "../common/window.rs"]
 mod window;
+
+mod zookeeper;
 
 use shortcut::{
     ensure_toolbar_window, set_toolbar_shortcut, show_toolbar_window, DEFAULT_TOOLBAR_SHORTCUT,
@@ -127,48 +127,7 @@ fn has_flatpak_permissions() -> bool {
     false
 }
 
-#[tauri::command]
-fn unzip_file(zip_path: &str, output_folder: &str) -> Result<(), String> {
-    // Open the zip file
-    let file = File::open(zip_path).map_err(|e| e.to_string())?;
-
-    // Create output directory if it doesn't exist
-    fs::create_dir_all(output_folder).map_err(|e| e.to_string())?;
-
-    // Create ZIP archive reader
-    let mut archive = ZipArchive::new(file).map_err(|e| e.to_string())?;
-
-    // Extract everything
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
-        let outpath = Path::new(output_folder).join(file.name());
-
-        if file.name().ends_with('/') || file.name().ends_with('\\') {
-            fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
-        } else {
-            if let Some(p) = outpath.parent() {
-                fs::create_dir_all(p).map_err(|e| e.to_string())?;
-            }
-            let mut outfile = File::create(&outpath).map_err(|e| e.to_string())?;
-            std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
-        }
-
-        // Get and set permissions (Unix only)
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Some(mode) = file.unix_mode() {
-                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode))
-                    .map_err(|e| e.to_string())?;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-async fn stop_pid(pid: u32, timeout_ms: Option<u64>) -> Result<(), String> {
+pub(crate) async fn kill_pid(pid: u32, timeout_ms: Option<u64>) -> Result<(), String> {
     let timeout = timeout_ms.unwrap_or(5000);
 
     #[cfg(any(
@@ -325,17 +284,13 @@ async fn stop_rclone_processes(timeout_ms: Option<u64>) -> Result<u32, String> {
 
     let mut stopped: u32 = 0;
     for pid in pids {
-        match stop_pid(pid, Some(timeout)).await {
+        match kill_pid(pid, Some(timeout)).await {
             Ok(()) => stopped += 1,
             Err(_e) => {}
         }
     }
 
     Ok(stopped)
-}
-
-async fn prompt_password(title: String, message: String) -> Result<Option<String>, String> {
-    prompt_text(title, message, None, Some(true)).await
 }
 
 async fn prompt_text(
@@ -559,6 +514,7 @@ async fn start_cloudflared_tunnel(app: tauri::AppHandle) -> Result<(u32, String)
 
     // Start cloudflared tunnel
     let mut child = SysCommand::new(&cloudflared_path)
+        // keep in sync with RC_PORT in lib/hosts.ts
         .args(&["tunnel", "--url", "http://localhost:5572"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -602,7 +558,7 @@ async fn start_cloudflared_tunnel(app: tauri::AppHandle) -> Result<(u32, String)
     }
 
     // If we didn't get a URL, kill the process and return error
-    let _ = stop_pid(pid, Some(2000)).await;
+    let _ = kill_pid(pid, Some(2000)).await;
     Err("Failed to get tunnel URL from cloudflared".to_string())
 }
 
@@ -611,7 +567,7 @@ async fn stop_cloudflared_tunnel(pid: u32) -> Result<(), String> {
     use std::time::Duration;
     
     // Cloudflared takes ~5s to gracefully shut down, so give it enough time
-    match stop_pid(pid, Some(6000)).await {
+    match kill_pid(pid, Some(6000)).await {
         Ok(()) => Ok(()),
         Err(e) => {
             // Wait a bit for the process to fully terminate
@@ -752,119 +708,6 @@ async fn test_proxy_connection(proxy_url: String) -> Result<String, String> {
     Err(last_error.unwrap_or_else(|| "All proxy tests failed".to_string()))
 }
 
-#[tauri::command]
-async fn update_system_rclone() -> Result<i32, String> {
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command as SysCommand;
-
-        fn quote_posix(value: &str) -> String {
-            let escaped = value.replace("'", "'\\''");
-            format!("'{}'", escaped)
-        }
-
-        let mut cmdline =
-            String::from("PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH; ");
-        cmdline.push_str(&quote_posix("rclone"));
-        cmdline.push(' ');
-        cmdline.push_str(&quote_posix("selfupdate"));
-
-        // Escape for embedding inside an AppleScript string literal
-        let applescript_cmd = cmdline.replace('\\', "\\\\").replace('"', "\\\"");
-        let prompt = "Rclone UI needs permission to run rclone selfupdate.";
-        let script = format!(
-            "do shell script \"{}\" with administrator privileges with prompt \"{}\"",
-            applescript_cmd,
-            prompt.replace('"', "\\\"")
-        );
-
-        let status = SysCommand::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .status()
-            .map_err(|e| e.to_string())?;
-        return Ok(status.code().unwrap_or(0));
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        use std::process::Command as SysCommand;
-
-        let path_env =
-            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin";
-
-        // Try PolicyKit first (graphical auth prompt on most desktops)
-        let mut pkexec_args: Vec<String> = Vec::new();
-        pkexec_args.push("--description".to_string());
-        pkexec_args.push("Rclone UI needs to run rclone selfupdate".to_string());
-        pkexec_args.push("env".to_string());
-        pkexec_args.push(path_env.to_string());
-        pkexec_args.push("rclone".to_string());
-        pkexec_args.push("selfupdate".to_string());
-
-        match SysCommand::new("pkexec").args(&pkexec_args).status() {
-            Ok(status) => return Ok(status.code().unwrap_or(0)),
-            Err(_e) => {
-                // Fallback to sudo with custom prompt (works if the user has NOPASSWD or cached credentials)
-                let mut sudo_env = std::collections::HashMap::new();
-                sudo_env.insert("SUDO_PROMPT", "Rclone UI needs permission to run rclone selfupdate. Please enter your password: ");
-
-                let mut sudo_args: Vec<String> = Vec::new();
-                sudo_args.push("-n".to_string());
-                sudo_args.push("env".to_string());
-                sudo_args.push(path_env.to_string());
-                sudo_args.push("rclone".to_string());
-                sudo_args.push("selfupdate".to_string());
-
-                let status = SysCommand::new("sudo")
-                    .envs(&sudo_env)
-                    .args(&sudo_args)
-                    .status()
-                    .map_err(|e| e.to_string())?;
-                return Ok(status.code().unwrap_or(0));
-            }
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::process::Command as SysCommand;
-
-        fn quote_ps(value: &str) -> String {
-            // PowerShell single-quote escaping: ' -> ''
-            format!("'{}'", value.replace('\'', "''"))
-        }
-
-        let file_path = quote_ps("rclone");
-        let arg_list = String::from("@('selfupdate')");
-
-        let ps_script = format!(
-            "$p = Start-Process -Verb RunAs -WindowStyle Hidden -PassThru -FilePath {file} -ArgumentList {args}; \n\
-            $p.WaitForExit();\n\
-            exit $p.ExitCode",
-            file = file_path,
-            args = arg_list
-        );
-
-        let status = SysCommand::new("powershell")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                &ps_script,
-            ])
-            .status()
-            .map_err(|e| e.to_string())?;
-        return Ok(status.code().unwrap_or(0));
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-    {
-        Err("Unsupported platform".to_string())
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let client = sentry::init((
@@ -887,6 +730,9 @@ pub fn run() {
     }
 
     let mut app = builder
+        .manage::<zookeeper::SharedDaemonState>(std::sync::Mutex::new(
+            zookeeper::DaemonState::default(),
+        ))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sentry::init_with_no_injection(&client))
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -903,21 +749,17 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_log::Builder::new().build())
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_prevent_default::debug())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
-            unzip_file,
             get_arch,
             get_uid,
             is_rclone_running,
             stop_rclone_processes,
             prompt,
-            stop_pid,
             update_toolbar_shortcut,
             show_toolbar,
-            update_system_rclone,
             test_proxy_connection,
             is_flatpak,
             is_linux_mint,
@@ -929,7 +771,22 @@ pub fn run() {
             unlock_windows,
 			start_cloudflared_tunnel,
 			stop_cloudflared_tunnel,
-			extract_tgz
+			extract_tgz,
+            zookeeper::exec_rclone,
+            zookeeper::spawn_rclone,
+            zookeeper::kill_rclone_daemon,
+            zookeeper::validate_rclone_binary,
+            zookeeper::rclone_config_path,
+            zookeeper::find_system_rclone,
+            zookeeper::classify_rclone_path,
+            zookeeper::list_downloaded_rclone_versions,
+            zookeeper::delete_rclone_version,
+            zookeeper::adopt_legacy_rclone,
+            zookeeper::managed_version_path,
+            zookeeper::download_rclone_version,
+            zookeeper::update_path_pointer,
+            zookeeper::get_rclone_path_integration,
+            zookeeper::set_rclone_path_integration
         ])
         .setup(|app| {
             #[cfg(target_os = "linux")]
@@ -961,6 +818,10 @@ pub fn run() {
                     log::warn!("deep-link registration failed (continuing): {}", err);
                 }
             }
+
+            // Reclaim leftover .tmp-* download staging dirs from an interrupted download. Runs
+            // once here (before any webview) so it can never race a live download.
+            zookeeper::sweep_versions_tmp(app.handle());
 
             if let Err(err) = ensure_toolbar_window(&app.handle()) {
                 log::warn!("failed to prepare toolbar window: {}", err);

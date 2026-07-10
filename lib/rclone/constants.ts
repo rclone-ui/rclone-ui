@@ -20,6 +20,12 @@ export const RCLONE_CONFIG_DEFAULTS = {
 export const RCLONE_CONF_REGEX = /[\/\\]rclone\.conf$/
 export const DOUBLE_BACKSLASH_REGEX = /\\\\/g
 
+// Minimum rclone version the app's RC surface requires. The Serve feature calls
+// /serve/start|list|stop|stopall, which rclone added in 1.70.
+export const MIN_RCLONE_VERSION = '1.70.0'
+export const RCLONE_RELEASES_API = 'https://api.github.com/repos/rclone/rclone/releases?per_page=30'
+export const RCLONE_RELEASES_SHOWN = 20
+
 export const SERVE_TYPES = ['dlna', 'ftp', 'sftp', 'http', 'nfs', 'restic', 's3', 'webdav'] as const
 
 export const SUPPORTS_CLEANUP = [
@@ -161,69 +167,3 @@ export function supportsPersistentEmptyFolders(backendType?: string | null) {
     if (!backendType) return true
     return !CANNOT_PERSIST_EMPTY_FOLDERS.includes(backendType.toLowerCase())
 }
-
-// export const SUPPORTED_OPERATIONS = [
-//     {
-//         id: 'uncategorized',
-//         name: 'Uncategorized',
-//         icon: <FileIcon />,
-//         titleColor: 'text-foreground',
-//         indicatorColor: 'text-foreground-500',
-//     },
-//     {
-//         id: 'copy',
-//         name: 'Copy',
-//         icon: <CopyIcon />,
-//         titleColor: 'text-primary-400',
-//         indicatorColor: 'text-primary-300',
-//     },
-//     {
-//         id: 'move',
-//         name: 'Move',
-//         icon: <MoveIcon />,
-//         titleColor: 'text-primary-400',
-//         indicatorColor: 'text-primary-300',
-//     },
-//     {
-//         id: 'delete',
-//         name: 'Delete',
-//         icon: <TrashIcon />,
-//         titleColor: 'text-danger-400',
-//         indicatorColor: 'text-danger-300',
-//     },
-//     {
-//         id: 'sync',
-//         name: 'Sync',
-//         icon: <ArrowRightLeftIcon />,
-//         titleColor: 'text-success-300',
-//         indicatorColor: 'text-success-300',
-//     },
-//     {
-//         id: 'bisync',
-//         name: 'Bisync',
-//         icon: <ArrowRightLeftIcon />,
-//         titleColor: 'text-primary-400',
-//         indicatorColor: 'text-primary-300',
-//     },
-//     {
-//         id: 'mount',
-//         name: 'Mount',
-//         icon: <HardDriveIcon />,
-//         titleColor: 'text-secondary-500',
-//         indicatorColor: 'text-secondary-400',
-//     },
-//     {
-//         id: 'purge',
-//         name: 'Purge',
-//         icon: <Trash2Icon />,
-//         titleColor: 'text-warning-300',
-//         indicatorColor: 'text-warning-300',
-//     },
-//     {
-//         id: 'serve',
-//         name: 'Serve',
-//         icon: <ServerIcon />,
-//         titleColor: 'text-cyan-500',
-//         indicatorColor: 'text-cyan-300',
-//     },
-// ] as const

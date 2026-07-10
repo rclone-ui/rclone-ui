@@ -17,6 +17,7 @@ import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { platform } from '@tauri-apps/plugin-os'
 import { UploadIcon } from 'lucide-react'
 import { useState } from 'react'
+import { onErrorDialog } from '../../lib/errors'
 import { useHostStore } from '../../store/host'
 import type { ConfigFile } from '../../types/config'
 
@@ -70,14 +71,11 @@ export default function ConfigSyncDrawer({
         onSuccess: () => {
             onClose()
         },
-        onError: async (error) => {
-            console.error('[createSyncConfig] failed to save config', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Failed to save config', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[createSyncConfig] failed to save config'],
+        }),
     })
 
     return (

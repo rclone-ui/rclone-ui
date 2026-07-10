@@ -1,27 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { message } from '@tauri-apps/plugin-dialog'
 import { useCallback, useMemo } from 'react'
+import { reportError } from '../../../lib/errors'
 import { getFsInfo } from '../../../lib/format'
+import { useRemoteConfig } from '../../../lib/hooks'
 import rclone from '../../../lib/rclone/client'
 import { supportsPersistentEmptyFolders } from '../../../lib/rclone/constants'
 import type { RemoteString } from './types'
 import { RE_TRAILING_SEPARATORS } from './utils'
 
-export default function useCreateFolder(
-    remote: RemoteString,
-    cwd: string,
-    refresh: () => void
-) {
-    const remoteConfigQuery = useQuery({
-        queryKey: ['remote', remote, 'config'],
-        queryFn: async () => {
-            return await rclone('/config/get', {
-                params: { query: { name: remote! } },
-            })
-        },
-        enabled: !!remote && remote !== 'UI_LOCAL_FS' && remote !== 'UI_FAVORITES',
-    })
+export default function useCreateFolder(remote: RemoteString, cwd: string, refresh: () => void) {
+    const remoteConfigQuery = useRemoteConfig(remote)
 
     const backendType = useMemo(() => {
         if (!remote || remote === 'UI_FAVORITES') return null
@@ -74,9 +63,10 @@ export default function useCreateFolder(
 
             refresh()
         } catch (error) {
-            await message(error instanceof Error ? error.message : 'Create folder failed', {
+            await reportError(error, {
                 title: 'Error',
-                kind: 'error',
+                fallback: 'Create folder failed',
+                capture: false,
             })
         }
     }, [remote, cwd, refresh, canCreateFolder])

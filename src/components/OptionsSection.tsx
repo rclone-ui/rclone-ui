@@ -541,6 +541,9 @@ export default function OptionsSection({
         lineHeight: 20,
         paddingTop: 0,
         textareaOffsetTop: 0,
+        // Tracked so textModel (which measures line wrapping) recomputes on horizontal resize —
+        // the ResizeObserver refreshes this state, giving the memo a dep that follows the DOM.
+        clientWidth: 0,
     })
     const [activeDecoration, setActiveDecoration] = useState<DecorationState | null>(null)
     const [isSelectorOpen, setIsSelectorOpen] = useState(false)
@@ -576,12 +579,14 @@ export default function OptionsSection({
         const baseRect = textareaBaseRef.current?.getBoundingClientRect()
         const textareaRect = textarea.getBoundingClientRect()
         const textareaOffsetTop = baseRect ? textareaRect.top - baseRect.top : 0
+        const clientWidth = textarea.clientWidth
 
         setTextareaLayout((previous) => {
             if (
                 previous.lineHeight === lineHeight &&
                 previous.paddingTop === paddingTop &&
-                previous.textareaOffsetTop === textareaOffsetTop
+                previous.textareaOffsetTop === textareaOffsetTop &&
+                previous.clientWidth === clientWidth
             ) {
                 return previous
             }
@@ -590,6 +595,7 @@ export default function OptionsSection({
                 lineHeight,
                 paddingTop,
                 textareaOffsetTop,
+                clientWidth,
             }
         })
 

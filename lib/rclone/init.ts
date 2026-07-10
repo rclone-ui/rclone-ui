@@ -1,144 +1,76 @@
 import * as Sentry from '@sentry/browser'
 import { invoke } from '@tauri-apps/api/core'
-import { BaseDirectory, appLocalDataDir, appLogDir, sep } from '@tauri-apps/api/path'
-import { tempDir } from '@tauri-apps/api/path'
+import { appLogDir, sep } from '@tauri-apps/api/path'
 import { ask, message } from '@tauri-apps/plugin-dialog'
-import { copyFile, exists, mkdir, readTextFile, remove } from '@tauri-apps/plugin-fs'
-import { writeFile } from '@tauri-apps/plugin-fs'
+import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
-import { Command } from '@tauri-apps/plugin-shell'
-import { useHostStore } from '../../store/host'
+import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import { useStore } from '../../store/memory'
 import { usePersistedStore } from '../../store/persisted'
 import { getConfigParentFolder } from '../format'
+import notify from '../notify'
 import { openSmallWindow } from '../window'
-import { ensureEncryptedConfigEnv } from './cli'
+import { buildRcloneEnv } from './cli'
 import {
+    classifyRclonePath,
+    compareVersions,
     createConfigFile,
+    findSystemRclone,
     getConfigPath,
-    getRcloneVersion,
-    getSystemConfigPath,
-    isInternalRcloneInstalled,
-    isSystemRcloneInstalled,
-    shouldUpdateRclone,
+    resolveDefaultConfigPath,
+    validateRcloneBinary,
 } from './common'
+import { downloadVersion, listDownloadedVersions } from './versions'
 
 export async function initRclone(args: string[]) {
     console.log('[initRclone] starting with args:', args)
 
-    const system = !(await invoke<boolean>('is_flatpak')) && (await isSystemRcloneInstalled())
-    console.log('[initRclone] system rclone installed:', system)
-    let internal = await isInternalRcloneInstalled()
-    console.log('[initRclone] internal rclone installed:', internal)
+    // Resolve which rclone binary to run (adopting a system/legacy binary on first launch).
+    let rclonePath = await resolveActiveRclone()
 
-    // rclone not available, let's download it
-    if (!system && !internal) {
-        console.log('[initRclone] no rclone installation found, provisioning...')
+    // Nothing installed anywhere — download the latest and adopt it.
+    if (!rclonePath) {
+        console.log('[initRclone] no rclone available, provisioning...')
         useStore.setState({ startupDisplayed: true, startupStatus: 'initializing' })
         await openSmallWindow({
             name: 'Startup',
             url: '/startup',
         })
-        const success = await provisionRclone()
-        console.log('[initRclone] provision rclone result:', success)
-        if (!success) {
+
+        const provisionedPath = await provisionRclone()
+        console.log('[initRclone] provision rclone result:', provisionedPath)
+        if (!provisionedPath) {
             console.error('[initRclone] provision failed, setting fatal status')
             useStore.setState({ startupStatus: 'fatal' })
             return
         }
 
-        console.log('[initRclone] provision succeeded')
+        usePersistedStore.getState().setRclonePath(provisionedPath)
+        rclonePath = provisionedPath
         useStore.setState({ startupStatus: 'initialized' })
 
         if (!['windows', 'macos'].includes(platform())) {
             usePersistedStore.setState({ hideStartup: true })
         }
-
-        internal = true
     }
 
-    const rcloneVersion = await getRcloneVersion(system ? 'system' : 'internal')
-    console.log('[initRclone] rclone version:', rcloneVersion)
+    // Check for a newer stable release of a managed binary: auto-update or notify.
+    rclonePath = await maybeAutoUpdateRclone(rclonePath)
 
-    if (shouldUpdateRclone(rcloneVersion)) {
-        console.log('[initRclone] needs update')
+    // Keep the PATH-integration pointer aimed at the active binary (best-effort).
+    invoke('update_path_pointer', { targetPath: rclonePath }).catch((error) => {
+        console.warn('[initRclone] update_path_pointer failed', error)
+    })
 
-        useStore.setState({ startupStatus: 'updating' })
-
-        await openSmallWindow({
-            name: 'Startup',
-            url: '/startup',
-        })
-
-        try {
-            if (system) {
-                console.log('[initRclone] updating system rclone')
-                const code = (await invoke('update_system_rclone')) as number
-                console.log('[initRclone] update_rclone code', code)
-                if (code !== 0) {
-                    console.log(
-                        '[initRclone] system rclone update failed or was cancelled by user, code:',
-                        code
-                    )
-                    useStore.setState({ startupStatus: 'error' })
-                    const skipping = await ask(
-                        'You are running an outdated version of the CLI that could not be updated.\n\nPlease update manually and restart Rclone UI.',
-                        {
-                            title: 'Error',
-                            kind: 'error',
-                            okLabel: 'Skip version',
-                            cancelLabel: 'Exit',
-                        }
-                    )
-                    console.log('[initRclone] user skipping version:', skipping)
-                    if (skipping) {
-                        console.log('[initRclone] saving skipped version:', rcloneVersion!.yours)
-                        useHostStore.setState({ lastSkippedVersion: rcloneVersion!.yours })
-                    }
-                } else {
-                    console.log('[initRclone] system rclone updated successfully')
-                    useStore.setState({ startupStatus: 'updated' })
-                }
-            }
-            if (internal) {
-                console.log('[initRclone] updating internal rclone')
-                const instance = Command.create('rclone-internal', ['selfupdate'])
-                const updateResult = await instance.execute()
-                console.log('[initRclone] updateResult', JSON.stringify(updateResult, null, 2))
-                if (updateResult.code !== 0) {
-                    console.log(
-                        '[initRclone] internal rclone update failed, code:',
-                        updateResult.code
-                    )
-                    useStore.setState({ startupStatus: 'error' })
-                } else {
-                    console.log('[initRclone] internal rclone updated successfully')
-                    useStore.setState({ startupStatus: 'updated' })
-                }
-            }
-        } catch (error) {
-            console.error('[initRclone] failed to update rclone', error)
-            useStore.setState({ startupStatus: 'error' })
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-    }
+    // Resolve + materialize the default config location once, independent of the binary,
+    // so switching binaries never relocates the user's remotes.
+    await ensureDefaultConfig()
 
     const hostState = useHostStore.getState()
     let configFiles = hostState.configFiles || []
     console.log('[initRclone] loaded config files count:', configFiles.length)
-    let activeConfigFile = hostState.activeConfigFile
-    console.log('[initRclone] active config file:', activeConfigFile?.id)
-
-    if (system) {
-        const defaultPath = await getSystemConfigPath()
-        console.log('[initRclone] defaultPath', defaultPath)
-
-        await createConfigFile(defaultPath)
-        console.log('[initRclone] created system config file')
-    }
 
     const existingDefaultConfig = configFiles.find((config) => config.id === 'default')
     configFiles = configFiles.filter((config) => config.id !== 'default')
@@ -159,6 +91,10 @@ export async function initRclone(args: string[]) {
     console.log('[initRclone] added default config to list')
     useHostStore.setState({ configFiles })
 
+    // Resolve the active config against the REBUILT list so a persisted id of 'default' resolves.
+    let activeConfigFile = selectActiveConfigFile(useHostStore.getState())
+    console.log('[initRclone] active config file:', activeConfigFile?.id)
+
     if (!activeConfigFile) {
         console.log('[initRclone] no active config file, setting default')
         activeConfigFile = configFiles[0]
@@ -168,13 +104,7 @@ export async function initRclone(args: string[]) {
         }
 
         console.log('[initRclone] set active config file to:', activeConfigFile.id)
-        useHostStore.setState({ activeConfigFile })
-    }
-
-    if (internal && activeConfigFile.id === 'default') {
-        console.log('[initRclone] creating internal default config file')
-        const defaultInternalPath = await getConfigPath({ id: 'default', validate: false })
-        await createConfigFile(defaultInternalPath)
+        useHostStore.getState().setActiveConfigFile(activeConfigFile.id!)
     }
 
     let configFolderPath = activeConfigFile.sync
@@ -203,11 +133,12 @@ export async function initRclone(args: string[]) {
                 okLabel: 'OK',
             })
             activeConfigFile = configFiles[0]
-            configFolderPath = getConfigParentFolder(
-                await getConfigPath({ id: 'default', validate: true })
-            )
+            // Rebind configPath too (not just configFolderPath): otherwise the readTextFile below
+            // reads the stale, known-missing synced path and the fallback dead-ends in an exit.
+            configPath = await getConfigPath({ id: 'default', validate: true })
+            configFolderPath = getConfigParentFolder(configPath)
             console.log('[initRclone] switched to default config')
-            useHostStore.setState({ activeConfigFile: configFiles[0] })
+            useHostStore.getState().setActiveConfigFile(configFiles[0].id!)
         }
     }
 
@@ -227,36 +158,14 @@ export async function initRclone(args: string[]) {
             } else {
                 console.log('[initRclone] no stored password configured')
             }
+        }
 
-            if (!activeConfigFile.isEncrypted) {
-                console.log('[initRclone] updating config file encryption flag')
-                const updatedConfigFile = { ...activeConfigFile, isEncrypted: true }
-                const updatedConfigFiles = configFiles.map((config) =>
-                    config.id === activeConfigFile!.id ? updatedConfigFile : config
-                )
-                useHostStore.setState({
-                    configFiles: updatedConfigFiles,
-                    activeConfigFile: updatedConfigFile,
-                })
-                console.log('[initRclone] saved updated encryption flag')
-
-                // Update activeConfigFile reference for the rest of the function
-                activeConfigFile = updatedConfigFile
-            }
-        } else if (activeConfigFile.isEncrypted) {
-            console.log('[initRclone] config file is not encrypted, clearing encryption flag')
-            const updatedConfigFile = { ...activeConfigFile, isEncrypted: false }
-            const updatedConfigFiles = configFiles.map((config) =>
-                config.id === activeConfigFile!.id ? updatedConfigFile : config
-            )
-            useHostStore.setState({
-                configFiles: updatedConfigFiles,
-                activeConfigFile: updatedConfigFile,
-            })
-            console.log('[initRclone] cleared encryption flag')
-
-            // Update activeConfigFile reference for the rest of the function
-            activeConfigFile = updatedConfigFile
+        // Reconcile the stored encryption flag with the file's actual contents. The local rebind
+        // is load-bearing: buildRcloneEnv below reads activeConfigFile to build the password env.
+        if (activeConfigFile.isEncrypted !== isEncrypted) {
+            console.log('[initRclone] reconciling encryption flag to', isEncrypted)
+            useHostStore.getState().updateConfigFile(activeConfigFile.id!, { isEncrypted })
+            activeConfigFile = { ...activeConfigFile, isEncrypted }
         }
     } catch (error) {
         console.log('[initRclone] could not read config file', error)
@@ -273,10 +182,7 @@ export async function initRclone(args: string[]) {
         return
     }
 
-    const extraParams: { env: Record<string, string> } = {
-        env: {},
-    }
-
+    // Proxy connectivity check (informational; the env vars themselves are set by buildRcloneEnv).
     if (hostState.proxy) {
         console.log('[initRclone] proxy configured:', hostState.proxy.url)
         try {
@@ -302,301 +208,255 @@ export async function initRclone(args: string[]) {
                 return
             }
         }
-        console.log('[initRclone] setting proxy environment variables')
-        extraParams.env.http_proxy = hostState.proxy.url
-        extraParams.env.https_proxy = hostState.proxy.url
-        extraParams.env.HTTP_PROXY = hostState.proxy.url
-        extraParams.env.HTTPS_PROXY = hostState.proxy.url
-        extraParams.env.no_proxy = hostState.proxy.ignoredHosts.join(',')
-        extraParams.env.NO_PROXY = hostState.proxy.ignoredHosts.join(',')
-        console.log(
-            '[initRclone] proxy env vars set, ignored hosts:',
-            hostState.proxy.ignoredHosts.length
-        )
     }
 
-    if (internal || activeConfigFile.id !== 'default') {
-        console.log('[initRclone] setting custom config path:', configFolderPath)
-        extraParams.env.RCLONE_CONFIG_DIR = configFolderPath
-        extraParams.env.RCLONE_CONFIG = `${configFolderPath}${sep()}rclone.conf`
-    }
-
-    const commandName = system ? 'rclone-system' : internal ? 'rclone-internal' : null
-
-    if (activeConfigFile.isEncrypted && commandName) {
-        console.log('[initRclone] ensuring encrypted configuration access')
-        try {
-            await ensureEncryptedConfigEnv(
-                activeConfigFile,
-                extraParams.env,
-                true,
-                commandName,
-                `Please enter the current password for "${activeConfigFile.label}"`
-            )
-        } catch (error) {
-            if (error instanceof Error && error.message === 'Password prompt cancelled by user.') {
-                console.error('[initRclone] password prompt cancelled by user')
-                const response = await message(
-                    'Password is required for encrypted configurations.',
-                    {
-                        title: 'Password Required',
-                        kind: 'error',
-                        buttons: {
-                            cancel: 'Close',
-                            ok: 'Try Again',
-                        },
-                    }
-                )
-                console.log('[initRclone] message response:', response)
-                if (response === 'Try Again') {
-                    await relaunch()
-                    return
-                }
-                await exit(0)
+    let env: Record<string, string>
+    try {
+        env = await buildRcloneEnv({
+            activeConfig: activeConfigFile,
+            configDirectory: configFolderPath,
+            configPath,
+            proxy: hostState.proxy,
+            rclonePath,
+            autoPromptForPassword: true,
+        })
+    } catch (error) {
+        if (error instanceof Error && error.message === 'Password prompt cancelled by user.') {
+            console.error('[initRclone] password prompt cancelled by user')
+            const response = await message('Password is required for encrypted configurations.', {
+                title: 'Password Required',
+                kind: 'error',
+                buttons: {
+                    cancel: 'Close',
+                    ok: 'Try Again',
+                },
+            })
+            console.log('[initRclone] message response:', response)
+            if (response === 'Try Again') {
+                await relaunch()
                 return
             }
-            throw error
+            await exit(0)
+            return
         }
+        throw error
     }
 
-    console.log('[initRclone] extraParams', extraParams)
-
-    if (system) {
-        console.log('[initRclone] creating system rclone command instance')
-        const instance = Command.create('rclone-system', args, extraParams)
-        console.log('[initRclone] returning system rclone instance')
-        return { system: instance }
-    }
-    if (internal) {
-        console.log('[initRclone] creating internal rclone command instance')
-        const instance = Command.create('rclone-internal', args, extraParams)
-        console.log('[initRclone] returning internal rclone instance')
-        return { internal: instance }
-    }
-
-    console.error('[initRclone] no rclone installation available')
-    throw new Error('Failed to initialize rclone, please try again later.')
+    console.log('[initRclone] returning rclone command', { path: rclonePath, args })
+    return { path: rclonePath, args, env }
 }
 
 /**
- * Downloads and provisions the latest version of rclone for the current platform
- * @throws {Error} If architecture detection fails or installation is unsuccessful
- * @returns {Promise<void>}
+ * Resolves the active rclone binary path: validates the persisted selection (self-healing a
+ * managed version whose absolute path moved), otherwise adopts a system / legacy / downloaded
+ * binary. Returns null when nothing is available so the caller can provision.
  */
-export async function provisionRclone() {
-    console.log('[provisionRclone] starting provisioning process')
+async function resolveActiveRclone(): Promise<string | null> {
+    const persisted = usePersistedStore.getState()
+    const stored = persisted.rclonePath
 
-    console.log('[provisionRclone] fetching latest version info')
-    const currentVersionString = await fetch('https://downloads.rclone.org/version.txt').then(
-        (res) => res.text()
-    )
-    console.log('[provisionRclone] currentVersionString', currentVersionString)
+    if (stored) {
+        const version = await validateRcloneBinary(stored)
+        if (version) {
+            console.log('[resolveActiveRclone] using stored rclone', stored, version)
+            return stored
+        }
+        console.warn('[resolveActiveRclone] stored rclone path is unusable:', stored)
 
-    const currentVersion = currentVersionString.split('v')?.[1]?.trim()
-
-    if (!currentVersion) {
-        console.error('[provisionRclone] failed to get latest version from string')
-        await message('Failed to get latest rclone version, please try again later.')
-        return false
-    }
-    console.log('[provisionRclone] currentVersion', currentVersion)
-
-    const currentPlatform = platform()
-    console.log('[provisionRclone] currentPlatform', currentPlatform)
-
-    const currentOs = currentPlatform === 'macos' ? 'osx' : currentPlatform
-    console.log('[provisionRclone] currentOs', currentOs)
-
-    console.log('[provisionRclone] getting temp directory path')
-    let tempDirPath = await tempDir()
-    if (tempDirPath.endsWith(sep())) {
-        tempDirPath = tempDirPath.slice(0, -1)
-    }
-    console.log('[provisionRclone] tempDirPath', tempDirPath)
-
-    console.log('[provisionRclone] detecting system architecture')
-    const arch = (await invoke('get_arch')) as 'arm64' | 'amd64' | '386' | 'unknown'
-    console.log('[provisionRclone] arch', arch)
-
-    if (arch === 'unknown') {
-        console.error('[provisionRclone] failed to get architecture')
-        await message('Failed to get current arch, please try again later.')
-        return false
-    }
-
-    const downloadUrl = `https://downloads.rclone.org/v${currentVersion}/rclone-v${currentVersion}-${currentOs}-${arch}.zip`
-    console.log('[provisionRclone] downloadUrl', downloadUrl)
-
-    console.log('[provisionRclone] downloading rclone binary')
-    const downloadedFile = await fetch(downloadUrl).then((res) => res.arrayBuffer())
-    console.log('[provisionRclone] download complete, size:', downloadedFile.byteLength)
-
-    console.log('[provisionRclone] checking if temp rclone directory exists')
-    let tempDirExists = false
-    try {
-        tempDirExists = await exists('rclone', {
-            baseDir: BaseDirectory.Temp,
-        })
-        console.log('[provisionRclone] tempDirExists', tempDirExists)
-    } catch (error) {
-        Sentry.captureException(error)
-        console.error('[provisionRclone] failed to check if rclone temp dir exists', error)
-    }
-
-    if (tempDirExists) {
-        console.log('[provisionRclone] removing existing temp directory')
-        try {
-            await remove('rclone', {
-                recursive: true,
-                baseDir: BaseDirectory.Temp,
+        // Self-heal a managed version whose absolute path moved (e.g. home-dir rename).
+        const match = stored.match(/rclone-versions[/\\]v([^/\\]+)/)
+        if (match) {
+            const healed = await invoke<string | null>('managed_version_path', {
+                version: match[1],
             })
-            console.log('[provisionRclone] removed rclone temp dir')
-        } catch (error) {
-            Sentry.captureException(error)
-            console.error('[provisionRclone] failed to remove rclone temp dir', error)
-            await message('Failed to provision rclone.')
-            return false
+            if (healed && (await validateRcloneBinary(healed))) {
+                console.log('[resolveActiveRclone] self-healed managed path ->', healed)
+                persisted.setRclonePath(healed)
+                return healed
+            }
         }
+        // fall through to the adoption ladder
     }
 
-    console.log('[provisionRclone] creating temp directory')
+    // Fold any legacy single-slot binary into the versioned library first (idempotent), so it
+    // remains visible even when a system rclone ends up active.
+    let legacyAdopted: { version: string; path: string } | null = null
     try {
-        await mkdir('rclone', {
-            baseDir: BaseDirectory.Temp,
-        })
-        console.log('[provisionRclone] created rclone temp dir')
+        legacyAdopted = await invoke<{ version: string; path: string } | null>(
+            'adopt_legacy_rclone'
+        )
     } catch (error) {
-        Sentry.captureException(error)
-        console.error('[provisionRclone] failed to create rclone temp dir', error)
-        await message('Failed to provision rclone.')
-        return false
+        console.error('[resolveActiveRclone] adopt_legacy_rclone failed', error)
     }
 
-    const zipPath = [
-        tempDirPath,
-        'rclone',
-        `rclone-v${currentVersion}-${currentOs}-${arch}.zip`,
-    ].join(sep())
-    console.log('[provisionRclone] zipPath', zipPath)
-
-    console.log('[provisionRclone] writing zip file to disk')
-    try {
-        await writeFile(zipPath, new Uint8Array(downloadedFile))
-        console.log('[provisionRclone] wrote zip file successfully')
-    } catch (error) {
-        Sentry.captureException(error)
-        console.error('[provisionRclone] failed to write zip file', error)
-        await message('Failed to provision rclone.')
-        return false
-    }
-
-    const extractPath = `${tempDirPath}${sep()}rclone${sep()}extracted`
-    console.log('[provisionRclone] extracting zip file to:', extractPath)
-    try {
-        await invoke('unzip_file', {
-            zipPath,
-            outputFolder: extractPath,
-        })
-        console.log('[provisionRclone] successfully unzipped file')
-    } catch (error) {
-        Sentry.captureException(error)
-        console.error('[provisionRclone] failed to unzip file', error)
-        await message('Failed to provision rclone.')
-        return false
-    }
-
-    const unarchivedPath = [
-        tempDirPath,
-        'rclone',
-        'extracted',
-        `rclone-v${currentVersion}-${currentOs}-${arch}`,
-    ].join(sep())
-    console.log('[provisionRclone] unarchivedPath', unarchivedPath)
-
-    const binaryName = currentPlatform === 'windows' ? 'rclone.exe' : 'rclone'
-    console.log('[provisionRclone] binaryName', binaryName)
-
-    const rcloneBinaryPath = unarchivedPath + sep() + binaryName
-    console.log('[provisionRclone] rcloneBinaryPath', rcloneBinaryPath)
-
-    console.log('[provisionRclone] verifying extracted binary exists')
-    try {
-        const binaryExists = await exists(rcloneBinaryPath)
-        console.log('[provisionRclone] rcloneBinaryPathExists', binaryExists)
-        if (!binaryExists) {
-            console.error('[provisionRclone] binary not found in expected location')
-            throw new Error('Could not find rclone binary in zip')
-        }
-    } catch (error) {
-        Sentry.captureException(error)
-        console.error('[provisionRclone] failed to check if rclone binary exists', error)
-        await message('Failed to provision rclone.')
-        return false
-    }
-
-    console.log('[provisionRclone] getting app local data directory')
-    const appLocalDataDirPath = await appLocalDataDir()
-    console.log('[provisionRclone] appLocalDataDirPath', appLocalDataDirPath)
-
-    console.log('[provisionRclone] checking if app local data directory exists')
-    const appLocalDataDirPathExists = await exists(appLocalDataDirPath)
-    console.log('[provisionRclone] appLocalDataDirPathExists', appLocalDataDirPathExists)
-
-    if (!appLocalDataDirPathExists) {
-        console.log('[provisionRclone] creating app local data directory')
-        await mkdir(appLocalDataDirPath, {
-            recursive: true,
-        })
-        console.log('[provisionRclone] appLocalDataDirPath created')
-    }
-
-    const targetBinaryPath = `${appLocalDataDirPath}${sep()}${binaryName}`
-    console.log('[provisionRclone] targetBinaryPath', targetBinaryPath)
-
-    console.log('[provisionRclone] copying binary to final location')
-    const maxCopyRetries = 3
-    for (let attempt = 1; attempt <= maxCopyRetries; attempt++) {
-        console.log(`[provisionRclone] copy attempt ${attempt}/${maxCopyRetries}`)
-        try {
-            await copyFile(rcloneBinaryPath, targetBinaryPath)
-            console.log('[provisionRclone] copied rclone binary successfully')
-            break
-        } catch (copyError) {
-            console.log(
-                `[provisionRclone] attempt ${attempt}/${maxCopyRetries} failed to copy:`,
-                copyError
+    // 1. Genuine system rclone — offered, not silently adopted, so the user decides whether the
+    //    app tracks their system install or manages its own copy. Answering persists a path, so
+    //    the question fires only while no usable path is stored.
+    const system = await findSystemRclone()
+    if (system) {
+        const systemVersion = await validateRcloneBinary(system)
+        if (systemVersion) {
+            const useSystem = await ask(
+                `Found rclone v${systemVersion} at:\n${system}\n\nUse it as the app's rclone? Otherwise the app will manage its own copy. You can switch anytime in Settings.`,
+                {
+                    title: 'System rclone detected',
+                    kind: 'info',
+                    okLabel: 'Use system rclone',
+                    cancelLabel: 'Manage separately',
+                }
             )
-
-            if (attempt < maxCopyRetries) {
-                const waitTime = attempt * 1000
-                console.log(`[provisionRclone] waiting ${waitTime}ms before retry`)
-                // Wait a bit before retrying
-                await new Promise((resolve) => setTimeout(resolve, waitTime))
-            } else {
-                console.error('[provisionRclone] all copy attempts failed', copyError)
-                Sentry.captureException(copyError, {
-                    extra: {
-                        rcloneBinaryPath,
-                        targetBinaryPath,
-                    },
-                })
-                throw new Error(
-                    'Failed to provision rclone, file is busy. Install cli manually or try again later.'
-                )
+            if (useSystem) {
+                persisted.setRclonePath(system)
+                return system
             }
         }
     }
 
-    console.log('[provisionRclone] verifying installation')
-    const hasInstalled = await isInternalRcloneInstalled()
-    console.log('[provisionRclone] installation verified:', hasInstalled)
-
-    if (!hasInstalled) {
-        console.error('[provisionRclone] installation verification failed')
-        throw new Error('Failed to install rclone')
+    // 2. The just-adopted legacy binary. Re-probe it: when the version already existed in the
+    //    library, adopt_legacy_rclone returns that pre-existing binary without validating it.
+    if (legacyAdopted?.path && (await validateRcloneBinary(legacyAdopted.path))) {
+        persisted.setRclonePath(legacyAdopted.path)
+        return legacyAdopted.path
     }
 
-    console.log('[provisionRclone] rclone has been installed successfully')
+    // 3. Newest already-downloaded managed version that still runs — a broken binary must fall
+    //    through to provisioning instead of being re-adopted.
+    try {
+        const downloaded = await listDownloadedVersions()
+        for (const candidate of downloaded) {
+            if (await validateRcloneBinary(candidate.path)) {
+                persisted.setRclonePath(candidate.path)
+                return candidate.path
+            }
+            console.warn(
+                '[resolveActiveRclone] skipping unusable downloaded version:',
+                candidate.path
+            )
+        }
+    } catch (error) {
+        console.error('[resolveActiveRclone] list_downloaded_rclone_versions failed', error)
+    }
 
-    return true
+    // 4. Nothing available — caller provisions.
+    return null
+}
+
+let rcloneUpdateChecked = false
+
+/**
+ * For a managed binary: checks downloads.rclone.org for a newer stable release, once per app
+ * session (so switching versions in Settings doesn't immediately undo a pin). Downloads and
+ * adopts it when auto-update is on; otherwise notifies once per version that an update can be
+ * run from Settings. Never blocks startup on failure.
+ */
+async function maybeAutoUpdateRclone(currentPath: string): Promise<string> {
+    if (rcloneUpdateChecked) {
+        return currentPath
+    }
+    rcloneUpdateChecked = true
+
+    try {
+        const active = await classifyRclonePath(currentPath)
+        if (active.kind !== 'managed' || !active.version) {
+            return currentPath
+        }
+
+        const versionString = await fetch('https://downloads.rclone.org/version.txt', {
+            connectTimeout: 5000,
+        }).then((res) => res.text())
+        const latest = versionString.split('v')?.[1]?.trim()
+        if (!latest || compareVersions(latest, active.version) <= 0) {
+            return currentPath
+        }
+
+        const persisted = usePersistedStore.getState()
+
+        if (!persisted.autoUpdateRclone) {
+            if (persisted.lastNotifiedRcloneVersion !== latest) {
+                usePersistedStore.setState({ lastNotifiedRcloneVersion: latest })
+                await notify({
+                    title: 'Rclone update available',
+                    body: `rclone v${latest} is available. You can update from Settings → Binary.`,
+                })
+            }
+            return currentPath
+        }
+
+        console.log('[maybeAutoUpdateRclone] updating', active.version, '->', latest)
+        // Startup-window status only (never startupDisplayed): showStartup opens the window and,
+        // finding 'updated', shows the update message; a failed update is restored below so the
+        // window can't stick on 'updating' with no TAP TO START.
+        useStore.setState({ startupStatus: 'updating' })
+        const newPath = await downloadVersion(latest)
+        persisted.setRclonePath(newPath)
+        useStore.setState({ startupStatus: 'updated' })
+        return newPath
+    } catch (error) {
+        console.log('[maybeAutoUpdateRclone] update check skipped', error)
+        // Restore so 'updating' can't stick — but only if we set it: a failure before the
+        // download (classify, version fetch) must not downgrade a status another path already
+        // promoted (provisioning sets 'initialized' before this runs). When the Startup window
+        // is already open (provisioning path), restore 'initialized' — 'initializing' renders
+        // no TAP TO START and showStartup early-returns on startupDisplayed, stranding the
+        // window. Do NOT set 'error' — this path is offline-safe and silently continues on the
+        // existing binary.
+        const store = useStore.getState()
+        if (store.startupStatus === 'updating') {
+            useStore.setState({
+                startupStatus: store.startupDisplayed ? 'initialized' : 'initializing',
+            })
+        }
+        return currentPath
+    }
+}
+
+/** Resolves (once) and materializes the default config location for the active host. */
+async function ensureDefaultConfig() {
+    const host = useHostStore.getState()
+    let defaultConfigPath = host.defaultConfigPath
+    if (!defaultConfigPath) {
+        defaultConfigPath = await resolveDefaultConfigPath()
+        console.log('[ensureDefaultConfig] resolved default config path', defaultConfigPath)
+        host.setDefaultConfigPath(defaultConfigPath)
+    }
+    await createConfigFile(defaultConfigPath)
+}
+
+/**
+ * Downloads the latest rclone release into the versioned library and returns its absolute path,
+ * or false on failure. The download/extract/verify pipeline lives in Rust.
+ */
+export async function provisionRclone(): Promise<string | false> {
+    console.log('[provisionRclone] starting')
+
+    let version: string | undefined
+    try {
+        const versionString = await fetch('https://downloads.rclone.org/version.txt').then((res) =>
+            res.text()
+        )
+        version = versionString.split('v')?.[1]?.trim()
+    } catch (error) {
+        console.error('[provisionRclone] failed to fetch latest version', error)
+    }
+
+    if (!version) {
+        await message('Failed to get latest rclone version, please try again later.')
+        return false
+    }
+    console.log('[provisionRclone] latest version', version)
+
+    let path: string
+    try {
+        path = await downloadVersion(version)
+    } catch (error) {
+        console.error('[provisionRclone] download failed', error)
+        Sentry.captureException(error)
+        await message(
+            `Failed to download rclone: ${error instanceof Error ? error.message : String(error)}`
+        )
+        return false
+    }
+
+    console.log('[provisionRclone] installed at', path)
+    return path
 }

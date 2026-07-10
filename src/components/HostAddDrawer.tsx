@@ -12,6 +12,7 @@ import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { useState } from 'react'
+import { onErrorDialog } from '../../lib/errors'
 import { getHostInfo } from '../../lib/hosts'
 import { usePersistedStore } from '../../store/persisted'
 
@@ -83,13 +84,10 @@ export default function HostAddDrawer({
             setForm(INITIAL_FORM_STATE)
             onClose()
         },
-        onError: async (error) => {
-            console.error('[addHost] failed', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Connection failed',
-                kind: 'error',
-            })
-        },
+        onError: onErrorDialog('Connection failed', undefined, {
+            capture: false,
+            log: ['[addHost] failed'],
+        }),
     })
 
     return (

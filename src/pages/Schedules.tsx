@@ -8,6 +8,7 @@ import { formatDistance } from 'date-fns'
 import { AlertCircleIcon, Clock7Icon, PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { buildReadablePath } from '../../lib/format'
+import { useNow } from '../../lib/hooks'
 import { useHostStore } from '../../store/host'
 import type { ScheduledTask } from '../../types/schedules'
 import CommandsDropdown from '../components/CommandsDropdown'
@@ -69,10 +70,14 @@ function TaskCard({
         }
     }, [task.name, isEditingName])
 
+    // The card's time-derived values are anchored to this tick — without it the memos freeze at
+    // their last dep change (e.g. a past occurrence kept showing as the "next run" forever).
+    const now = useNow()
+
     const nextRun = useMemo(() => {
-        const parsed = CronExpressionParser.parse(task.cron)
+        const parsed = CronExpressionParser.parse(task.cron, { currentDate: new Date(now) })
         return parsed.hasNext() ? parsed.next().toDate() : null
-    }, [task.cron])
+    }, [task.cron, now])
 
     const source = useMemo(
         () => ('source' in task.args ? task.args.source : task.args.sources[0]),
@@ -81,24 +86,24 @@ function TaskCard({
 
     const nextRunLabel = useMemo(() => {
         if (nextRun) {
-            const distance = formatDistance(nextRun, new Date(), { addSuffix: true })
+            const distance = formatDistance(nextRun, new Date(now), { addSuffix: true })
             return distance.charAt(0).toUpperCase() + distance.slice(1)
         }
         return 'Never'
-    }, [nextRun])
+    }, [nextRun, now])
 
     const lastRunLabel = useMemo(() => {
         if (task.isRunning) {
             return 'Running now'
         }
         if (task.lastRun) {
-            const distance = formatDistance(new Date(task.lastRun), new Date(), {
+            const distance = formatDistance(new Date(task.lastRun), new Date(now), {
                 addSuffix: true,
             })
             return distance.charAt(0).toUpperCase() + distance.slice(1)
         }
         return 'Never'
-    }, [task.isRunning, task.lastRun])
+    }, [task.isRunning, task.lastRun, now])
 
     return (
         <Card
@@ -109,9 +114,6 @@ function TaskCard({
             onPress={() => onOpenDrawer(task)}
             style={{
                 flexShrink: 0,
-                // border: '1px solid #e0e0e070',
-                // borderBottom: '1px solid #e0e0e070',
-                // padding: '0.5rem',
             }}
             className="p-2 border-b border-divider"
         >

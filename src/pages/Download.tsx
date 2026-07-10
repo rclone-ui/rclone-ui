@@ -8,6 +8,7 @@ import { AlertOctagonIcon, ClockIcon, DownloadIcon, FoldersIcon } from 'lucide-r
 import pRetry from 'p-retry'
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { onErrorDialog } from '../../lib/errors'
 import notify from '../../lib/notify'
 import rclone from '../../lib/rclone/client'
 import CommandInfoButton from '../components/CommandInfoButton'
@@ -107,14 +108,11 @@ export default function Download() {
                 body: 'Download task started',
             })
         },
-        onError: async (error) => {
-            console.error('[Download] Failed to start download', error)
-            await message(error instanceof Error ? error.message : 'Failed to start download', {
-                title: 'Download Error',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Download Error', 'Failed to start download', {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[Download] Failed to start download'],
+        }),
     })
 
     const buttonText = useMemo(() => {

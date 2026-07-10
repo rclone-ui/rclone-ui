@@ -2,7 +2,6 @@ import { Button, Checkbox, Chip, Input, Select, SelectItem } from '@heroui/react
 import * as Sentry from '@sentry/browser'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { disable, enable } from '@tauri-apps/plugin-autostart'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -10,6 +9,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import { type Update, check } from '@tauri-apps/plugin-updater'
 import { EyeIcon } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
+import { RELAUNCH_APP, emitToMain } from '../../../lib/events'
 import notify from '../../../lib/notify'
 import { usePersistedStore } from '../../../store/persisted'
 import BaseSection from './BaseSection'
@@ -130,7 +130,7 @@ export default function GeneralSection() {
                 return
             }
 
-            await getCurrentWindow().emit('relaunch-app')
+            await emitToMain(RELAUNCH_APP)
         },
     })
 
@@ -234,7 +234,11 @@ export default function GeneralSection() {
                             label="Tray Theme"
                             selectedKeys={[appearance.tray]}
                             onSelectionChange={(keys) => {
-                                const value = Array.from(keys)[0] as 'light' | 'dark' | 'system' | 'color'
+                                const value = Array.from(keys)[0] as
+                                    | 'light'
+                                    | 'dark'
+                                    | 'system'
+                                    | 'color'
                                 usePersistedStore.setState((state) => ({
                                     appearance: { ...state.appearance, tray: value },
                                 }))

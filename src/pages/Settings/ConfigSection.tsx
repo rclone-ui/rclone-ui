@@ -28,11 +28,12 @@ import {
     Trash2Icon,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { onErrorDialog } from '../../../lib/errors'
 import { removeConfigPassword, setConfigPassword } from '../../../lib/rclone/api'
 import { promptForConfigPassword, restartActiveRclone } from '../../../lib/rclone/cli'
 import rclone from '../../../lib/rclone/client'
 import { getConfigPath } from '../../../lib/rclone/common'
-import { useHostStore } from '../../../store/host'
+import { selectActiveConfigFile, useHostStore } from '../../../store/host'
 import { usePersistedStore } from '../../../store/persisted'
 import type { ConfigFile } from '../../../types/config'
 import ConfigCreateDrawer from '../../components/ConfigCreateDrawer'
@@ -44,7 +45,7 @@ export default function ConfigSection() {
     const licenseValid = usePersistedStore((state) => state.licenseValid)
 
     const configFiles = useHostStore((state) => state.configFiles)
-    const activeConfigFile = useHostStore((state) => state.activeConfigFile)
+    const activeConfigFile = useHostStore(selectActiveConfigFile)
 
     const queryClient = useQueryClient()
 
@@ -94,14 +95,11 @@ export default function ConfigSection() {
             await queryClient.cancelQueries()
             await queryClient.resetQueries()
         },
-        onError: async (error) => {
-            console.error('[switchConfig] failed to switch config', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Switch Config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Switch Config', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[switchConfig] failed to switch config'],
+        }),
     })
 
     const locateConfigMutation = useMutation({
@@ -109,14 +107,11 @@ export default function ConfigSection() {
             const configPath = await getConfigPath({ id: id, validate: true })
             await revealItemInDir(configPath)
         },
-        onError: async (error) => {
-            console.error('[locateConfig] failed to locate config', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Failed to locate config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Failed to locate config', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[locateConfig] failed to locate config'],
+        }),
     })
 
     const exportConfigMutation = useMutation({
@@ -142,14 +137,11 @@ export default function ConfigSection() {
 
             await writeTextFile(exportPath, text)
         },
-        onError: async (error) => {
-            console.error('[exportConfig] failed to export config', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Failed to export config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Failed to export config', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[exportConfig] failed to export config'],
+        }),
     })
 
     const removePasswordMutation = useMutation({
@@ -178,14 +170,11 @@ export default function ConfigSection() {
 
             await removeConfigPassword()
         },
-        onError: async (error) => {
-            console.error('[removePassword] failed to remove password', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Config Encryption',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Config Encryption', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[removePassword] failed to remove password'],
+        }),
     })
 
     const setPasswordMutation = useMutation({
@@ -207,14 +196,11 @@ export default function ConfigSection() {
                 persist: Boolean(activeConfigFile.pass),
             })
         },
-        onError: async (error) => {
-            console.error('[setPassword] failed to set password', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Config Encryption',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Config Encryption', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[setPassword] failed to set password'],
+        }),
     })
 
     const savePasswordMutation = useMutation({
@@ -253,14 +239,11 @@ export default function ConfigSection() {
                 okLabel: 'OK',
             })
         },
-        onError: async (error) => {
-            console.error('[savePasswordCommand] failed to save password command', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Config Password',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Config Password', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[savePasswordCommand] failed to save password command'],
+        }),
     })
 
     const savePasswordCommandMutation = useMutation({
@@ -307,14 +290,11 @@ export default function ConfigSection() {
                 okLabel: 'OK',
             })
         },
-        onError: async (error) => {
-            console.error('[savePasswordCommand] failed to save password command', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Config Password',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Config Password', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[savePasswordCommand] failed to save password command'],
+        }),
     })
 
     const removeSavedPasswordMutation = useMutation({
@@ -351,14 +331,11 @@ export default function ConfigSection() {
                 okLabel: 'OK',
             })
         },
-        onError: async (error) => {
-            console.error('[removeSavedPassword] failed to remove saved password', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Config Password',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Config Password', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[removeSavedPassword] failed to remove saved password'],
+        }),
     })
 
     return (
@@ -515,9 +492,7 @@ function ConfigCard({
 
         const disabled = ['enable']
 
-        if (configFile.passCommand) {
-            disabled.push('save-password', 'save-password-command')
-        } else if (configFile.pass) {
+        if (configFile.passCommand || configFile.pass) {
             disabled.push('save-password', 'save-password-command')
         } else {
             disabled.push('remove-password')
@@ -718,22 +693,50 @@ function ConfigCard({
                                                 return
                                             }
 
-                                            if (!configFile.sync) {
-                                                const path = await getConfigPath({
-                                                    id: configFile.id!,
-                                                    validate: true,
-                                                })
+                                            try {
+                                                if (!configFile.sync) {
+                                                    // validate: false so a manually-deleted
+                                                    // directory doesn't throw before we can still
+                                                    // clean up the store entry.
+                                                    const path = await getConfigPath({
+                                                        id: configFile.id!,
+                                                        validate: false,
+                                                    })
 
-                                                await remove(path.replace('rclone.conf', ''), {
-                                                    recursive: true,
-                                                })
+                                                    try {
+                                                        await remove(
+                                                            path.replace('rclone.conf', ''),
+                                                            { recursive: true }
+                                                        )
+                                                    } catch (removeError) {
+                                                        // An already-gone directory is fine — fall
+                                                        // through and still remove the store entry.
+                                                        const detail =
+                                                            removeError instanceof Error
+                                                                ? removeError.message
+                                                                : String(removeError)
+                                                        if (
+                                                            !/no such file|not found|cannot find|does not exist/i.test(
+                                                                detail
+                                                            )
+                                                        ) {
+                                                            throw removeError
+                                                        }
+                                                    }
+                                                }
+
+                                                if (activeConfigFile?.id === configFile.id) {
+                                                    useHostStore
+                                                        .getState()
+                                                        .setActiveConfigFile('default')
+                                                }
+
+                                                useHostStore
+                                                    .getState()
+                                                    .removeConfigFile(configFile.id!)
+                                            } catch (error) {
+                                                await onErrorDialog('Delete Config')(error)
                                             }
-
-                                            if (activeConfigFile?.id === configFile.id) {
-                                                useHostStore.getState().setActiveConfigFile('default')
-                                            }
-
-                                            useHostStore.getState().removeConfigFile(configFile.id!)
                                         }, 100)
                                     }}
                                 >

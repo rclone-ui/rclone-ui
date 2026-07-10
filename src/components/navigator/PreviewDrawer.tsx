@@ -10,7 +10,7 @@ import {
 import { DownloadIcon, FileIcon as FileIconLucide, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatBytes } from '../../../lib/format.ts'
-import { usePersistedStore } from '../../../store/persisted.ts'
+import { useCurrentHost } from '../../../store/persisted.ts'
 import FileIcon, { getFileType, isPreviewable } from './FileIcon'
 import type { Entry } from './types'
 
@@ -44,7 +44,7 @@ export default function PreviewDrawer({
     item: Entry | null
     onClose: () => void
 }) {
-    const currentHost = usePersistedStore((state) => state.currentHost)
+    const currentHost = useCurrentHost()
     const hostUrl = currentHost?.url
     const authUser = currentHost?.authUser
     const authPassword = currentHost?.authPassword

@@ -18,11 +18,13 @@ import { useMemo } from 'react'
 import rclone from '../../../lib/rclone/client'
 import { getDefaultPaths } from '../../../lib/rclone/common'
 import { DOUBLE_BACKSLASH_REGEX } from '../../../lib/rclone/constants'
-import { useHostStore } from '../../../store/host'
+import { selectActiveConfigFile, useHostStore } from '../../../store/host'
+import { usePersistedStore } from '../../../store/persisted'
 import BaseSection from './BaseSection'
 
 export default function AboutSection() {
-    const currentConfig = useHostStore((state) => state.activeConfigFile)
+    const currentConfig = useHostStore(selectActiveConfigFile)
+    const rclonePath = usePersistedStore((state) => state.rclonePath)
 
     const defaultPathsQuery = useQuery({
         queryKey: ['about', 'defaultPaths'],
@@ -74,6 +76,7 @@ export default function AboutSection() {
             },
             paths: defaultPathsQuery.data,
             dirs: dirsQuery.data,
+            rcloneBinary: rclonePath,
             config: {
                 id: currentConfig?.id,
                 label: currentConfig?.label,
@@ -88,6 +91,7 @@ export default function AboutSection() {
             currentConfig,
             defaultPathsQuery.data,
             dirsQuery.data,
+            rclonePath,
         ]
     )
 

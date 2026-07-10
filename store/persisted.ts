@@ -4,13 +4,14 @@ import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { LazyStore } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
-import { type StateStorage, createJSONStorage, persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Host } from '../lib/hosts'
 import type { SERVE_TYPES } from '../lib/rclone/constants'
 import type { ConfigFile } from '../types/config'
 import type { ScheduledTask } from '../types/schedules'
 import type { Template } from '../types/template'
 import type { RemoteConfig as HostRemoteConfig } from './host'
+import { createTauriStateStorage } from './lib'
 
 const store = new LazyStore('store.json')
 
@@ -33,17 +34,6 @@ interface RemoteConfigV1 {
     remoteDefaults?: Record<string, any>
 }
 
-type SupportedAction =
-    | 'tray-mount'
-    | 'tray-sync'
-    | 'tray-copy'
-    | 'tray-serve'
-    | 'tray-move'
-    | 'tray-bisync'
-    | 'tray-delete'
-    | 'tray-purge'
-    | 'tray-download'
-
 interface TemplateV1 {
     id: string
     name: string
@@ -53,12 +43,6 @@ interface TemplateV1 {
 
 interface PersistedStateV1 {
     remoteConfigList: Record<string, RemoteConfigV1>
-    setRemoteConfig: (remote: string, config: RemoteConfigV1) => void
-    mergeRemoteConfig: (remote: string, config: RemoteConfigV1) => void
-
-    disabledActions: SupportedAction[]
-
-    setDisabledActions: (actions: SupportedAction[]) => void
 
     proxy:
         | {
@@ -70,34 +54,18 @@ interface PersistedStateV1 {
     favoritePaths: { remote: string; path: string; added: number }[]
 
     settingsPass: string | undefined
-    setSettingsPass: (pass: string | undefined) => void
 
     licenseKey: string | undefined
-    setLicenseKey: (key: string | undefined) => void
     licenseValid: boolean
-    setLicenseValid: (valid: boolean) => void
 
     startOnBoot: boolean
-    setStartOnBoot: (startOnBoot: boolean) => void
 
     scheduledTasks: ScheduledTask[]
-    addScheduledTask: (
-        task: Omit<
-            ScheduledTask,
-            'id' | 'isRunning' | 'currentRunId' | 'lastRun' | 'configId' | 'isEnabled'
-        >
-    ) => void
-    removeScheduledTask: (id: string) => void
-    updateScheduledTask: (id: string, task: Partial<ScheduledTask>) => void
 
     templates: TemplateV1[]
 
     configFiles: ConfigFile[]
-    addConfigFile: (configFile: ConfigFile) => void
-    removeConfigFile: (id: string) => void
     activeConfigFile: ConfigFile | null
-    setActiveConfigFile: (configFile: string) => void
-    updateConfigFile: (id: string, configFile: Partial<ConfigFile>) => void
 
     lastSkippedVersion: string | undefined
 
@@ -126,8 +94,7 @@ interface PersistedStateV2 {
     templates: Template[]
 
     hosts: Host[]
-    currentHost: Host | null
-    updateHost: (id: Host['id'], host: Partial<Host>) => void
+    currentHostId: string | null
     setCurrentHost: (id: Host['id']) => void
 
     hideStartup: boolean
@@ -138,24 +105,19 @@ interface PersistedStateV2 {
         tray: 'light' | 'dark' | 'system' | 'color'
         app: 'light' | 'dark' | 'system'
     }
-}
 
-const getStorage = (store: LazyStore): StateStorage => ({
-    getItem: async (name: string): Promise<string | null> => {
-        console.log('getItem', { name })
-        return (await store.get(name)) ?? null
-    },
-    setItem: async (name: string, value: string): Promise<void> => {
-        console.log('setItem', { name, value })
-        await store.set(name, value)
-        await store.save()
-    },
-    removeItem: async (name: string): Promise<void> => {
-        console.log('removeItem', { name })
-        await store.delete(name)
-        await store.save()
-    },
-})
+    // Absolute path of the rclone executable the app runs. Managed downloads live under
+    // $APPLOCALDATA/rclone-versions/vX/, a system rclone is its PATH location, and a custom
+    // binary is any other path. `undefined` triggers one-time adoption at startup.
+    rclonePath: string | undefined
+    setRclonePath: (path: string | undefined) => void
+
+    // Download + switch to new stable rclone releases at startup (managed binaries only).
+    // When off, the app still checks and notifies once per new version.
+    autoUpdateRclone: boolean
+    setAutoUpdateRclone: (enabled: boolean) => void
+    lastNotifiedRcloneVersion: string | undefined
+}
 
 export const usePersistedStore = create<PersistedStateV2>()(
     persist(
@@ -180,32 +142,14 @@ export const usePersistedStore = create<PersistedStateV2>()(
             templates: [],
 
             hosts: [],
-            currentHost: null,
-            updateHost: (id: Host['id'], host: Partial<Host>) =>
+            currentHostId: null,
+            setCurrentHost: (id: Host['id']) =>
                 set((state) => {
                     if (!state.hosts.some((h) => h.id === id)) {
                         return {}
                     }
 
-                    const hosts = state.hosts.map((h) =>
-                        h.id === id ? { ...h, ...host, id: h.id } : h
-                    )
-
-                    const currentHost =
-                        state.currentHost?.id === id
-                            ? (hosts.find((h) => h.id === id) ?? state.currentHost)
-                            : state.currentHost
-
-                    return { hosts, currentHost }
-                }),
-            setCurrentHost: (id: Host['id']) =>
-                set((state) => {
-                    const host = state.hosts.find((h) => h.id === id)
-                    if (!host) {
-                        return {}
-                    }
-
-                    return { currentHost: host }
+                    return { currentHostId: id }
                 }),
 
             hideStartup: false,
@@ -216,11 +160,18 @@ export const usePersistedStore = create<PersistedStateV2>()(
                 tray: platform() === 'linux' ? 'color' : 'system',
                 app: 'dark',
             },
+
+            rclonePath: undefined,
+            setRclonePath: (path: string | undefined) => set((_) => ({ rclonePath: path })),
+
+            autoUpdateRclone: true,
+            setAutoUpdateRclone: (enabled: boolean) => set((_) => ({ autoUpdateRclone: enabled })),
+            lastNotifiedRcloneVersion: undefined,
         }),
         {
             name: 'store',
-            storage: createJSONStorage(() => getStorage(store)),
-            version: 2,
+            storage: createJSONStorage(() => createTauriStateStorage(() => store)),
+            version: 3,
             migrate: async (persistedState, version) => {
                 if (!persistedState) {
                     return persistedState as PersistedStateV2
@@ -385,11 +336,31 @@ export const usePersistedStore = create<PersistedStateV2>()(
                     } as unknown as PersistedStateV2
                 }
 
+                if (version < 3) {
+                    // v2 stored the full current Host object; v3 stores just its id.
+                    const { currentHost, ...rest } = persistedState as PersistedStateV2 & {
+                        currentHost?: Host | null
+                    }
+                    return {
+                        ...rest,
+                        currentHostId: currentHost?.id ?? null,
+                    } as PersistedStateV2
+                }
+
                 return persistedState as PersistedStateV2
             },
         }
     )
 )
+
+/** Resolves the current Host object from the stored id, or null if it no longer exists. */
+export function selectCurrentHost(state: PersistedStateV2): Host | null {
+    return state.hosts.find((h) => h.id === state.currentHostId) ?? null
+}
+
+export function useCurrentHost(): Host | null {
+    return usePersistedStore(selectCurrentHost)
+}
 
 usePersistedStore.persist.onFinishHydration((state) => {
     if (state.toolbarShortcut) {

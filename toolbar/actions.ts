@@ -1,15 +1,16 @@
 import { captureException } from '@sentry/browser'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
+import { reportError } from '../lib/errors'
+import { CLOSE_APP, emitToMain } from '../lib/events'
 import notify from '../lib/notify'
 import queryClient from '../lib/query'
 import type { fetchMountList, fetchServeList } from '../lib/rclone/api'
 import rclone from '../lib/rclone/client'
 import { SERVE_TYPES, SUPPORTS_CLEANUP, SUPPORTS_PURGE } from '../lib/rclone/constants'
 import { openFullWindow } from '../lib/window'
-import { usePersistedStore } from '../store/persisted'
+import { selectCurrentHost, usePersistedStore } from '../store/persisted'
 import { COMMAND_CONFIG, COMMAND_DESCRIPTIONS, COMMAND_KEYWORDS } from './constants'
 import type {
     ToolbarActionArgs,
@@ -272,7 +273,7 @@ const actions: ToolbarActionDefinition[] = [
                 for (const mount of activeMounts) {
                     const mountLabel = formatMountLabel(mount)
 
-                    if (usePersistedStore.getState().currentHost?.id === 'local') {
+                    if (usePersistedStore.getState().currentHostId === 'local') {
                         results.push(
                             createBaseResult(
                                 `Open ${mountLabel}`,
@@ -343,14 +344,12 @@ const actions: ToolbarActionDefinition[] = [
                 try {
                     await revealItemInDir(mountPoint)
                 } catch (error) {
-                    console.error('[toolbar] failed to open mount', error)
-                    await message(
-                        error instanceof Error ? error.message : 'Failed to open mount point',
-                        {
-                            title: 'Open Mount',
-                            kind: 'error',
-                        }
-                    )
+                    await reportError(error, {
+                        title: 'Open Mount',
+                        fallback: 'Failed to open mount point',
+                        capture: false,
+                        log: ['[toolbar] failed to open mount'],
+                    })
                 }
                 return
             }
@@ -395,14 +394,12 @@ const actions: ToolbarActionDefinition[] = [
                             old?.filter((m) => m.MountPoint !== mountPoint) ?? []
                     )
                 } catch (error) {
-                    console.error('[toolbar] failed to stop mount', error)
-                    await message(
-                        error instanceof Error ? error.message : 'Failed to stop mount instance',
-                        {
-                            title: 'Stop Mount',
-                            kind: 'error',
-                        }
-                    )
+                    await reportError(error, {
+                        title: 'Stop Mount',
+                        fallback: 'Failed to stop mount instance',
+                        capture: false,
+                        log: ['[toolbar] failed to stop mount'],
+                    })
                     await queryClient.resetQueries({ queryKey: ['mount', 'list'] })
                 }
                 return
@@ -426,16 +423,12 @@ const actions: ToolbarActionDefinition[] = [
                     })
                     queryClient.setQueryData(['mount', 'list'], [])
                 } catch (error) {
-                    console.error('[toolbar] failed to stop all mounts', error)
-                    await message(
-                        error instanceof Error
-                            ? error.message
-                            : 'Failed to stop all mount instances',
-                        {
-                            title: 'Stop All Mounts',
-                            kind: 'error',
-                        }
-                    )
+                    await reportError(error, {
+                        title: 'Stop All Mounts',
+                        fallback: 'Failed to stop all mount instances',
+                        capture: false,
+                        log: ['[toolbar] failed to stop all mounts'],
+                    })
                     await queryClient.resetQueries({ queryKey: ['mount', 'list'] })
                 }
                 return
@@ -570,14 +563,12 @@ const actions: ToolbarActionDefinition[] = [
                             old?.filter((s) => s.id !== serveId) ?? []
                     )
                 } catch (error) {
-                    console.error('[toolbar] failed to stop serve', error)
-                    await message(
-                        error instanceof Error ? error.message : 'Failed to stop serve instance',
-                        {
-                            title: 'Stop Serve',
-                            kind: 'error',
-                        }
-                    )
+                    await reportError(error, {
+                        title: 'Stop Serve',
+                        fallback: 'Failed to stop serve instance',
+                        capture: false,
+                        log: ['[toolbar] failed to stop serve'],
+                    })
                 }
                 return
             }
@@ -591,16 +582,12 @@ const actions: ToolbarActionDefinition[] = [
                     })
                     queryClient.setQueryData(['serve', 'list'], [])
                 } catch (error) {
-                    console.error('[toolbar] failed to stop all serves', error)
-                    await message(
-                        error instanceof Error
-                            ? error.message
-                            : 'Failed to stop all serve instances',
-                        {
-                            title: 'Stop All Serves',
-                            kind: 'error',
-                        }
-                    )
+                    await reportError(error, {
+                        title: 'Stop All Serves',
+                        fallback: 'Failed to stop all serve instances',
+                        capture: false,
+                        log: ['[toolbar] failed to stop all serves'],
+                    })
                     await queryClient.resetQueries({ queryKey: ['serve', 'list'] })
                 }
                 return
@@ -803,8 +790,8 @@ const actions: ToolbarActionDefinition[] = [
                 return
             }
 
-            const persistedStoreState = usePersistedStore.getState()
-            const hostUrl = persistedStoreState.currentHost?.url
+            const currentHost = selectCurrentHost(usePersistedStore.getState())
+            const hostUrl = currentHost?.url
 
             if (!hostUrl) {
                 await notify({
@@ -816,10 +803,10 @@ const actions: ToolbarActionDefinition[] = [
 
             try {
                 let auth: string | undefined
-                const authUser = persistedStoreState.currentHost?.authUser
+                const authUser = currentHost?.authUser
 
                 if (authUser) {
-                    const authPassword = persistedStoreState.currentHost?.authPassword
+                    const authPassword = currentHost?.authPassword
                     auth = btoa(`${authUser}:${authPassword ?? ''}`)
                 }
 
@@ -1175,7 +1162,7 @@ const actions: ToolbarActionDefinition[] = [
             return []
         },
         onPress: async () => {
-            await getCurrentWindow().emit('close-app')
+            await emitToMain(CLOSE_APP)
         },
     },
     {
@@ -1253,14 +1240,12 @@ const actions: ToolbarActionDefinition[] = [
                         (old: string[] | undefined) => old?.filter((v) => v !== fs) ?? []
                     )
                 } catch (error) {
-                    console.error('[toolbar] failed to forget VFS cache', error)
-                    await message(
-                        error instanceof Error ? error.message : 'Failed to clear VFS cache',
-                        {
-                            title: 'VFS Forget',
-                            kind: 'error',
-                        }
-                    )
+                    await reportError(error, {
+                        title: 'VFS Forget',
+                        fallback: 'Failed to clear VFS cache',
+                        capture: false,
+                        log: ['[toolbar] failed to forget VFS cache'],
+                    })
                 }
                 return
             }
@@ -1274,14 +1259,12 @@ const actions: ToolbarActionDefinition[] = [
                     })
                     queryClient.setQueryData(['vfs', 'list'], [])
                 } catch (error) {
-                    console.error('[toolbar] failed to forget all VFS caches', error)
-                    await message(
-                        error instanceof Error ? error.message : 'Failed to clear all VFS caches',
-                        {
-                            title: 'VFS Forget All',
-                            kind: 'error',
-                        }
-                    )
+                    await reportError(error, {
+                        title: 'VFS Forget All',
+                        fallback: 'Failed to clear all VFS caches',
+                        capture: false,
+                        log: ['[toolbar] failed to forget all VFS caches'],
+                    })
                 }
                 return
             }

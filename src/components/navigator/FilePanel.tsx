@@ -11,8 +11,8 @@ import {
     useRef,
     useState,
 } from 'react'
+import { remoteConfigQueryOptions } from '../../../lib/hooks'
 import { supportsPublicLink } from '../../../lib/rclone/constants'
-import rclone from '../../../lib/rclone/client'
 import { useHostStore } from '../../../store/host.ts'
 import FileList from './FileList'
 import PanelToolbar, { type ToolbarButtons } from './PanelToolbar'
@@ -90,12 +90,7 @@ const FilePanel = forwardRef<
     })
 
     const remoteConfigQuery = useQuery({
-        queryKey: ['remote', nav.selectedRemote, 'config'],
-        queryFn: async () => {
-            return await rclone('/config/get', {
-                params: { query: { name: nav.selectedRemote! } },
-            })
-        },
+        ...remoteConfigQueryOptions(nav.selectedRemote),
         enabled: nav.isRemote,
     })
 
@@ -181,12 +176,13 @@ const FilePanel = forwardRef<
         }
     }, [onDrop, nav.selectedRemote, nav.cwd])
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: <>
+    // getSelection is useCallback'd on [selectedPaths], so its identity alone tracks selection
+    // changes — no extra dep or suppression needed.
     useEffect(() => {
         if (onSelectionChange) {
             onSelectionChange(nav.getSelection())
         }
-    }, [nav.selectedPaths, onSelectionChange, nav.getSelection])
+    }, [onSelectionChange, nav.getSelection])
 
     useEffect(() => {
         if (onNavigate && nav.selectedRemote) {

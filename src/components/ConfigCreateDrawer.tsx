@@ -18,6 +18,7 @@ import { mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { platform } from '@tauri-apps/plugin-os'
 import { UploadIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { onErrorDialog } from '../../lib/errors'
 import { getConfigPath } from '../../lib/rclone/common'
 import { useHostStore } from '../../store/host'
 import type { ConfigFile } from '../../types/config'
@@ -85,14 +86,11 @@ export default function ConfigCreateDrawer({
         onSuccess: () => {
             onClose()
         },
-        onError: async (error) => {
-            console.error('[createConfig] failed to save config', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Failed to save config', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[createConfig] failed to save config'],
+        }),
     })
 
     return (

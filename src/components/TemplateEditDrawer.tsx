@@ -28,6 +28,7 @@ import {
     WrenchIcon,
 } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
+import { formatErrorMessage } from '../../lib/errors'
 import {
     FLAG_CATEGORIES,
     getJsonKeyCount,
@@ -170,9 +171,7 @@ export default function TemplateEditDrawer({
         },
         onError: async (error) => {
             await message(
-                error instanceof Error
-                    ? error.message
-                    : 'Error saving template. Please check your options.',
+                formatErrorMessage(error, 'Error saving template. Please check your options.'),
                 {
                     title: 'Error',
                     kind: 'error',

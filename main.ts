@@ -1,19 +1,19 @@
 import * as Sentry from '@sentry/browser'
 import { getVersion as getUiVersion } from '@tauri-apps/api/app'
-import { invoke } from '@tauri-apps/api/core'
+import { Channel, invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { platform } from '@tauri-apps/plugin-os'
-import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
-import type { Child } from '@tauri-apps/plugin-shell'
-import { check } from '@tauri-apps/plugin-updater'
+import { type Update, check } from '@tauri-apps/plugin-updater'
 import { CronExpressionParser } from 'cron-parser'
 import { defaultOptions } from 'tauri-plugin-sentry-api'
 import { getDeepLinkUrl, handleDeepLinkUrl } from './lib/deep'
-import { LOCAL_HOST_ID, getHostInfo } from './lib/hosts'
+import { CLOSE_APP, RELAUNCH_APP, RESTART_RCLONE, type RestartRclonePayload } from './lib/events'
+import { LOCAL_HOST_ID, RC_PORT, getHostInfo, makeLocalHost } from './lib/hosts'
 import { validateLicense } from './lib/license'
 import notify from './lib/notify'
 import queryClient from './lib/query'
@@ -33,12 +33,34 @@ import { initRclone } from './lib/rclone/init'
 import { initTray } from './lib/tray'
 import { openSmallWindow } from './lib/window'
 import { initHostStore, useHostStore } from './store/host'
+import { waitForStoreHydration } from './store/lib'
 import { useStore } from './store/memory'
-import { usePersistedStore } from './store/persisted'
+import { selectCurrentHost, usePersistedStore } from './store/persisted'
 import type { ScheduledTask } from './types/schedules'
 
-let currentRcloneChild: Child | null = null
 let rcloneListenersRegistered = false
+
+// Mirrors zookeeper.rs RcloneEvent — only 'close' is emitted.
+type RcloneDaemonEvent = {
+    kind: 'close'
+    code: number | null
+    intentional: boolean
+}
+
+async function killRcloneDaemon() {
+    // Rust daemon state is authoritative: the command no-ops (returns false) when nothing is
+    // tracked, so we must not gate on a local mirror that could defeat its reload-orphan guard.
+    let killed = false
+    try {
+        killed = await invoke<boolean>('kill_rclone_daemon', {})
+    } catch (error) {
+        console.error('[killRcloneDaemon] failed to kill rclone daemon', error)
+        Sentry.captureException(error)
+    }
+    if (killed) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+}
 
 try {
     Sentry.init({
@@ -98,19 +120,14 @@ async function checkFlatpakPermissions() {
 
 async function waitForHydration() {
     console.log('[waitForHydration] waiting for store hydration')
-
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    if (!usePersistedStore.persist.hasHydrated()) {
-        await waitForHydration()
-    }
+    await waitForStoreHydration(() => usePersistedStore.persist.hasHydrated())
     console.log('[waitForHydration] store hydrated')
 }
 
 async function initializeHostStore() {
     console.log('[initializeHostStore] initializing')
-    const currentHost = usePersistedStore.getState().currentHost
     // Default to 'local' if fresh install/no host selected
-    const hostId = currentHost?.id || 'local'
+    const hostId = usePersistedStore.getState().currentHostId || LOCAL_HOST_ID
 
     await initHostStore(hostId)
 
@@ -120,7 +137,7 @@ async function initializeHostStore() {
 async function checkHostReachability(): Promise<void> {
     console.log('[checkHostReachability] checking host reachability')
 
-    const currentHost = usePersistedStore.getState().currentHost
+    const currentHost = selectCurrentHost(usePersistedStore.getState())
 
     // If no host selected or local host, skip check (local rclone hasn't started yet)
     if (!currentHost || currentHost.id === LOCAL_HOST_ID) {
@@ -164,13 +181,15 @@ async function checkHostReachability(): Promise<void> {
             console.log('[checkHostReachability] retrying connection')
             isReachable = await checkReachability()
         } else {
-            // User chose to use local host
+            // User chose to use local host. Upsert the local host and point at it in one write so
+            // currentHostId never dangles.
             console.log('[checkHostReachability] switching to local host')
-            const hosts = usePersistedStore.getState().hosts
-            const localHost = hosts.find((h) => h.id === LOCAL_HOST_ID)
-            if (localHost) {
-                usePersistedStore.setState({ currentHost: localHost })
-            }
+            usePersistedStore.setState((prev) => ({
+                hosts: prev.hosts.some((h) => h.id === LOCAL_HOST_ID)
+                    ? prev.hosts
+                    : [...prev.hosts, makeLocalHost()],
+                currentHostId: LOCAL_HOST_ID,
+            }))
             // Re-initialize host store for local
             await initHostStore(LOCAL_HOST_ID)
             return
@@ -226,8 +245,7 @@ async function checkAlreadyRunning() {
     console.log('[checkAlreadyRunning]')
 
     try {
-        const rcPort = 5572
-        const running = await invoke<boolean>('is_rclone_running', { port: rcPort })
+        const running = await invoke<boolean>('is_rclone_running', { port: RC_PORT })
         console.log('[checkAlreadyRunning] running', running)
 
         if (running) {
@@ -278,24 +296,26 @@ async function registerRcloneWindowListeners() {
 
     const window = getCurrentWindow()
 
-    await window.listen('close-app', async () => {
-        console.log('[registerRcloneWindowListeners] close-app requested')
-
-        const transfers = await queryClient.ensureQueryData({
-            queryKey: ['transfers', 'list', 'all'],
-            queryFn: async () => await listTransfers(),
-            staleTime: 10_000, // 10 seconds
-            gcTime: 60_000, // 1 minute
-        })
+    // Kill the daemon BEFORE exit/relaunch — this ordering is the entire point of these listeners.
+    const shutdown = async (mode: 'quit' | 'relaunch') => {
+        // A dead daemon means "no active transfers": don't let a listTransfers throw make quit a
+        // silent no-op.
+        const transfers = await queryClient
+            .ensureQueryData({
+                queryKey: ['transfers', 'list', 'all'],
+                queryFn: async () => await listTransfers(),
+                staleTime: 10_000, // 10 seconds
+                gcTime: 60_000, // 1 minute
+            })
+            .catch(() => null)
 
         if (transfers?.active && transfers.active.length > 0) {
             const answer = await ask('All active transfers will be stopped.', {
                 title: 'Exit',
                 kind: 'info',
-                okLabel: 'Quit',
+                okLabel: mode === 'relaunch' ? 'Relaunch' : 'Quit',
                 cancelLabel: 'Cancel',
             })
-
             if (!answer) {
                 return
             }
@@ -304,83 +324,60 @@ async function registerRcloneWindowListeners() {
         const cloudflaredTunnel = useStore.getState().cloudflaredTunnel
         if (cloudflaredTunnel) {
             try {
-                console.log('[close-app] stopping cloudflared tunnel')
+                console.log('[shutdown] stopping cloudflared tunnel')
                 await invoke('stop_cloudflared_tunnel', { pid: cloudflaredTunnel.pid })
                 useStore.setState({ cloudflaredTunnel: null })
             } catch (error) {
-                console.error('[close-app] failed to stop cloudflared tunnel', error)
+                console.error('[shutdown] failed to stop cloudflared tunnel', error)
             }
         }
 
-        const child = currentRcloneChild
+        await killRcloneDaemon()
 
-        if (child) {
-            try {
-                await child.kill()
-            } catch (error) {
-                console.error('[close-app] failed to kill rclone child', error)
-                Sentry.captureException(error)
-            }
-            currentRcloneChild = null
-            await new Promise((resolve) => setTimeout(resolve, 1000))
+        if (mode === 'relaunch') {
+            await relaunch()
+        } else {
+            await exit(0)
         }
+    }
 
-        await exit(0)
+    await window.listen(CLOSE_APP, async () => {
+        console.log('[registerRcloneWindowListeners] close-app requested')
+        await shutdown('quit')
     })
     console.log('[registerRcloneWindowListeners] close-app listener registered')
 
-    await window.listen('relaunch-app', async () => {
+    await window.listen(RELAUNCH_APP, async () => {
         console.log('[registerRcloneWindowListeners] relaunch-app requested')
-
-        const transfers = await queryClient.ensureQueryData({
-            queryKey: ['transfers', 'list', 'all'],
-            queryFn: async () => await listTransfers(),
-            staleTime: 10_000, // 10 seconds
-            gcTime: 60_000, // 1 minute
-        })
-
-        if (transfers?.active && transfers.active.length > 0) {
-            const answer = await ask('All active transfers will be stopped.', {
-                title: 'Exit',
-                kind: 'info',
-                okLabel: 'Relaunch',
-                cancelLabel: 'Cancel',
-            })
-            if (!answer) {
-                return
-            }
-        }
-
-        const cloudflaredTunnel = useStore.getState().cloudflaredTunnel
-        if (cloudflaredTunnel) {
-            try {
-                console.log('[close-app] stopping cloudflared tunnel')
-                await invoke('stop_cloudflared_tunnel', { pid: cloudflaredTunnel.pid })
-                useStore.setState({ cloudflaredTunnel: null })
-            } catch (error) {
-                console.error('[close-app] failed to stop cloudflared tunnel', error)
-            }
-        }
-
-        const child = currentRcloneChild
-
-        if (child) {
-            try {
-                await child.kill()
-            } catch (error) {
-                console.error('[relaunch-app] failed to kill rclone child', error)
-                Sentry.captureException(error)
-            }
-            currentRcloneChild = null
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-        }
-
-        await relaunch()
+        await shutdown('relaunch')
     })
     console.log('[registerRcloneWindowListeners] relaunch-app listener registered')
 
-    await window.listen('restart-rclone', async () => {
+    await window.listen<RestartRclonePayload>(RESTART_RCLONE, async (event) => {
         console.log('[registerRcloneWindowListeners] restart-rclone requested')
+
+        // Trust the payload: the initiating webview's store writes may not have reached the main
+        // window yet. Apply BEFORE the in-flight guard so state isn't lost on a skipped restart.
+        // configFiles BEFORE activeConfigId (setActiveConfigFile resolves against state.configFiles
+        // and nulls on a miss). NEVER log the raw payload — it carries config `pass`.
+        const payload = event.payload
+        if (payload) {
+            if (payload.rclonePath) {
+                usePersistedStore.getState().setRclonePath(payload.rclonePath)
+            }
+            if (payload.defaultConfigPath) {
+                useHostStore.getState().setDefaultConfigPath(payload.defaultConfigPath)
+            }
+            if (payload.configFiles) {
+                useHostStore.setState({ configFiles: payload.configFiles })
+            }
+            if (payload.activeConfigId) {
+                useHostStore.getState().setActiveConfigFile(payload.activeConfigId)
+            }
+            if (payload.proxy !== undefined) {
+                useHostStore.setState({ proxy: payload.proxy })
+            }
+        }
 
         if (useStore.getState().isRestartingRclone) {
             console.log('[restart-rclone] restart already in progress, ignoring request')
@@ -390,18 +387,7 @@ async function registerRcloneWindowListeners() {
         useStore.setState({ isRestartingRclone: true })
 
         try {
-            const child = currentRcloneChild
-
-            if (child) {
-                try {
-                    await child.kill()
-                } catch (error) {
-                    console.error('[restart-rclone] failed to exit rclone process', error)
-                    Sentry.captureException(error)
-                }
-                currentRcloneChild = null
-                await new Promise((resolve) => setTimeout(resolve, 1000))
-            }
+            await killRcloneDaemon()
 
             await startRclone()
         } catch (error) {
@@ -454,25 +440,28 @@ async function startRclone() {
         return await exit(0)
     }
 
-    const command = rclone?.system || rclone?.internal
-
-    if (!command) {
+    if (!rclone) {
         console.error('[startRclone] initRclone returned without a runnable command')
         Sentry.captureException(new Error('initRclone returned without a runnable command.'))
         return
     }
 
-    command.addListener('close', async (event) => {
-        console.log('close', event)
-        currentRcloneChild = null
+    const { path, args: rcloneArgs, env } = rclone
+
+    const channel = new Channel<RcloneDaemonEvent>()
+    channel.onmessage = async (payload) => {
+        console.log('[startRclone] daemon close', payload)
+
+        // Killed intentionally (restart / quit) — the initiator handles what happens next.
+        if (payload.intentional) {
+            return
+        }
 
         if (platform() === 'windows') {
             return await exit(0)
         }
 
-        console.log('event.code', event.code)
-
-        if (event.code === 143 || event.code === 1) {
+        if (payload.code === 143 || payload.code === 1) {
             Sentry.captureException(new Error('Rclone has crashed'))
             const confirmed = await ask('Rclone has crashed', {
                 title: 'Error',
@@ -485,16 +474,37 @@ async function startRclone() {
             }
             await relaunch()
         }
-    })
+    }
 
-    command.addListener('error', (event) => {
-        console.log('error', event)
-    })
-
-    console.log('[startRclone] starting rclone')
-    const childProcess = await command.spawn()
-    currentRcloneChild = childProcess
-    console.log('[startRclone] running rclone')
+    console.log('[startRclone] spawning rclone daemon')
+    let pid: number
+    try {
+        pid = await invoke<number>('spawn_rclone', {
+            path,
+            args: rcloneArgs,
+            env,
+            onEvent: channel,
+        })
+    } catch (error) {
+        console.error('[startRclone] failed to spawn rclone daemon', error)
+        Sentry.captureException(error)
+        // A relaunch re-runs the resolution ladder, which can heal a broken binary.
+        const confirmed = await ask(
+            `Rclone failed to start: ${error instanceof Error ? error.message : String(error)}`,
+            {
+                title: 'Error',
+                kind: 'error',
+                okLabel: 'Relaunch',
+                cancelLabel: 'Exit',
+            }
+        )
+        if (confirmed) {
+            await relaunch()
+            return
+        }
+        return await exit(0)
+    }
+    console.log('[startRclone] running rclone, pid', pid)
 
     await new Promise((resolve) => setTimeout(resolve, 500))
 }
@@ -593,7 +603,14 @@ async function showStartup() {
     }
 
     console.log('[showStartup] startup not displayed, setting displayed and status')
-    useStore.setState({ startupDisplayed: true, startupStatus: 'initialized' })
+    // Upgrade-only: a successful auto-update's 'updated' status must survive so its message shows;
+    // everything else (normal launch with null status, or a failed update restored to
+    // 'initializing') becomes 'initialized'. Never unconditionally clobber, or 'updated' is lost.
+    const currentStartupStatus = useStore.getState().startupStatus
+    useStore.setState({
+        startupDisplayed: true,
+        startupStatus: currentStartupStatus === 'updated' ? 'updated' : 'initialized',
+    })
     console.log('[showStartup] store updated with startup displayed and status set')
     await openSmallWindow({
         name: 'Startup',
@@ -617,7 +634,7 @@ async function resumeTasks() {
     }
 
     const scheduledTasks = useHostStore.getState().scheduledTasks
-    const activeConfigId = useHostStore.getState().activeConfigFile?.id
+    const activeConfigId = useHostStore.getState().activeConfigId
 
     console.log('[resumeTasks] found', scheduledTasks.length, 'scheduled tasks')
     console.log('[resumeTasks] activeConfigId:', activeConfigId)
@@ -892,6 +909,45 @@ async function handleTask(task: ScheduledTask) {
     }
 }
 
+async function installUpdate(update: Update, required: boolean) {
+    const confirmed = await ask(
+        'You are running an outdated version of Rclone UI. Please update to the latest version.',
+        {
+            title: required ? 'Update Required' : 'Update Available',
+            kind: 'info',
+            okLabel: 'Update',
+            cancelLabel: required ? 'Exit' : 'Cancel',
+        }
+    )
+
+    if (!confirmed) {
+        console.log('[checkVersion] user cancelled update')
+        if (required) {
+            return await exit(0)
+        }
+        return
+    }
+
+    console.log('[checkVersion] downloading and installing update')
+
+    await update.downloadAndInstall()
+
+    console.log('[checkVersion] update downloaded and installed')
+
+    await message('Rclone UI has been updated. Please restart the application.', {
+        title: 'Update Complete',
+        kind: 'info',
+        okLabel: 'Restart',
+    })
+
+    console.log('[checkVersion] relaunching app')
+
+    // Direct relaunch: at checkVersion time no daemon exists yet (before startRclone), so the
+    // shutdown path is unnecessary; the old emit fired before any listener existed and was
+    // dropped, leaving the app running the old version.
+    await relaunch()
+}
+
 async function checkVersion() {
     console.log('[checkVersion]')
 
@@ -939,70 +995,10 @@ async function checkVersion() {
 
         if (compareVersions(currentVersion, minimumVersion) < 0) {
             console.log('[checkVersion] currentVersion is outdated')
-
-            const confirmed = await ask(
-                'You are running an outdated version of Rclone UI. Please update to the latest version.',
-                {
-                    title: 'Update Required',
-                    kind: 'info',
-                    okLabel: 'Update',
-                    cancelLabel: 'Exit',
-                }
-            )
-
-            if (!confirmed) {
-                console.log('[checkVersion] user cancelled update')
-                return await exit(0)
-            }
-
-            console.log('[checkVersion] downloading and installing update')
-
-            await receivedUpdate.downloadAndInstall()
-
-            console.log('[checkVersion] update downloaded and installed')
-
-            await message('Rclone UI has been updated. Please restart the application.', {
-                title: 'Update Complete',
-                kind: 'info',
-                okLabel: 'Restart',
-            })
-
-            console.log('[checkVersion] relaunching app')
-
-            await getCurrentWindow().emit('relaunch-app')
+            await installUpdate(receivedUpdate, true)
         } else if (compareVersions(currentVersion, okVersion) < 0) {
             console.log('[checkVersion] checking for update')
-
-            const confirmed = await ask(
-                'You are running an outdated version of Rclone UI. Please update to the latest version.',
-                {
-                    title: 'Update Available',
-                    kind: 'info',
-                    okLabel: 'Update',
-                    cancelLabel: 'Cancel',
-                }
-            )
-
-            if (!confirmed) {
-                console.log('[checkVersion] user cancelled update')
-                return
-            }
-
-            console.log('[checkVersion] downloading and installing update')
-
-            await receivedUpdate.downloadAndInstall()
-
-            console.log('[checkVersion] update downloaded and installed')
-
-            await message('Rclone UI has been updated. Please restart the application.', {
-                title: 'Update Complete',
-                kind: 'info',
-                okLabel: 'Restart',
-            })
-
-            console.log('[checkVersion] relaunching app')
-
-            await getCurrentWindow().emit('relaunch-app')
+            await installUpdate(receivedUpdate, false)
         }
     } catch (error) {
         console.error('[checkVersion] error', error)
@@ -1011,17 +1007,7 @@ async function checkVersion() {
 }
 
 async function checkRclone() {
-    let currentHost = usePersistedStore.getState().currentHost
-
-    if (!currentHost) {
-        currentHost = {
-            id: 'local',
-            name: 'Local Machine',
-            url: 'http://localhost:5572',
-            os: 'linux',
-            cliVersion: 'unknown',
-        }
-    }
+    let currentHost = selectCurrentHost(usePersistedStore.getState()) ?? makeLocalHost()
 
     let hostInfo = await getHostInfo({
         url: currentHost.url,
@@ -1037,13 +1023,7 @@ async function checkRclone() {
                 kind: 'error',
             }
         )
-        currentHost = {
-            id: 'local',
-            name: 'Local Machine',
-            url: 'http://localhost:5572',
-            os: 'linux',
-            cliVersion: 'unknown',
-        }
+        currentHost = makeLocalHost()
 
         hostInfo = await getHostInfo({
             url: currentHost.url,
@@ -1078,9 +1058,9 @@ async function checkRclone() {
 
     console.log('[checkRclone] setting currentHost', currentHost)
 
-    usePersistedStore.setState({ currentHost })
     usePersistedStore.setState((prev) => ({
-        hosts: [...prev.hosts.filter((h) => h.id !== currentHost!.id), currentHost],
+        hosts: [...prev.hosts.filter((h) => h.id !== currentHost.id), currentHost],
+        currentHostId: currentHost.id,
     }))
 }
 
@@ -1089,18 +1069,16 @@ getCurrentWindow().listen('tauri://close-requested', async () => {
     await getCurrentWindow().destroy()
 })
 
-// maybe place this inside handleDeepLink?
+function processDeepLink(url: string) {
+    const deepLinkUrl = getDeepLinkUrl(url)
+    console.log('deep link url', deepLinkUrl)
+    handleDeepLinkUrl(deepLinkUrl)
+    useStore.setState({ startupDisplayed: true, startupStatus: 'initializing' })
+}
+
 onOpenUrl((urls) => {
     console.log('deep links while running', urls)
-    const receivedUrl = urls[0]
-
-    const deepLinkUrl = getDeepLinkUrl(receivedUrl)
-
-    console.log('deep link url', deepLinkUrl)
-
-    handleDeepLinkUrl(deepLinkUrl)
-
-    useStore.setState({ startupDisplayed: true, startupStatus: 'initializing' })
+    processDeepLink(urls[0])
 })
 
 async function handleDeepLink() {
@@ -1110,24 +1088,14 @@ async function handleDeepLink() {
         console.log('[handleDeepLink] no deep links found')
         return
     }
-
-    console.log('[handleDeepLink] getting deep link url')
-    const deepLinkUrl = getDeepLinkUrl(urls[0])
-    console.log('[handleDeepLink] deep link url', deepLinkUrl)
-
-    console.log('[handleDeepLink] handling deep link url')
-    handleDeepLinkUrl(deepLinkUrl)
-    console.log('[handleDeepLink] deep link url handled')
-
-    console.log('[handleDeepLink] setting startup displayed and status')
-    useStore.setState({ startupDisplayed: true, startupStatus: 'initializing' })
-    console.log('[handleDeepLink] startup displayed and status set')
+    processDeepLink(urls[0])
 }
 
 waitForHydration()
     .then(() => checkFlatpakPermissions())
     .then(() => initializeHostStore())
     .then(() => checkHostReachability())
+    .then(() => registerRcloneWindowListeners())
     .then(() => checkVersion())
     .then(() => validateInstance())
     .then(() => checkAlreadyRunning())

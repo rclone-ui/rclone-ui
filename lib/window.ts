@@ -11,7 +11,7 @@ export async function openFullWindow({
     url: string
     hideTitleBar?: boolean
 }) {
-    console.log('[openFullWindow] ', name, url)
+    console.log('[openFullWindow]', name)
     await invoke('open_full_window', { name, url, hideTitleBar })
     return WebviewWindow.getByLabel(name)
 }

@@ -168,46 +168,6 @@
         "core:webview:allow-internal-toggle-devtools",
         "core:webview:allow-get-all-webviews",
         "clipboard-manager:allow-write-text",
-        "shell:default",
-        "shell:allow-kill",
-        "shell:allow-spawn",
-        "shell:allow-stdin-write",
-        "shell:allow-open",
-        {
-            "identifier": "shell:allow-execute",
-            "allow": [
-                {
-                    "name": "rclone-system",
-                    "cmd": "rclone",
-                    "args": true
-                },
-                {
-                    "name": "rclone-internal",
-                    "cmd": "$APPLOCALDATA/rclone",
-                    "args": true
-                },
-                {
-                    "name": "umount",
-                    "cmd": "umount",
-                    "args": true
-                }
-            ]
-        },
-        {
-            "identifier": "shell:allow-spawn",
-            "allow": [
-                {
-                    "name": "rclone-system",
-                    "cmd": "rclone",
-                    "args": true
-                },
-                {
-                    "name": "rclone-internal",
-                    "cmd": "$APPLOCALDATA/rclone",
-                    "args": true
-                }
-            ]
-        },
         "log:default",
         "dialog:default",
         {

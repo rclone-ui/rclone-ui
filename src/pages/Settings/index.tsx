@@ -12,6 +12,7 @@ import {
     InfoIcon,
     KeyboardIcon,
     MedalIcon,
+    PackageIcon,
     SatelliteDishIcon,
     ServerIcon,
     TabletSmartphoneIcon,
@@ -21,8 +22,9 @@ import { useSearchParams } from 'react-router-dom'
 import { LOCAL_HOST_ID } from '../../../lib/hosts'
 import rclone from '../../../lib/rclone/client'
 import { useStore } from '../../../store/memory'
-import { usePersistedStore } from '../../../store/persisted'
+import { useCurrentHost, usePersistedStore } from '../../../store/persisted'
 import AboutSection from './AboutSection'
+import BinarySection from './BinarySection'
 import ConfigSection from './ConfigSection'
 import GeneralSection from './GeneralSection'
 import HostsSection from './HostsSection'
@@ -35,7 +37,7 @@ import ToolbarSection from './ToolbarSection'
 export default function Settings() {
     const [searchParams] = useSearchParams()
     const settingsPass = usePersistedStore((state) => state.settingsPass)
-    const currentHost = usePersistedStore((state) => state.currentHost)
+    const currentHost = useCurrentHost()
     const isRestartingRclone = useStore((state) => state.isRestartingRclone)
     const isLocalHost = useMemo(() => currentHost?.id === LOCAL_HOST_ID, [currentHost?.id])
 
@@ -124,11 +126,7 @@ export default function Settings() {
                         </Button>
                     }
                 />
-                <Button
-                    onPress={checkPassword}
-                    data-focus-visible="false"
-                    color="primary"
-                >
+                <Button onPress={checkPassword} data-focus-visible="false" color="primary">
                     Open
                 </Button>
             </div>
@@ -233,6 +231,34 @@ export default function Settings() {
                     className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
                 >
                     <ConfigSection />
+                </Tab>
+                <Tab
+                    key="binary"
+                    title={
+                        <Tooltip
+                            content={
+                                currentHost?.id !== 'local'
+                                    ? 'Rclone settings are only available when using your local machine, not a remote host'
+                                    : undefined
+                            }
+                            isDisabled={currentHost?.id === 'local'}
+                            placement="right"
+                            size="lg"
+                            color="foreground"
+                            className="max-w-48"
+                            offset={90}
+                        >
+                            <div className="flex items-center gap-2">
+                                <PackageIcon className="w-5 h-5" />
+                                <span>Binary</span>
+                            </div>
+                        </Tooltip>
+                    }
+                    data-focus-visible="false"
+                    isDisabled={currentHost?.id !== 'local'}
+                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
+                >
+                    <BinarySection />
                 </Tab>
                 <Tab
                     key="proxy"

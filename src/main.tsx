@@ -64,9 +64,9 @@ if (
 
 // placed here to avoid circular dependency
 usePersistedStore.subscribe(async (state, prevState) => {
-    if (state.currentHost?.id !== prevState.currentHost?.id && state.currentHost?.id) {
-        console.log('[Store] Host changed to', state.currentHost.id)
-        await initHostStore(state.currentHost.id).catch(console.error)
+    if (state.currentHostId !== prevState.currentHostId && state.currentHostId) {
+        console.log('[Store] Host changed to', state.currentHostId)
+        await initHostStore(state.currentHostId).catch(console.error)
         await queryClient.cancelQueries()
         clearClient()
         queryClient.clear()

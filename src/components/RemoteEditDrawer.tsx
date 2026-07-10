@@ -1,10 +1,11 @@
 import { Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader, cn } from '@heroui/react'
 import { Button, Select, SelectItem } from '@heroui/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { onErrorDialog } from '../../lib/errors'
+import { useRemoteConfig } from '../../lib/hooks'
 import queryClient from '../../lib/query'
 import rclone from '../../lib/rclone/client'
 import { OVERRIDES } from '../../lib/rclone/overrides'
@@ -22,18 +23,7 @@ export default function RemoteEditDrawer({
     const [config, setConfig] = useState<Record<string, any>>({})
     const [showMoreOptions, setShowMoreOptions] = useState(false)
 
-    const remoteConfigQuery = useQuery({
-        queryKey: ['remote', remoteName, 'config'],
-        queryFn: async () => {
-            return await rclone('/config/get', {
-                params: {
-                    query: {
-                        name: remoteName,
-                    },
-                },
-            })
-        },
-    })
+    const remoteConfigQuery = useRemoteConfig(remoteName)
 
     const remoteConfig = useMemo(() => remoteConfigQuery.data, [remoteConfigQuery.data])
 
@@ -111,7 +101,9 @@ export default function RemoteEditDrawer({
             return updatedRemoteConfig
         },
         onSuccess: async (updatedRemoteConfig) => {
-            await rclone('/fscache/clear').catch()
+            // Best-effort cache clear; a failure here must not reject onSuccess and leave the
+            // drawer stranded open after an otherwise-successful save.
+            await rclone('/fscache/clear').catch(() => null)
             queryClient.setQueryData(
                 ['remote', remoteName, 'config'],
                 (old?: typeof remoteConfig) => ({
@@ -121,13 +113,10 @@ export default function RemoteEditDrawer({
             )
             onClose()
         },
-        onError: async (error) => {
-            console.error('Failed to update remote:', error)
-            await message(error instanceof Error ? error.message : 'Unknown error occurred', {
-                title: 'Could not update remote',
-                kind: 'error',
-            })
-        },
+        onError: onErrorDialog('Could not update remote', 'Unknown error occurred', {
+            capture: false,
+            log: ['Failed to update remote:'],
+        }),
     })
 
     // if (!remoteConfig) return null

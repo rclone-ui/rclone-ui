@@ -1,21 +1,27 @@
 import * as Sentry from '@sentry/browser'
 import { invoke } from '@tauri-apps/api/core'
 import { sep } from '@tauri-apps/api/path'
-import { getAllWindows } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
-import { Command } from '@tauri-apps/plugin-shell'
-import { useHostStore } from '../../store/host'
+import { selectActiveConfigFile, useHostStore } from '../../store/host'
+import { usePersistedStore } from '../../store/persisted'
 import type { ConfigFile } from '../../types/config'
+import { RESTART_RCLONE, emitToMain } from '../events'
 import { getConfigParentFolder } from '../format'
-import { getConfigPath, isInternalRcloneInstalled, isSystemRcloneInstalled } from './common'
+import { getConfigPath } from './common'
+
+interface ExecResult {
+    code: number | null
+    stdout: string
+    stderr: string
+}
 
 export interface RcloneCliCommandContext {
-    command: Command<string>
+    rclonePath: string
+    args: string[]
     activeConfig: ConfigFile
     configPath: string
     configDirectory: string
     env: Record<string, string>
-    flavour: 'system' | 'internal'
 }
 
 export async function promptForConfigPassword(message: string) {
@@ -42,19 +48,35 @@ export async function promptForConfigPassword(message: string) {
     }
 }
 
+/** Returns the active rclone binary path (set during startup adoption). */
+export function getActiveRclonePath(): string {
+    const path = usePersistedStore.getState().rclonePath
+    if (!path) {
+        throw new Error('No rclone binary is configured.')
+    }
+    return path
+}
+
 async function validateConfigAccess(
-    commandName: 'rclone-system' | 'rclone-internal',
-    env: Record<string, string>
+    rclonePath: string,
+    env: Record<string, string>,
+    timeoutMs: number | null = 15000
 ): Promise<{
     success: boolean
+    timedOut?: boolean
     code?: number | null
     stderr?: string
     error?: Error
 }> {
-    console.log('[validateConfigAccess] command:', commandName)
+    console.log('[validateConfigAccess] rclone:', rclonePath)
     try {
-        const command = Command.create(commandName, ['config', 'dump'], { env })
-        const result = await command.execute()
+        const result = await invoke<ExecResult>('exec_rclone', {
+            path: rclonePath,
+            args: ['config', 'dump'],
+            env,
+            stdinLines: null,
+            timeoutMs,
+        })
         console.log('[validateConfigAccess] exit code:', result.code)
 
         if (result.code === 0) {
@@ -63,6 +85,9 @@ async function validateConfigAccess(
 
         return {
             success: false,
+            // A null code means the probe was killed at the deadline — rclone never ruled on the
+            // credentials, so callers must not treat this as a wrong password.
+            timedOut: result.code === null,
             code: result.code ?? null,
             stderr: result.stderr,
         }
@@ -79,7 +104,7 @@ export async function ensureEncryptedConfigEnv(
     activeConfig: ConfigFile,
     env: Record<string, string>,
     autoPromptForPassword: boolean,
-    commandName: 'rclone-system' | 'rclone-internal',
+    rclonePath: string,
     promptMessage: string
 ) {
     console.log('[ensureEncryptedConfigEnv] ensuring encrypted config env for:', activeConfig.id)
@@ -93,7 +118,9 @@ export async function ensureEncryptedConfigEnv(
             RCLONE_CONFIG_PASS_COMMAND: activeConfig.passCommand,
         }
 
-        const validation = await validateConfigAccess(commandName, validationEnv)
+        // Password commands can block on user interaction (biometric prompt, pinentry), so this
+        // probe must not have a deadline.
+        const validation = await validateConfigAccess(rclonePath, validationEnv, null)
         if (validation.success) {
             console.log('[ensureEncryptedConfigEnv] passCommand validation succeeded')
             env.RCLONE_CONFIG_PASS_COMMAND = activeConfig.passCommand
@@ -146,7 +173,7 @@ export async function ensureEncryptedConfigEnv(
             RCLONE_CONFIG_PASS: password,
         }
 
-        const validation = await validateConfigAccess(commandName, validationEnv)
+        const validation = await validateConfigAccess(rclonePath, validationEnv)
         if (validation.success) {
             console.log('[ensureEncryptedConfigEnv] password validation succeeded')
             env.RCLONE_CONFIG_PASS = password
@@ -154,6 +181,16 @@ export async function ensureEncryptedConfigEnv(
         }
 
         console.error('[ensureEncryptedConfigEnv] password validation failed', validation.code)
+
+        if (validation.timedOut || validation.error) {
+            // Indeterminate result (probe killed at its deadline, or rclone failed to launch) —
+            // the password may well be correct, so never clear a stored one or reprompt over it.
+            throw new Error(
+                validation.error
+                    ? `Could not verify the configuration password: ${validation.error.message}`
+                    : 'Timed out while verifying the configuration password. Please try again.'
+            )
+        }
 
         if (passwordSource === 'stored') {
             console.log('[ensureEncryptedConfigEnv] clearing invalid stored password')
@@ -207,21 +244,68 @@ export async function ensureEncryptedConfigEnv(
     }
 }
 
+/**
+ * Builds the environment map for running rclone: proxy vars, config location (always set to the
+ * resolved config path), and encrypted-config credentials. Shared by the daemon and one-off CLI.
+ */
+export async function buildRcloneEnv(opts: {
+    activeConfig: ConfigFile
+    configDirectory: string
+    configPath: string
+    proxy?: { url: string; ignoredHosts: string[] } | undefined
+    rclonePath: string
+    autoPromptForPassword?: boolean
+    additionalEnv?: Record<string, string>
+}): Promise<Record<string, string>> {
+    const env: Record<string, string> = {}
+
+    if (opts.proxy?.url) {
+        env.http_proxy = opts.proxy.url
+        env.https_proxy = opts.proxy.url
+        env.HTTP_PROXY = opts.proxy.url
+        env.HTTPS_PROXY = opts.proxy.url
+        env.no_proxy = opts.proxy.ignoredHosts.join(',')
+        env.NO_PROXY = opts.proxy.ignoredHosts.join(',')
+    }
+
+    // Always pin the config location. For a system + default-config user this equals rclone's own
+    // default (explicit = default), and for managed/custom it prevents falling back to a wrong path.
+    env.RCLONE_CONFIG_DIR = opts.configDirectory
+    env.RCLONE_CONFIG = opts.configPath.endsWith('rclone.conf')
+        ? opts.configPath
+        : `${opts.configDirectory}${sep()}rclone.conf`
+
+    if (opts.activeConfig.isEncrypted) {
+        await ensureEncryptedConfigEnv(
+            opts.activeConfig,
+            env,
+            opts.autoPromptForPassword ?? true,
+            opts.rclonePath,
+            `Please enter the current password for "${opts.activeConfig.label}"`
+        )
+    }
+
+    if (opts.additionalEnv) {
+        Object.assign(env, opts.additionalEnv)
+    }
+
+    return env
+}
+
 async function createRcloneCliCommand(
     args: string[],
     additionalEnv?: Record<string, string>,
     autoPromptForPassword = true
 ): Promise<RcloneCliCommandContext> {
     console.log('[createRcloneCliCommand] creating rclone CLI command with args:', args)
-    const env: Record<string, string> = {}
     const hostStore = useHostStore.getState()
-    const activeConfig = hostStore.activeConfigFile
+    const activeConfig = selectActiveConfigFile(hostStore)
 
     if (!activeConfig || !activeConfig.id) {
         throw new Error('No active configuration selected.')
     }
 
-    console.log('[createRcloneCliCommand] active config:', activeConfig)
+    const rclonePath = getActiveRclonePath()
 
     let configPath: string
     try {
@@ -231,150 +315,72 @@ async function createRcloneCliCommand(
         throw error
     }
 
-    console.log('[createRcloneCliCommand] config path:', configPath)
-
     const configDirectory = getConfigParentFolder(configPath)
     console.log('[createRcloneCliCommand] config directory:', configDirectory)
 
-    const proxy = hostStore.proxy
-    console.log('[createRcloneCliCommand] proxy:', proxy)
-    if (proxy?.url) {
-        env.http_proxy = proxy.url
-        env.https_proxy = proxy.url
-        env.HTTP_PROXY = proxy.url
-        env.HTTPS_PROXY = proxy.url
-        env.no_proxy = proxy.ignoredHosts.join(',')
-        env.NO_PROXY = proxy.ignoredHosts.join(',')
-    }
-
-    console.log('[createRcloneCliCommand] checking for system rclone installation')
-    const hasSystem = await isSystemRcloneInstalled()
-    console.log('[createRcloneCliCommand] checking for internal rclone installation')
-    const hasInternal = await isInternalRcloneInstalled()
-
-    console.log('[createRcloneCliCommand] has system:', hasSystem)
-    console.log('[createRcloneCliCommand] has internal:', hasInternal)
-
-    if (!hasSystem && !hasInternal) {
-        console.log('[createRcloneCliCommand] no rclone installation found')
-        const error = new Error('Unable to locate an rclone installation.')
-        Sentry.captureException(error)
-        throw error
-    }
-
-    const flavour = hasSystem ? 'system' : 'internal'
-    const commandName = flavour === 'system' ? 'rclone-system' : 'rclone-internal'
-
-    if (!hasSystem || activeConfig.id !== 'default') {
-        console.log('[createRcloneCliCommand] setting config directory and path')
-        env.RCLONE_CONFIG_DIR = configDirectory
-        env.RCLONE_CONFIG = configPath.endsWith('rclone.conf')
-            ? configPath
-            : `${configDirectory}${sep()}rclone.conf`
-    }
-
-    if (activeConfig.isEncrypted) {
-        console.log('[createRcloneCliCommand] ensuring encrypted configuration access')
-        await ensureEncryptedConfigEnv(
-            activeConfig,
-            env,
-            autoPromptForPassword,
-            commandName,
-            `Please enter the current password for "${activeConfig.label}"`
-        )
-    }
-
-    if (additionalEnv) {
-        console.log('[createRcloneCliCommand] setting additional environment')
-        Object.assign(env, additionalEnv)
-    }
-
-    console.log(
-        '[createRcloneCliCommand] creating command, name:',
-        commandName,
-        'args:',
-        args,
-        'env:',
-        env
-    )
-
-    const command = Command.create(commandName, args, { env })
-
-    console.log('[createRcloneCliCommand] command created')
+    const env = await buildRcloneEnv({
+        activeConfig,
+        configDirectory,
+        configPath,
+        proxy: hostStore.proxy,
+        rclonePath,
+        autoPromptForPassword,
+        additionalEnv,
+    })
 
     return {
-        command,
+        rclonePath,
+        args,
         activeConfig,
         configPath,
         configDirectory,
         env,
-        flavour,
     }
 }
 
 export async function runRcloneCli(args: string[], input: string[] = []) {
-    const { command } = await createRcloneCliCommand(args, undefined, true)
-
-    let stdout = ''
-    let stderr = ''
+    const { rclonePath, env } = await createRcloneCliCommand(args, undefined, true)
 
     console.log('[runRcloneCli] running command', 'args:', args, 'input:', input)
 
-    return await new Promise<void>((resolve, reject) => {
-        command.stdout.on('data', (line) => {
-            console.log('[runRcloneCli] stdout:', line)
-            stdout += line
+    let result: ExecResult
+    try {
+        result = await invoke<ExecResult>('exec_rclone', {
+            path: rclonePath,
+            args,
+            env,
+            stdinLines: input.length > 0 ? input : null,
+            // Config-writing operations must not be interrupted by a timeout.
+            timeoutMs: null,
         })
-        command.stderr.on('data', (line) => {
-            console.log('[runRcloneCli] stderr:', line)
-            stderr += line
-        })
-        command.addListener('error', (event) => {
-            console.log('[runRcloneCli] error:', event)
-            const error = typeof event === 'string' ? new Error(event) : event
-            Sentry.captureException(error)
-            reject(error instanceof Error ? error : new Error('Unknown rclone CLI error.'))
-        })
-        command.addListener('close', (event) => {
-            console.log('[runRcloneCli] close:', event)
+    } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error))
+        Sentry.captureException(err)
+        throw err
+    }
 
-            if (event.code === 0) {
-                resolve()
-                return
-            }
-
-            const error = new Error(
-                `rclone command failed (code ${event.code ?? 'unknown'}): ${stderr || stdout}`
-            )
-            Sentry.captureException(error)
-            reject(error)
-        })
-
-        command
-            .spawn()
-            .then(async (child) => {
-                console.log('[runRcloneCli] child:', child)
-                for (const line of input) {
-                    console.log('[runRcloneCli] writing input:', line)
-                    await child.write(`${line}\n`)
-                    await new Promise((resolve) => setTimeout(resolve, 100))
-                    console.log('[runRcloneCli] input written')
-                }
-            })
-            .catch((error) => {
-                console.log('[runRcloneCli] error:', error)
-                Sentry.captureException(error)
-                reject(error)
-            })
-    })
+    if (result.code !== 0) {
+        const error = new Error(
+            `rclone command failed (code ${result.code ?? 'unknown'}): ${result.stderr || result.stdout}`
+        )
+        Sentry.captureException(error)
+        throw error
+    }
 }
 
 export async function restartActiveRclone() {
     try {
-        ;(await getAllWindows())
-            .filter((window) => window.label === 'main')[0]
-            .emit('restart-rclone')
-        // await getCurrentWindow().emit('restart-rclone')
+        // The main window's store may not have rehydrated this webview's writes before the restart
+        // runs — carry a full lifecycle snapshot from THIS webview's fresh stores in the payload.
+        const host = useHostStore.getState()
+        const persisted = usePersistedStore.getState()
+        await emitToMain(RESTART_RCLONE, {
+            rclonePath: persisted.rclonePath,
+            defaultConfigPath: host.defaultConfigPath,
+            configFiles: host.configFiles,
+            activeConfigId: host.activeConfigId,
+            proxy: host.proxy,
+        })
     } catch (error) {
         Sentry.captureException(error)
         console.error('[restartActiveRclone] failed to emit restart event', error)

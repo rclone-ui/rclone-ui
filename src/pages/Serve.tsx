@@ -12,7 +12,6 @@ import {
     SelectItem,
     Tooltip,
 } from '@heroui/react'
-import * as Sentry from '@sentry/browser'
 import { useMutation } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -30,6 +29,7 @@ import {
 } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { onErrorDialog } from '../../lib/errors'
 import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { startServe } from '../../lib/rclone/api'
@@ -90,14 +90,9 @@ export default function Serve() {
                 ...(vfsOptions as Record<string, FlagValue>),
             })
         },
-        onError: async (error) => {
-            console.error('[Serve] Failed to start serve:', error)
-            Sentry.captureException(error)
-            await message(error instanceof Error ? error.message : 'Failed to start serve', {
-                title: 'Serve',
-                kind: 'error',
-            })
-        },
+        onError: onErrorDialog('Serve', 'Failed to start serve', {
+            log: ['[Serve] Failed to start serve:'],
+        }),
     })
 
     useEffect(() => {
@@ -290,19 +285,54 @@ export default function Serve() {
                         startTransition(() => {
                             if (shouldMerge) {
                                 if (groupedOptions.serve && type)
-                                    setServeOptionsJsonString(JSON.stringify({ ...serveOptions, ...groupedOptions.serve[type] }, null, 2))
+                                    setServeOptionsJsonString(
+                                        JSON.stringify(
+                                            { ...serveOptions, ...groupedOptions.serve[type] },
+                                            null,
+                                            2
+                                        )
+                                    )
                                 if (groupedOptions.vfs)
-                                    setVfsOptionsJsonString(JSON.stringify({ ...vfsOptions, ...groupedOptions.vfs }, null, 2))
+                                    setVfsOptionsJsonString(
+                                        JSON.stringify(
+                                            { ...vfsOptions, ...groupedOptions.vfs },
+                                            null,
+                                            2
+                                        )
+                                    )
                                 if (groupedOptions.filter)
-                                    setFilterOptionsJsonString(JSON.stringify({ ...filterOptions, ...groupedOptions.filter }, null, 2))
+                                    setFilterOptionsJsonString(
+                                        JSON.stringify(
+                                            { ...filterOptions, ...groupedOptions.filter },
+                                            null,
+                                            2
+                                        )
+                                    )
                                 if (groupedOptions.config)
-                                    setConfigOptionsJsonString(JSON.stringify({ ...configOptions, ...groupedOptions.config }, null, 2))
+                                    setConfigOptionsJsonString(
+                                        JSON.stringify(
+                                            { ...configOptions, ...groupedOptions.config },
+                                            null,
+                                            2
+                                        )
+                                    )
                             } else {
                                 if (groupedOptions.serve && type)
-                                    setServeOptionsJsonString(JSON.stringify(groupedOptions.serve[type], null, 2))
-                                if (groupedOptions.vfs) setVfsOptionsJsonString(JSON.stringify(groupedOptions.vfs, null, 2))
-                                if (groupedOptions.filter) setFilterOptionsJsonString(JSON.stringify(groupedOptions.filter, null, 2))
-                                if (groupedOptions.config) setConfigOptionsJsonString(JSON.stringify(groupedOptions.config, null, 2))
+                                    setServeOptionsJsonString(
+                                        JSON.stringify(groupedOptions.serve[type], null, 2)
+                                    )
+                                if (groupedOptions.vfs)
+                                    setVfsOptionsJsonString(
+                                        JSON.stringify(groupedOptions.vfs, null, 2)
+                                    )
+                                if (groupedOptions.filter)
+                                    setFilterOptionsJsonString(
+                                        JSON.stringify(groupedOptions.filter, null, 2)
+                                    )
+                                if (groupedOptions.config)
+                                    setConfigOptionsJsonString(
+                                        JSON.stringify(groupedOptions.config, null, 2)
+                                    )
                             }
                         })
                     }}

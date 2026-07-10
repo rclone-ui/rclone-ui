@@ -15,6 +15,7 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { platform } from '@tauri-apps/plugin-os'
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { onErrorDialog } from '../../lib/errors'
 import { getConfigPath } from '../../lib/rclone/common'
 import { useHostStore } from '../../store/host'
 
@@ -78,14 +79,11 @@ export default function ConfigEditDrawer({
         onSuccess: () => {
             onClose()
         },
-        onError: async (error) => {
-            console.error('[updateConfig] failed to save config', error)
-            await message(error instanceof Error ? error.message : 'An unknown error occurred', {
-                title: 'Failed to save config',
-                kind: 'error',
-                okLabel: 'OK',
-            })
-        },
+        onError: onErrorDialog('Failed to save config', undefined, {
+            okLabel: 'OK',
+            capture: false,
+            log: ['[updateConfig] failed to save config'],
+        }),
     })
 
     const initializeConfig = useCallback(async () => {
