@@ -7,14 +7,16 @@ import { onErrorDialog } from '../../lib/errors'
 import { getOptionsSubtitle } from '../../lib/flags'
 import { getRemoteName } from '../../lib/format'
 import { useFlags, useRemoteConfig } from '../../lib/hooks'
-import notify from '../../lib/notify'
+import { notify } from '../../lib/notifications'
 import { startDelete, startDryRun } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS, SUPPORTS_PURGE } from '../../lib/rclone/constants'
-import CronEditor from '../components/CronEditor'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
+import AdvancedScheduleSection, {
+    useAdvancedSchedule,
+} from '../components/operation/AdvancedScheduleSection'
 import OperationFooter from '../components/operation/OperationFooter'
 import OptionsAccordion, {
     type OptionsAccordionItemDef,
@@ -43,7 +45,7 @@ Expand the accordion sections to customize your delete operation. Tap any chip o
 
 • Config — Performance tuning: parallel checkers, and other global rclone settings.
 
-• Cron — Schedule this delete to run automatically at set intervals. Useful for automated cleanup tasks. The schedule only triggers while the app is running.
+• Cron — Schedule this delete to run automatically at set intervals. Useful for automated cleanup tasks. It runs on a system schedule, even when the app is closed.
 
 3. USE TEMPLATES (Optional)
 Tap the folder icon in the bottom bar to load or save option presets. Templates let you quickly apply common filter configurations for recurring cleanup tasks.
@@ -59,7 +61,7 @@ export default function Delete() {
         searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
     )
 
-    const [cronExpression, setCronExpression] = useState<string | null>(null)
+    const advanced = useAdvancedSchedule()
 
     const {
         jsonError,
@@ -108,7 +110,7 @@ export default function Delete() {
                 title: 'Success',
                 body: 'Delete task started',
             })
-            if (cronExpression) {
+            if (advanced.cronExpression) {
                 scheduleTaskMutation.mutate()
             }
         },
@@ -119,7 +121,9 @@ export default function Delete() {
 
     const scheduleTaskMutation = useScheduleTask({
         operation: 'delete',
-        cronExpression,
+        cronExpression: advanced.cronExpression,
+        configId: advanced.configId,
+        binaryPath: advanced.binaryPath,
         validate: () => {
             if (!sourceFs) {
                 throw new Error('Please select a source path to delete')
@@ -147,9 +151,9 @@ export default function Delete() {
         if (startDeleteMutation.isPending) return 'STARTING...'
         if (!sourceFs || sourceFs.length === 0) return 'Please select a source path'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (cronExpression) return 'START AND SCHEDULE DELETE'
+        if (advanced.cronExpression) return 'START AND SCHEDULE DELETE'
         return 'START DELETE'
-    }, [startDeleteMutation.isPending, sourceFs, jsonError, cronExpression])
+    }, [startDeleteMutation.isPending, sourceFs, jsonError, advanced.cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startDeleteMutation.isPending) return
@@ -190,13 +194,8 @@ export default function Delete() {
                     />
                 ),
             },
-            {
-                key: 'cron',
-                category: 'cron',
-                children: <CronEditor expression={cronExpression} onChange={setCronExpression} />,
-            },
         ],
-        [filterGroup, configGroup, globalFlags, filterFlags, configFlags, cronExpression]
+        [filterGroup, configGroup, globalFlags, filterFlags, configFlags]
     )
 
     const handleStart = useCallback(
@@ -222,20 +221,20 @@ export default function Delete() {
     const handleResetOptions = useCallback(() => {
         startTransition(() => {
             resetJson()
-            setCronExpression(null)
+            advanced.reset()
             startDeleteMutation.reset()
         })
-    }, [resetJson, startDeleteMutation.reset])
+    }, [advanced.reset, resetJson, startDeleteMutation.reset])
 
     const handleResetAll = useCallback(() => {
         startTransition(() => {
             resetJson()
             resetLocks()
-            setCronExpression(null)
+            advanced.reset()
             setSourceFs(undefined)
             startDeleteMutation.reset()
         })
-    }, [resetJson, resetLocks, startDeleteMutation.reset])
+    }, [advanced.reset, resetJson, resetLocks, startDeleteMutation.reset])
 
     return (
         <div className="flex flex-col h-screen gap-10">
@@ -263,6 +262,8 @@ export default function Delete() {
                         which is more efficient!
                     </Alert>
                 )}
+
+                <AdvancedScheduleSection advanced={advanced} />
 
                 <OptionsAccordion items={accordionItems} />
             </OperationWindowContent>

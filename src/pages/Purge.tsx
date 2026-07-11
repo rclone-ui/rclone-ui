@@ -7,11 +7,13 @@ import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { startPurge } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
-import CronEditor from '../components/CronEditor'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { PathField } from '../components/PathFinder'
+import AdvancedScheduleSection, {
+    useAdvancedSchedule,
+} from '../components/operation/AdvancedScheduleSection'
 import OperationFooter from '../components/operation/OperationFooter'
 import OptionsAccordion, {
     type OptionsAccordionItemDef,
@@ -21,7 +23,7 @@ import { useScheduleTask } from '../components/operation/useScheduleTask'
 
 const PATH_ALLOWED_KEYS: ('LOCAL_FS' | 'FAVORITES' | 'REMOTES')[] = ['REMOTES', 'FAVORITES']
 
-const DEFAULT_EXPANDED_KEYS = ['config', 'cron']
+const DEFAULT_EXPANDED_KEYS = ['config']
 
 const HELP_CONTENT = `Removes a path and ALL of its contents.
 
@@ -41,7 +43,7 @@ Expand the accordion sections to customize your purge operation. Tap any chip on
 
 • Config — The "checkers" option controls concurrency for backends that don't support server-side purge. Other global rclone settings are also available here.
 
-• Cron — Schedule this purge to run automatically at set intervals. Useful for automated cleanup of temporary folders. The schedule only triggers while the app is running.
+• Cron — Schedule this purge to run automatically at set intervals. Useful for automated cleanup of temporary folders. It runs on a system schedule, even when the app is closed.
 
 3. USE TEMPLATES (Optional)
 Tap the folder icon in the bottom bar to load or save option presets.
@@ -57,7 +59,7 @@ export default function Purge() {
         searchParams.get('initialSource') ? searchParams.get('initialSource')! : undefined
     )
 
-    const [cronExpression, setCronExpression] = useState<string | null>(null)
+    const advanced = useAdvancedSchedule()
 
     const {
         jsonError,
@@ -88,7 +90,7 @@ export default function Purge() {
             return startPurge(buildArgs())
         },
         onSuccess: async () => {
-            if (cronExpression) {
+            if (advanced.cronExpression) {
                 scheduleTaskMutation.mutate()
             }
         },
@@ -99,7 +101,9 @@ export default function Purge() {
 
     const scheduleTaskMutation = useScheduleTask({
         operation: 'purge',
-        cronExpression,
+        cronExpression: advanced.cronExpression,
+        configId: advanced.configId,
+        binaryPath: advanced.binaryPath,
         validate: () => {
             if (!source) {
                 throw new Error('Please select a source path to purge')
@@ -112,9 +116,9 @@ export default function Purge() {
         if (startPurgeMutation.isPending) return 'STARTING...'
         if (!source) return 'Please select a source path'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (cronExpression) return 'START AND SCHEDULE PURGE'
+        if (advanced.cronExpression) return 'START AND SCHEDULE PURGE'
         return 'START PURGE'
-    }, [startPurgeMutation.isPending, source, jsonError, cronExpression])
+    }, [startPurgeMutation.isPending, source, jsonError, advanced.cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startPurgeMutation.isPending) return
@@ -140,13 +144,8 @@ export default function Purge() {
                     />
                 ),
             },
-            {
-                key: 'cron',
-                category: 'cron',
-                children: <CronEditor expression={cronExpression} onChange={setCronExpression} />,
-            },
         ],
-        [configGroup, globalFlags, configFlags, cronExpression]
+        [configGroup, globalFlags, configFlags]
     )
 
     const handleStart = useCallback(() => startPurgeMutation.mutate(), [startPurgeMutation.mutate])
@@ -167,20 +166,20 @@ export default function Purge() {
     const handleResetOptions = useCallback(() => {
         startTransition(() => {
             resetJson()
-            setCronExpression(null)
+            advanced.reset()
             startPurgeMutation.reset()
         })
-    }, [resetJson, startPurgeMutation.reset])
+    }, [advanced.reset, resetJson, startPurgeMutation.reset])
 
     const handleResetAll = useCallback(() => {
         startTransition(() => {
             resetJson()
             resetLocks()
-            setCronExpression(null)
+            advanced.reset()
             setSource(undefined)
             startPurgeMutation.reset()
         })
-    }, [resetJson, resetLocks, startPurgeMutation.reset])
+    }, [advanced.reset, resetJson, resetLocks, startPurgeMutation.reset])
 
     return (
         <div className="flex flex-col h-screen gap-10">
@@ -196,6 +195,8 @@ export default function Purge() {
                     allowedKeys={PATH_ALLOWED_KEYS}
                     showFiles={false}
                 />
+
+                <AdvancedScheduleSection advanced={advanced} />
 
                 <OptionsAccordion
                     defaultExpandedKeys={DEFAULT_EXPANDED_KEYS}

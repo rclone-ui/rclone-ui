@@ -12,7 +12,20 @@ mod shortcut;
 #[path = "../common/window.rs"]
 mod window;
 
+mod notifications;
+mod scheduler;
 mod zookeeper;
+
+/// Entry point for the headless `run-task` mode (see main.rs). Never touches tauri::Builder.
+pub fn run_scheduled_task(
+    task_id: &str,
+    host_id: &str,
+    forced: bool,
+    data_dir: Option<&str>,
+    local_data_dir: Option<&str>,
+) -> i32 {
+    scheduler::runner::run(task_id, host_id, forced, data_dir, local_data_dir)
+}
 
 use shortcut::{
     ensure_toolbar_window, set_toolbar_shortcut, show_toolbar_window, DEFAULT_TOOLBAR_SHORTCUT,
@@ -63,13 +76,19 @@ fn is_linux_mint() -> bool {
     }
 }
 
+/// The single Flatpak permission gate: the app quits at startup unless it holds BOTH writable
+/// host filesystem access (rclone needs it) AND host-spawn access (the scheduler needs it). This
+/// all-or-nothing check is why no other Flatpak permission checks exist elsewhere — any running
+/// instance is guaranteed to have full permissions.
 #[tauri::command]
 fn has_flatpak_permissions() -> bool {
-    // Native app: no Flatpak permission needed.
     if !is_flatpak() {
         return true;
     }
+    has_host_filesystem() && flatpak_can_spawn_host()
+}
 
+fn has_host_filesystem() -> bool {
     let Ok(contents) = std::fs::read_to_string("/.flatpak-info") else {
         return false;
     };
@@ -125,6 +144,76 @@ fn has_flatpak_permissions() -> bool {
     }
 
     false
+}
+
+/// Whether the sandbox can spawn processes on the host (`flatpak-spawn --host`), which the
+/// scheduler needs to register OS cron jobs. Always true off Flatpak. Granted by
+/// `--talk-name=org.freedesktop.Flatpak`, which appears in /.flatpak-info under
+/// `[Session Bus Policy]` as `org.freedesktop.Flatpak=talk` (or `own`).
+pub(crate) fn flatpak_can_spawn_host() -> bool {
+    if !is_flatpak() {
+        return true;
+    }
+    let Ok(contents) = std::fs::read_to_string("/.flatpak-info") else {
+        return false;
+    };
+    flatpak_info_grants_host_spawn(&contents)
+}
+
+/// True when the parsed /.flatpak-info grants `org.freedesktop.Flatpak` in `[Session Bus Policy]`.
+fn flatpak_info_grants_host_spawn(contents: &str) -> bool {
+    let mut in_session_bus = false;
+    for line in contents.lines() {
+        let line = line.trim();
+
+        if line.starts_with('[') && line.ends_with(']') {
+            in_session_bus = line == "[Session Bus Policy]";
+            continue;
+        }
+
+        if !in_session_bus {
+            continue;
+        }
+
+        if let Some((key, value)) = line.split_once('=') {
+            if key.trim() == "org.freedesktop.Flatpak" {
+                let policy = value.trim();
+                return policy == "talk" || policy == "own";
+            }
+        }
+    }
+
+    false
+}
+
+#[cfg(test)]
+mod flatpak_tests {
+    use super::flatpak_info_grants_host_spawn;
+
+    #[test]
+    fn detects_granted_talk_permission() {
+        let info = "[Application]\nname=com.rcloneui.RcloneUI\n\n[Session Bus Policy]\norg.freedesktop.Flatpak=talk\norg.freedesktop.Notifications=talk\n";
+        assert!(flatpak_info_grants_host_spawn(info));
+    }
+
+    #[test]
+    fn own_policy_also_counts() {
+        let info = "[Session Bus Policy]\norg.freedesktop.Flatpak=own\n";
+        assert!(flatpak_info_grants_host_spawn(info));
+    }
+
+    #[test]
+    fn absent_or_other_sections_do_not_count() {
+        // Permission not listed at all.
+        let info = "[Session Bus Policy]\norg.freedesktop.Notifications=talk\n";
+        assert!(!flatpak_info_grants_host_spawn(info));
+        // Same key but in a different section must not match.
+        let wrong_section = "[System Bus Policy]\norg.freedesktop.Flatpak=talk\n";
+        assert!(!flatpak_info_grants_host_spawn(wrong_section));
+        // Explicit 'none' policy.
+        let none = "[Session Bus Policy]\norg.freedesktop.Flatpak=none\n";
+        assert!(!flatpak_info_grants_host_spawn(none));
+    }
 }
 
 pub(crate) async fn kill_pid(pid: u32, timeout_ms: Option<u64>) -> Result<(), String> {
@@ -786,7 +875,26 @@ pub fn run() {
             zookeeper::download_rclone_version,
             zookeeper::update_path_pointer,
             zookeeper::get_rclone_path_integration,
-            zookeeper::set_rclone_path_integration
+            zookeeper::set_rclone_path_integration,
+            scheduler::scheduler_supported,
+            scheduler::scheduler_validate_cron,
+            scheduler::scheduler_register,
+            scheduler::scheduler_unregister,
+            scheduler::scheduler_set_enabled,
+            scheduler::scheduler_run_now,
+            scheduler::scheduler_status,
+            scheduler::scheduler_read_history,
+            scheduler::scheduler_read_log,
+            scheduler::scheduler_doctor,
+            scheduler::scheduler_unregister_all,
+            scheduler::scheduler_sweep_orphans,
+            notifications::notifications_catalog,
+            notifications::notifications_list_targets,
+            notifications::notifications_add_target,
+            notifications::notifications_update_target,
+            notifications::notifications_remove_target,
+            notifications::notifications_dispatch,
+            notifications::notifications_send_test
         ])
         .setup(|app| {
             #[cfg(target_os = "linux")]

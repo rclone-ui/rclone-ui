@@ -22,6 +22,7 @@ import {
 import { MIN_RCLONE_VERSION } from '../../../lib/rclone/constants'
 import {
     type DownloadProgress,
+    type DownloadedVersion,
     activateRclonePath,
     deleteVersion,
     downloadVersion,
@@ -30,6 +31,7 @@ import {
     listDownloadedVersions,
     setPathIntegration,
 } from '../../../lib/rclone/versions'
+import { useHostStore } from '../../../store/host'
 import { usePersistedStore } from '../../../store/persisted'
 import BaseSection from './BaseSection'
 
@@ -117,6 +119,25 @@ export default function BinarySection() {
         },
     })
 
+    const scheduledTasks = useHostStore((state) => state.scheduledTasks)
+
+    const handleDeleteVersion = async (v: DownloadedVersion) => {
+        // Schedules can pin a specific downloaded version by absolute path — deleting it would
+        // make every later run fail with "binary not found". Being the active global binary is
+        // not the only way a version can be in use. (Schedules are local-host-only, so the host
+        // store is authoritative here.)
+        const pinnedBy = scheduledTasks.filter((task) => task.binaryPath === v.path)
+        if (pinnedBy.length > 0) {
+            const names = pinnedBy.map((task) => task.name || task.operation).join(', ')
+            await message(
+                `This version is used by ${pinnedBy.length} scheduled task(s): ${names}. Change their rclone binary in the schedule settings first.`,
+                { title: 'Version in use', kind: 'warning' }
+            )
+            return
+        }
+        deleteMutation.mutate(v.version)
+    }
+
     const downloadedVersions = downloadedQuery.data ?? []
     const downloadedSet = useMemo(
         () => new Set(downloadedVersions.map((v) => v.version)),
@@ -191,9 +212,7 @@ export default function BinarySection() {
                                 actionLabel="Use"
                                 isActivating={activateMutation.isPending}
                                 onActivate={() => activateMutation.mutate({ path: v.path })}
-                                onDelete={
-                                    isActive ? undefined : () => deleteMutation.mutate(v.version)
-                                }
+                                onDelete={isActive ? undefined : () => handleDeleteVersion(v)}
                                 isDeleting={
                                     deleteMutation.isPending &&
                                     deleteMutation.variables === v.version

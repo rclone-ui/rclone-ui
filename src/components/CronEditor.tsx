@@ -7,6 +7,8 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 interface CronEditorProps {
     expression: string | null
     onChange: (newExpression: string | null) => void
+    /** Platform-specific validation error from scheduler_validate_cron. */
+    error?: string | null
 }
 
 interface CronFieldProps {
@@ -18,7 +20,7 @@ interface CronFieldProps {
 
 const DEFAULT_OPTIONS = ['*', '*/5', '*/10', '*/15', '*/30']
 
-export default function CronEditor({ expression, onChange }: CronEditorProps) {
+export default function CronEditor({ expression, onChange, error }: CronEditorProps) {
     const [cronExpression, setCronExpression] = useState(expression)
 
     const [minute, hour, dayOfMonth, month, dayOfWeek] = useMemo(
@@ -31,8 +33,7 @@ export default function CronEditor({ expression, onChange }: CronEditorProps) {
         let description: string
         try {
             description = cronstrue.toString(cronExpression)
-            description +=
-                '. Tasks are triggered when the UI is running, if the active config is the same.'
+            description += '. Runs on a system schedule, even when the app is closed.'
         } catch {
             description = 'Invalid cron expression'
         }
@@ -59,6 +60,14 @@ export default function CronEditor({ expression, onChange }: CronEditorProps) {
         }
         onChange(cronExpression)
     }, [cronExpression, onChange])
+
+    // Re-sync when the parent changes `expression` out from under us (the edit drawer coercing a
+    // cleared field to '* * * * *', or an Advanced-section reset to null). Without this the
+    // control keeps its stale internal value — showing "not scheduled" while the parent saves a
+    // real cron. Echoes of our own emitted value set the same string and no-op.
+    useEffect(() => {
+        setCronExpression(expression)
+    }, [expression])
 
     return (
         <div className="flex flex-col w-full gap-2">
@@ -118,6 +127,7 @@ export default function CronEditor({ expression, onChange }: CronEditorProps) {
             </div>
 
             <div className="text-sm text-neutral-500">{readableDescription}</div>
+            {!!error && <div className="text-sm text-danger-500">{error}</div>}
         </div>
     )
 }

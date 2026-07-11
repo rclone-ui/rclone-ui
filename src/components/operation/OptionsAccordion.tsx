@@ -1,6 +1,5 @@
 import { Accordion, AccordionItem, Avatar } from '@heroui/react'
 import {
-    ClockIcon,
     CopyIcon,
     DiamondPercentIcon,
     FilterIcon,
@@ -14,7 +13,7 @@ import ShowMoreOptionsBanner from '../ShowMoreOptionsBanner'
 
 // Avatar/indicator/title per option category — exactly what each page's accordion rendered.
 export const CATEGORY_META: Record<
-    'copy' | 'sync' | 'move' | 'bisync' | 'filters' | 'cron' | 'config' | 'remotes',
+    'copy' | 'sync' | 'move' | 'bisync' | 'filters' | 'config' | 'remotes',
     {
         title: string
         icon: ComponentType<{ className?: string }>
@@ -33,7 +32,6 @@ export const CATEGORY_META: Record<
         avatarIconClassName: 'text-success-foreground',
     },
     filters: { title: 'Filters', icon: FilterIcon, avatarColor: 'danger' },
-    cron: { title: 'Cron', icon: ClockIcon, avatarColor: 'warning' },
     config: { title: 'Config', icon: WrenchIcon, avatarColor: 'default' },
     remotes: { title: 'Remotes', icon: ServerIcon, avatarClassName: 'bg-fuchsia-500' },
 }
@@ -50,7 +48,7 @@ export interface OptionsAccordionItemDef {
 /**
  * The option-group accordion shared by the operation pages: item scaffolding (Avatar,
  * indicator, title) comes from CATEGORY_META; each item's content (OptionsSection /
- * CronEditor / RemoteOptionsSection) stays page-supplied. `banner` wraps the accordion in the
+ * RemoteOptionsSection) stays page-supplied. `banner` wraps the accordion in the
  * relative div with the ShowMoreOptionsBanner (Copy/Sync/Move); Bisync/Delete/Purge omit it.
  */
 export default function OptionsAccordion({

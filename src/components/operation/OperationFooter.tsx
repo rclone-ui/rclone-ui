@@ -11,7 +11,10 @@ import { platform } from '@tauri-apps/plugin-os'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ClockIcon, EyeIcon } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useMemo } from 'react'
+import { LOCAL_HOST_ID } from '../../../lib/hosts'
+import { useSchedulerSupported } from '../../../lib/scheduler'
 import { openWindow } from '../../../lib/window'
+import { usePersistedStore } from '../../../store/persisted'
 import type { Template } from '../../../types/template'
 import CommandInfoButton from '../CommandInfoButton'
 import CommandsDropdown from '../CommandsDropdown'
@@ -71,6 +74,20 @@ export default function OperationFooter({
     helpContent: string
 }) {
     const dropdownShadow = useMemo(() => (platform() === 'windows' ? 'none' : undefined), [])
+
+    // Scheduling is OS-native and local-host-only; hide the affordance where it can't work
+    // (sandboxed installs, remote hosts).
+    const currentHostId = usePersistedStore((state) => state.currentHostId) ?? LOCAL_HOST_ID
+    const supportQuery = useSchedulerSupported()
+    // Treat unresolved support as unavailable (matches AdvancedScheduleSection and Schedules.tsx)
+    // — otherwise the Schedule button is enabled while the only cron-entry UI is still hidden.
+    const schedulingAvailable =
+        currentHostId === LOCAL_HOST_ID && (supportQuery.data?.supported ?? false)
+    const scheduleTooltip = schedulingAvailable
+        ? 'Schedule task'
+        : currentHostId !== LOCAL_HOST_ID
+          ? 'Scheduling is only available on your local machine'
+          : (supportQuery.data?.reason ?? 'Scheduling is not available on this system')
 
     const handleStartPress = useCallback(() => {
         setTimeout(() => onStart(), 100)
@@ -194,16 +211,19 @@ export default function OperationFooter({
                         </Button>
                     </Tooltip>
                 ) : null}
-                <Tooltip content="Schedule task" placement="top" size="lg" color="foreground">
-                    <Button
-                        size="lg"
-                        type="button"
-                        color="primary"
-                        isIconOnly={true}
-                        onPress={handleSchedulePress}
-                    >
-                        <ClockIcon className="size-6" />
-                    </Button>
+                <Tooltip content={scheduleTooltip} placement="top" size="lg" color="foreground">
+                    <div>
+                        <Button
+                            size="lg"
+                            type="button"
+                            color="primary"
+                            isIconOnly={true}
+                            isDisabled={!schedulingAvailable}
+                            onPress={handleSchedulePress}
+                        >
+                            <ClockIcon className="size-6" />
+                        </Button>
+                    </div>
                 </Tooltip>
                 <CommandInfoButton content={helpContent} />
                 <CommandsDropdown currentCommand={operation} />

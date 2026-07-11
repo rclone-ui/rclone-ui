@@ -8,12 +8,14 @@ import { useFlags } from '../../lib/hooks'
 import { startDryRun, startMove } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import { usePersistedStore } from '../../store/persisted'
-import CronEditor from '../components/CronEditor'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { MultiPathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import AdvancedScheduleSection, {
+    useAdvancedSchedule,
+} from '../components/operation/AdvancedScheduleSection'
 import OperationFooter from '../components/operation/OperationFooter'
 import OptionsAccordion, {
     type OptionsAccordionItemDef,
@@ -44,7 +46,7 @@ Expand the accordion sections to customize your move operation. Tap any chip on 
 
 • Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
 
-• Cron — Schedule this move to run automatically at set intervals. The schedule only triggers while the app is running.
+• Cron — Schedule this move to run automatically at set intervals. It runs on a system schedule, even when the app is closed.
 
 • Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
 
@@ -88,7 +90,7 @@ export default function Move() {
     const filterGroup = optionGroups.filter
     const configGroup = optionGroups.config
 
-    const [cronExpression, setCronExpression] = useState<string | null>(null)
+    const advanced = useAdvancedSchedule()
 
     const selectedRemotes = useMemo(
         () => [...(sources || []), dest].filter(Boolean),
@@ -115,7 +117,7 @@ export default function Move() {
             return startMove(buildArgs())
         },
         onSuccess: () => {
-            if (cronExpression) {
+            if (advanced.cronExpression) {
                 scheduleTaskMutation.mutate()
             }
         },
@@ -127,7 +129,9 @@ export default function Move() {
 
     const scheduleTaskMutation = useScheduleTask({
         operation: 'move',
-        cronExpression,
+        cronExpression: advanced.cronExpression,
+        configId: advanced.configId,
+        binaryPath: advanced.binaryPath,
         validate: () => {
             if (!sources || sources.length === 0 || !dest) {
                 throw new Error('Please select both a source and destination path')
@@ -164,9 +168,9 @@ export default function Move() {
         if (!dest) return 'Please select a destination path'
         if (sources.some((s) => s === dest)) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (cronExpression) return 'START AND SCHEDULE MOVE'
+        if (advanced.cronExpression) return 'START AND SCHEDULE MOVE'
         return 'START MOVE'
-    }, [startMoveMutation.isPending, sources, dest, jsonError, cronExpression])
+    }, [startMoveMutation.isPending, sources, dest, jsonError, advanced.cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startMoveMutation.isPending) return
@@ -207,11 +211,6 @@ export default function Move() {
                         setIsLocked={filterGroup.setLocked}
                     />
                 ),
-            },
-            {
-                key: 'cron',
-                category: 'cron',
-                children: <CronEditor expression={cronExpression} onChange={setCronExpression} />,
             },
             {
                 key: 'config',
@@ -262,7 +261,6 @@ export default function Move() {
             filterFlags,
             configFlags,
             copyFlags,
-            cronExpression,
             selectedRemotes,
         ]
     )
@@ -288,21 +286,21 @@ export default function Move() {
     const handleResetOptions = useCallback(() => {
         startTransition(() => {
             resetJson()
-            setCronExpression(null)
+            advanced.reset()
             startMoveMutation.reset()
         })
-    }, [resetJson, startMoveMutation.reset])
+    }, [advanced.reset, resetJson, startMoveMutation.reset])
 
     const handleResetAll = useCallback(() => {
         startTransition(() => {
             resetJson()
             resetLocks()
-            setCronExpression(null)
+            advanced.reset()
             setSources(undefined)
             setDest(undefined)
             startMoveMutation.reset()
         })
-    }, [resetJson, resetLocks, startMoveMutation.reset])
+    }, [advanced.reset, resetJson, resetLocks, startMoveMutation.reset])
 
     return (
         <div className="flex flex-col h-screen gap-10">
@@ -315,6 +313,8 @@ export default function Move() {
                     destPath={dest}
                     setDestPath={setDest}
                 />
+
+                <AdvancedScheduleSection advanced={advanced} />
 
                 <OptionsAccordion banner={true} items={accordionItems} />
             </OperationWindowContent>

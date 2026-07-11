@@ -55,7 +55,6 @@
         "@tauri-apps/plugin-store": "^2.4.3",
         "@tauri-apps/plugin-updater": "^2.10.1",
         "@tauri-apps/plugin-window-state": "^2.4.1",
-        "cron-parser": "^5.6.1",
         "cronstrue": "^3.24.0",
         "date-fns": "^4.4.0",
         "framer-motion": "^12.42.2",

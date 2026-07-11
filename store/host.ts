@@ -66,12 +66,7 @@ interface HostState {
     favoritePaths: { remote: string; path: string; added: number }[]
 
     scheduledTasks: ScheduledTask[]
-    addScheduledTask: (
-        task: Omit<
-            ScheduledTask,
-            'id' | 'isRunning' | 'currentRunId' | 'lastRun' | 'configId' | 'isEnabled'
-        >
-    ) => void
+    addScheduledTask: (task: Omit<ScheduledTask, 'id'>) => string
     removeScheduledTask: (id: string) => void
     updateScheduledTask: (id: string, task: Partial<ScheduledTask>) => void
 
@@ -92,7 +87,7 @@ interface HostState {
 
 export const useHostStore = create<HostState>()(
     persist(
-        (set, get) => ({
+        (set) => ({
             remoteConfigs: {},
             setRemoteConfig: (remote: string, config: RemoteConfig) =>
                 set((state) => ({
@@ -111,32 +106,12 @@ export const useHostStore = create<HostState>()(
             favoritePaths: [],
 
             scheduledTasks: [],
-            addScheduledTask: (
-                task: Omit<
-                    ScheduledTask,
-                    'id' | 'isRunning' | 'currentRunId' | 'lastRun' | 'configId' | 'isEnabled'
-                >
-            ) => {
-                const state = get()
-                const configId = state.activeConfigId
-
-                if (!configId) {
-                    console.error('No active config file for scheduled task')
-                    throw new Error('No active config file')
-                }
-
+            addScheduledTask: (task: Omit<ScheduledTask, 'id'>) => {
+                const id = crypto.randomUUID()
                 set((state) => ({
-                    scheduledTasks: [
-                        ...state.scheduledTasks,
-                        {
-                            ...task,
-                            id: crypto.randomUUID(),
-                            isRunning: false,
-                            isEnabled: true,
-                            configId,
-                        } as ScheduledTask,
-                    ],
+                    scheduledTasks: [...state.scheduledTasks, { ...task, id } as ScheduledTask],
                 }))
+                return id
             },
             removeScheduledTask: (id: string) =>
                 set((state) => ({
@@ -182,22 +157,47 @@ export const useHostStore = create<HostState>()(
             skipHydration: true,
             version: 2,
             migrate: (persistedState, version) => {
-                // v1 stored the full active ConfigFile object; v2 stores just its id. Also handles
-                // the version-1 blob written by the persisted-store's legacy migration, whose
-                // configFiles can be undefined.
-                if (version < 2 && persistedState) {
-                    const { activeConfigFile, configFiles, ...rest } = persistedState as {
+                if (!persistedState) {
+                    return persistedState
+                }
+                let state = persistedState as Record<string, unknown>
+
+                // - The full active ConfigFile object collapses to just its id. Also handles the
+                //   version-1 blob written by the persisted-store's legacy migration, whose
+                //   configFiles can be undefined.
+                // - Scheduling moved to the OS scheduler. Runtime fields (isRunning/currentRunId/
+                //   lastRun/lastRunError) now live in the scheduler's run history; tasks gain a
+                //   per-task binary. Pure reshape — OS registration happens in the startup
+                //   reconcile.
+                if (version < 2) {
+                    const { activeConfigFile, configFiles, ...rest } = state as {
                         activeConfigFile?: ConfigFile | null
                         configFiles?: ConfigFile[]
                         [key: string]: unknown
                     }
-                    return {
+                    const activeConfigId = activeConfigFile?.id ?? null
+                    const tasks = (rest.scheduledTasks as Record<string, unknown>[]) ?? []
+                    state = {
                         ...rest,
                         configFiles: configFiles ?? [],
-                        activeConfigId: activeConfigFile?.id ?? null,
+                        activeConfigId,
+                        scheduledTasks: tasks.map(
+                            ({ isRunning, currentRunId, lastRun, lastRunError, ...task }) => ({
+                                ...task,
+                                // The old scheduler silently skipped tasks whose config wasn't
+                                // the active one — those have effectively been dormant, and the
+                                // OS scheduler would resurrect them. Migrate them as paused so
+                                // re-enabling is an explicit user choice.
+                                isEnabled:
+                                    (task.isEnabled ?? true) &&
+                                    (!activeConfigId || task.configId === activeConfigId),
+                                binaryPath: 'app-default',
+                            })
+                        ),
                     }
                 }
-                return persistedState
+
+                return state
             },
         }
     )

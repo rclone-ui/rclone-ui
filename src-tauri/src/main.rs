@@ -1,6 +1,40 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+    // Headless scheduled-task mode: `"Rclone UI" run-task <taskId> [--host <hostId>]`, invoked
+    // by cron/Task Scheduler. Handled BEFORE app_lib::run() so no GUI, Sentry, or
+    // single-instance plugin ever initializes (the plugin would otherwise intercept this
+    // process and just pop the running app's toolbar).
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() >= 3 && args[1] == "run-task" {
+        // Schedulers hand us a bare environment; passCommand helpers and rclone need the
+        // login-shell PATH.
+        let _ = fix_path_env::fix();
+        let flag_value = |flag: &str| {
+            args.iter()
+                .position(|a| a == flag)
+                .and_then(|i| args.get(i + 1))
+                .cloned()
+        };
+        let task_id = args[2].clone();
+        let host_id = flag_value("--host").unwrap_or_else(|| "local".to_string());
+        // Set by Run Now (a manual, off-schedule run) — bypasses the macOS launchd catch-up
+        // suppression so a manual trigger always executes.
+        let forced = args.iter().any(|a| a == "--forced");
+        // The GUI's resolved data roots, baked into the trigger at registration — a bare cron
+        // environment can re-derive different ones (session XDG_DATA_HOME). Absent on triggers
+        // registered by older versions; the runner then derives them itself.
+        let data_dir = flag_value("--data-dir");
+        let local_data_dir = flag_value("--local-data-dir");
+        std::process::exit(app_lib::run_scheduled_task(
+            &task_id,
+            &host_id,
+            forced,
+            data_dir.as_deref(),
+            local_data_dir.as_deref(),
+        ));
+    }
+
     #[cfg(target_os = "linux")]
     {
         let is_dri_present = std::path::Path::new("/dev/dri").exists();

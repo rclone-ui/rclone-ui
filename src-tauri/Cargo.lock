@@ -247,12 +247,16 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 name = "app"
 version = "3.6.1"
 dependencies = [
+ "chrono",
  "cocoa",
+ "dirs 6.0.0",
  "fix-path-env",
  "flate2",
  "gtk",
+ "libc",
  "log",
  "machine-uid",
+ "notify-rust",
  "objc",
  "reqwest 0.13.3",
  "sentry",
@@ -281,6 +285,7 @@ dependencies = [
  "tauri-plugin-store",
  "tauri-plugin-updater",
  "tinyfiledialogs-rs",
+ "uuid",
  "windows-sys 0.59.0",
  "winreg 0.52.0",
  "x11rb",

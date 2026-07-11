@@ -8,12 +8,14 @@ import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { startBisync } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
-import CronEditor from '../components/CronEditor'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { PathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
+import AdvancedScheduleSection, {
+    useAdvancedSchedule,
+} from '../components/operation/AdvancedScheduleSection'
 import OperationFooter from '../components/operation/OperationFooter'
 import OptionsAccordion, {
     type OptionsAccordionItemDef,
@@ -101,7 +103,7 @@ export default function Bisync() {
 
     const [outerBisyncOptions, setOuterBisyncOptions] = useState<Record<string, boolean>>({})
 
-    const [cronExpression, setCronExpression] = useState<string | null>(null)
+    const advanced = useAdvancedSchedule()
 
     const selectedRemotes = useMemo(() => [source, dest].filter(Boolean), [source, dest])
 
@@ -139,7 +141,7 @@ export default function Bisync() {
             return startBisync(buildStartArgs())
         },
         onSuccess: () => {
-            if (cronExpression) {
+            if (advanced.cronExpression) {
                 scheduleTaskMutation.mutate()
             }
         },
@@ -151,7 +153,9 @@ export default function Bisync() {
 
     const scheduleTaskMutation = useScheduleTask({
         operation: 'bisync',
-        cronExpression,
+        cronExpression: advanced.cronExpression,
+        configId: advanced.configId,
+        binaryPath: advanced.binaryPath,
         validate: () => {
             if (!source || !dest) {
                 throw new Error('Please select both a source and destination path')
@@ -166,9 +170,9 @@ export default function Bisync() {
         if (!dest) return 'Please select a destination path'
         if (source === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (cronExpression) return 'START AND SCHEDULE BISYNC'
+        if (advanced.cronExpression) return 'START AND SCHEDULE BISYNC'
         return 'START BISYNC'
-    }, [startBisyncMutation.isPending, source, dest, jsonError, cronExpression])
+    }, [startBisyncMutation.isPending, source, dest, jsonError, advanced.cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startBisyncMutation.isPending) return
@@ -317,11 +321,6 @@ export default function Bisync() {
                 ),
             },
             {
-                key: 'cron',
-                category: 'cron',
-                children: <CronEditor expression={cronExpression} onChange={setCronExpression} />,
-            },
-            {
                 key: 'config',
                 category: 'config',
                 subtitle: getOptionsSubtitle(Object.keys(configGroup.options).length),
@@ -368,7 +367,6 @@ export default function Bisync() {
             copyFlags,
             filterGroup,
             filterFlags,
-            cronExpression,
             configGroup,
             configFlags,
             selectedRemotes,
@@ -425,6 +423,8 @@ export default function Bisync() {
                     destPath={dest}
                     setDestPath={setDest}
                 />
+
+                <AdvancedScheduleSection advanced={advanced} />
 
                 <OptionsAccordion items={accordionItems} />
             </OperationWindowContent>

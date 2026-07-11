@@ -9,34 +9,23 @@ import { debug, error, info, trace, warn } from '@tauri-apps/plugin-log'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { type Update, check } from '@tauri-apps/plugin-updater'
-import { CronExpressionParser } from 'cron-parser'
 import { defaultOptions } from 'tauri-plugin-sentry-api'
 import { getDeepLinkUrl, handleDeepLinkUrl } from './lib/deep'
 import { CLOSE_APP, RELAUNCH_APP, RESTART_RCLONE, type RestartRclonePayload } from './lib/events'
 import { LOCAL_HOST_ID, RC_PORT, getHostInfo, makeLocalHost } from './lib/hosts'
 import { validateLicense } from './lib/license'
-import notify from './lib/notify'
 import queryClient from './lib/query'
-import {
-    listTransfers,
-    startBisync,
-    startCopy,
-    startDelete,
-    startMount,
-    startMove,
-    startPurge,
-    startSync,
-} from './lib/rclone/api'
+import { listTransfers, startMount } from './lib/rclone/api'
 import rcloneClient from './lib/rclone/client'
 import { compareVersions } from './lib/rclone/common'
 import { initRclone } from './lib/rclone/init'
+import { initScheduler } from './lib/scheduler'
 import { initTray } from './lib/tray'
 import { openSmallWindow } from './lib/window'
 import { initHostStore, useHostStore } from './store/host'
 import { waitForStoreHydration } from './store/lib'
 import { useStore } from './store/memory'
 import { selectCurrentHost, usePersistedStore } from './store/persisted'
-import type { ScheduledTask } from './types/schedules'
 
 let rcloneListenersRegistered = false
 
@@ -101,8 +90,11 @@ async function checkFlatpakPermissions() {
     const hasPermissions = await invoke<boolean>('has_flatpak_permissions')
     if (hasPermissions) return
 
+    const overrideCommand =
+        'flatpak override --user --filesystem=host --talk-name=org.freedesktop.Flatpak com.rcloneui.RcloneUI'
+
     const copyCommand = await ask(
-        'You are running the flatpak version of Rclone UI, which is sandboxed.\n\nrclone is a file management utility that needs disk access in order to run. Please allow it using the following command (copy paste in your terminal):\n\nflatpak override --user --filesystem=host com.rcloneui.RcloneUI\n\nRestart Rclone UI afterwards.',
+        `You are running the flatpak version of Rclone UI, which is sandboxed.\n\nRclone UI needs disk access to manage your files, and host access to schedule tasks. Please grant both using the following command (copy paste in your terminal):\n\n${overrideCommand}\n\nRestart Rclone UI afterwards.`,
         {
             title: 'Flatpak Permissions Required',
             kind: 'warning',
@@ -112,7 +104,7 @@ async function checkFlatpakPermissions() {
     )
 
     if (copyCommand) {
-        await writeText('flatpak override --user --filesystem=host com.rcloneui.RcloneUI')
+        await writeText(overrideCommand)
     }
 
     await exit()
@@ -623,292 +615,6 @@ async function showStartup() {
     console.log('[showStartup] startup hidden')
 }
 
-const MAX_INT_MS = 2_147_483_647
-let hasScheduledTasks = false
-async function resumeTasks() {
-    console.log('[resumeTasks] resuming tasks')
-
-    if (hasScheduledTasks) {
-        console.log('[resumeTasks] already called, skipping (hasScheduledTasks=true)')
-        return
-    }
-
-    const scheduledTasks = useHostStore.getState().scheduledTasks
-    const activeConfigId = useHostStore.getState().activeConfigId
-
-    console.log('[resumeTasks] found', scheduledTasks.length, 'scheduled tasks')
-    console.log('[resumeTasks] activeConfigId:', activeConfigId)
-
-    if (!activeConfigId) {
-        console.log('[resumeTasks] no active config id, cannot schedule tasks')
-        return
-    }
-
-    hasScheduledTasks = true
-
-    console.log('[resumeTasks] processing tasks for config:', activeConfigId)
-
-    let scheduledCount = 0
-    let skippedRunning = 0
-    let skippedConfigMismatch = 0
-    let skippedTimingIssue = 0
-
-    for (const task of scheduledTasks) {
-        console.log('[resumeTasks] processing task:', {
-            id: task.id,
-            operation: task.operation,
-            cron: task.cron,
-            configId: task.configId,
-            isRunning: task.isRunning,
-            isEnabled: task.isEnabled,
-        })
-
-        if (!task.isEnabled) {
-            console.log('[resumeTasks] task', task.id, 'is disabled, skipping')
-            continue
-        }
-
-        if (task.isRunning) {
-            console.log('[resumeTasks] task', task.id, 'was marked as running, resetting state')
-            useHostStore.getState().updateScheduledTask(task.id, {
-                isRunning: false,
-                currentRunId: undefined,
-                lastRunError: 'Task closed prematurely',
-            })
-            skippedRunning++
-            continue
-        }
-
-        if (task.configId !== activeConfigId) {
-            console.log(
-                '[resumeTasks] task',
-                task.id,
-                'belongs to different config:',
-                task.configId,
-                '!==',
-                activeConfigId
-            )
-            skippedConfigMismatch++
-            continue
-        }
-
-        try {
-            console.log('[resumeTasks] parsing cron expression:', task.cron)
-            const cronInterval = CronExpressionParser.parse(task.cron)
-            const nextRun = cronInterval.next().toDate()
-            const now = Date.now()
-            const difference = nextRun.getTime() - now
-
-            console.log('[resumeTasks] task', task.id, 'timing:', {
-                nextRun: nextRun.toISOString(),
-                now: new Date(now).toISOString(),
-                differenceMs: difference,
-                differenceMinutes: Math.round(difference / 60000),
-                maxAllowedMs: MAX_INT_MS,
-                withinLimit: difference <= MAX_INT_MS,
-                isPositive: difference > 0,
-            })
-
-            if (difference <= MAX_INT_MS && difference > 0) {
-                console.log(
-                    '[resumeTasks] scheduling task',
-                    task.id,
-                    'to run in',
-                    Math.round(difference / 60000),
-                    'minutes'
-                )
-                setTimeout(async () => {
-                    console.log(
-                        '[resumeTasks] timer fired for task',
-                        task.id,
-                        'at',
-                        new Date().toISOString()
-                    )
-                    notify({
-                        title: 'Task Started',
-                        body: `Task ${task.operation} (${task.id}) started`,
-                    })
-                    await handleTask(task)
-                }, difference)
-                scheduledCount++
-                console.log(
-                    '[resumeTasks] task',
-                    task.id,
-                    'scheduled successfully for',
-                    nextRun.toISOString()
-                )
-            } else {
-                console.log(
-                    '[resumeTasks] task',
-                    task.id,
-                    'NOT scheduled:',
-                    difference > MAX_INT_MS
-                        ? 'next run too far in future'
-                        : 'next run is in the past or now'
-                )
-                skippedTimingIssue++
-            }
-        } catch (error) {
-            console.error('[resumeTasks] error scheduling task', task.id, ':', error)
-            console.error('[resumeTasks] task details:', JSON.stringify(task, null, 2))
-            Sentry.captureException(error)
-        }
-    }
-
-    console.log('[resumeTasks] summary:', {
-        totalTasks: scheduledTasks.length,
-        scheduledCount,
-        skippedRunning,
-        skippedConfigMismatch,
-        skippedTimingIssue,
-    })
-}
-
-async function handleTask(task: ScheduledTask) {
-    console.log('[handleTask] starting execution for task:', task.id, task.operation)
-
-    const currentTask = useHostStore.getState().scheduledTasks.find((t) => t.id === task.id)
-
-    if (!currentTask) {
-        console.log('[handleTask] task', task.id, 'not found in store, aborting')
-        return
-    }
-
-    console.log('[handleTask] found task in store:', {
-        id: currentTask.id,
-        isRunning: currentTask.isRunning,
-        currentRunId: currentTask.currentRunId,
-        isEnabled: currentTask.isEnabled,
-    })
-
-    if (currentTask.isRunning) {
-        console.log(
-            '[handleTask] task',
-            task.id,
-            'already running (runId:',
-            currentTask.currentRunId,
-            '), aborting'
-        )
-        return
-    }
-
-    const freshRunId = crypto.randomUUID()
-    console.log('[handleTask] generated freshRunId:', freshRunId)
-
-    useHostStore.getState().updateScheduledTask(task.id, {
-        isRunning: true,
-        currentRunId: freshRunId,
-        lastRun: new Date().toISOString(),
-    })
-
-    console.log('[handleTask] running task', task.operation, task.id)
-    console.log('[handleTask] updated task state, isRunning=true, runId:', freshRunId)
-
-    const currentRunId = useHostStore
-        .getState()
-        .scheduledTasks.find((t) => t.id === task.id)?.currentRunId
-
-    console.log('[handleTask] verifying runId - expected:', freshRunId, 'actual:', currentRunId)
-
-    if (currentRunId !== freshRunId) {
-        console.log('[handleTask] runId mismatch, another execution may have started, aborting')
-        return
-    }
-
-    console.log(
-        '[handleTask] executing operation:',
-        task.operation,
-        'with args:',
-        JSON.stringify(task.args, null, 2)
-    )
-
-    try {
-        switch (task.operation) {
-            case 'copy': {
-                console.log('[handleTask] starting copy operation')
-                const { sources, options, destination } = task.args
-                await startCopy({
-                    sources,
-                    destination,
-                    options,
-                })
-                console.log('[handleTask] copy operation completed')
-                break
-            }
-            case 'move': {
-                console.log('[handleTask] starting move operation')
-                const { sources, options, destination } = task.args
-                await startMove({
-                    sources,
-                    destination,
-                    options,
-                })
-                console.log('[handleTask] move operation completed')
-                break
-            }
-            case 'sync': {
-                console.log('[handleTask] starting sync operation')
-                const { source, destination, options } = task.args
-                await startSync({
-                    source,
-                    destination,
-                    options,
-                })
-                console.log('[handleTask] sync operation completed')
-                break
-            }
-            case 'bisync': {
-                console.log('[handleTask] starting bisync operation')
-                const { source, destination, options } = task.args
-                await startBisync({
-                    source,
-                    destination,
-                    options,
-                })
-                console.log('[handleTask] bisync operation completed')
-                break
-            }
-            case 'delete': {
-                console.log('[handleTask] starting delete operation')
-                const { sources, options } = task.args
-                await startDelete({
-                    sources,
-                    options,
-                })
-                console.log('[handleTask] delete operation completed')
-                break
-            }
-            case 'purge': {
-                console.log('[handleTask] starting purge operation')
-                const { sources, options } = task.args
-                await startPurge({
-                    sources,
-                    options,
-                })
-                console.log('[handleTask] purge operation completed')
-                break
-            }
-            default:
-                console.log('[handleTask] unknown operation encountered')
-                break
-        }
-        console.log('[handleTask] task', task.id, 'completed successfully')
-    } catch (err) {
-        Sentry.captureException(err)
-        console.error('[handleTask] task', task.id, 'failed with error:', err)
-        console.error('[handleTask] task args were:', JSON.stringify(task.args, null, 2))
-        useHostStore.getState().updateScheduledTask(task.id, {
-            lastRunError: err instanceof Error ? err.message : 'Unknown error',
-        })
-    } finally {
-        console.log('[handleTask] cleaning up task', task.id, 'state')
-        useHostStore.getState().updateScheduledTask(task.id, {
-            isRunning: false,
-            currentRunId: undefined,
-        })
-    }
-}
-
 async function installUpdate(update: Update, required: boolean) {
     const confirmed = await ask(
         'You are running an outdated version of Rclone UI. Please update to the latest version.',
@@ -1104,6 +810,6 @@ waitForHydration()
     .then(() => handleDeepLink())
     .then(() => showStartup())
     .then(() => startupMounts())
-    .then(() => resumeTasks())
+    .then(() => initScheduler())
     .then(() => initTray())
     .catch(console.error)

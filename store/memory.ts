@@ -1,6 +1,16 @@
 import { shared } from 'use-broadcast-ts'
 import { create } from 'zustand'
 
+// Registered by the start* functions in lib/rclone/api.ts; consumed by the main window's job
+// watcher (lib/notifications.ts). Plain JSON only — values cross a BroadcastChannel.
+export interface WatchedJob {
+    jobid: number
+    operation: 'copy' | 'move' | 'sync' | 'bisync' | 'delete' | 'purge' | 'batch'
+    sources?: string[]
+    destination?: string
+    startedAt: number
+}
+
 interface State {
     startupStatus:
         | null
@@ -21,6 +31,8 @@ interface State {
     } | null
 
     dryRunJobIds: number[]
+
+    watchedJobs: Record<number, WatchedJob>
 }
 
 export const useStore = create<State>()(
@@ -34,6 +46,8 @@ export const useStore = create<State>()(
             cloudflaredTunnel: null,
 
             dryRunJobIds: [],
+
+            watchedJobs: {},
         }),
         { name: 'shared-store' }
     )
