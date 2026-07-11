@@ -73,7 +73,8 @@ export default function BinarySelect({
 
     return (
         <Select
-            label={label}
+            label={label || undefined}
+            aria-label={label ? undefined : 'rclone binary'}
             labelPlacement="outside"
             selectedKeys={[isCustomBinary ? CUSTOM_BINARY : value]}
             onSelectionChange={(keys) => {

@@ -7,14 +7,13 @@ import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { startDryRun, startSync } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
+import { useSchedulingAvailable } from '../../lib/scheduler'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { PathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
-import AdvancedScheduleSection, {
-    useAdvancedSchedule,
-} from '../components/operation/AdvancedScheduleSection'
+import CronSection from '../components/operation/CronSection'
 import OperationFooter from '../components/operation/OperationFooter'
 import OptionsAccordion, {
     type OptionsAccordionItemDef,
@@ -71,7 +70,7 @@ Expand the accordion sections to customize your sync operation. Tap any chip on 
 
 • Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
 
-• Cron — Schedule this sync to run automatically at set intervals. It runs on a system schedule, even when the app is closed.
+• Cron — Schedule this sync to run automatically at set intervals. It runs even when the app is closed.
 
 • Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
 
@@ -115,7 +114,8 @@ export default function Sync() {
     const filterGroup = optionGroups.filter
     const configGroup = optionGroups.config
 
-    const advanced = useAdvancedSchedule()
+    const [cronExpression, setCronExpression] = useState<string | null>(null)
+    const schedulingAvailable = useSchedulingAvailable()
 
     const selectedRemotes = useMemo(() => [source, dest].filter(Boolean), [source, dest])
 
@@ -139,7 +139,7 @@ export default function Sync() {
             return startSync(buildArgs())
         },
         onSuccess: () => {
-            if (advanced.cronExpression) {
+            if (cronExpression) {
                 scheduleTaskMutation.mutate()
             }
         },
@@ -148,9 +148,7 @@ export default function Sync() {
 
     const scheduleTaskMutation = useScheduleTask({
         operation: 'sync',
-        cronExpression: advanced.cronExpression,
-        configId: advanced.configId,
-        binaryPath: advanced.binaryPath,
+        cronExpression,
         validate: () => {
             if (!source || !dest) {
                 throw new Error('Please select both a source and destination path')
@@ -183,9 +181,9 @@ export default function Sync() {
         if (!dest) return 'Please select a destination path'
         if (source === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (advanced.cronExpression) return 'START AND SCHEDULE SYNC'
+        if (cronExpression) return 'START AND SCHEDULE SYNC'
         return 'START SYNC'
-    }, [startSyncMutation.isPending, source, dest, jsonError, advanced.cronExpression])
+    }, [startSyncMutation.isPending, source, dest, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startSyncMutation.isPending) return
@@ -226,6 +224,20 @@ export default function Sync() {
                     />
                 ),
             },
+            ...(schedulingAvailable
+                ? [
+                      {
+                          key: 'cron',
+                          category: 'cron' as const,
+                          children: (
+                              <CronSection
+                                  expression={cronExpression}
+                                  onChange={setCronExpression}
+                              />
+                          ),
+                      },
+                  ]
+                : []),
             {
                 key: 'config',
                 category: 'config',
@@ -276,6 +288,8 @@ export default function Sync() {
             configFlags,
             selectedRemotes,
             remotesGroup,
+            cronExpression,
+            schedulingAvailable,
         ]
     )
 
@@ -300,21 +314,21 @@ export default function Sync() {
     const handleResetOptions = useCallback(() => {
         startTransition(() => {
             resetJson()
-            advanced.reset()
+            setCronExpression(null)
             startSyncMutation.reset()
         })
-    }, [advanced.reset, resetJson, startSyncMutation.reset])
+    }, [resetJson, startSyncMutation.reset])
 
     const handleResetAll = useCallback(() => {
         startTransition(() => {
             resetJson()
             resetLocks()
-            advanced.reset()
+            setCronExpression(null)
             setDest(undefined)
             setSource(undefined)
             startSyncMutation.reset()
         })
-    }, [advanced.reset, resetJson, resetLocks, startSyncMutation.reset])
+    }, [resetJson, resetLocks, startSyncMutation.reset])
 
     return (
         <div className="flex flex-col h-screen gap-10">
@@ -329,8 +343,6 @@ export default function Sync() {
                     sourceOptions={SOURCE_OPTIONS}
                     destOptions={DEST_OPTIONS}
                 />
-
-                <AdvancedScheduleSection advanced={advanced} />
 
                 <OptionsAccordion banner={true} items={accordionItems} />
             </OperationWindowContent>

@@ -29,11 +29,12 @@ export default function CronEditor({ expression, onChange, error }: CronEditorPr
     )
 
     const readableDescription = useMemo(() => {
-        if (!cronExpression) return 'This task is not scheduled'
+        if (!cronExpression)
+            return 'Enter a cron expression to have this task run at regular intervals'
         let description: string
         try {
             description = cronstrue.toString(cronExpression)
-            description += '. Runs on a system schedule, even when the app is closed.'
+            description += '. Runs even when the app is closed.'
         } catch {
             description = 'Invalid cron expression'
         }

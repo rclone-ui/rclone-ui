@@ -1,31 +1,21 @@
-import { Alert, Card, CardBody, CardHeader, Input, Tooltip, useDisclosure } from '@heroui/react'
+import { Alert, Card, CardBody, CardHeader, Tooltip, useDisclosure } from '@heroui/react'
 import { Button, Chip } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ask, message } from '@tauri-apps/plugin-dialog'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import cronstrue from 'cronstrue'
 import { formatDistance } from 'date-fns'
-import {
-    AlertCircleIcon,
-    Clock7Icon,
-    PauseIcon,
-    PlayIcon,
-    StethoscopeIcon,
-    Trash2Icon,
-    ZapIcon,
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { formatErrorMessage, onErrorDialog } from '../../lib/errors'
+import { AlertCircleIcon, Clock7Icon, PauseIcon, PlayIcon, Trash2Icon, ZapIcon } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { onErrorDialog } from '../../lib/errors'
 import { buildReadablePath } from '../../lib/format'
 import { useNow } from '../../lib/hooks'
 import { LOCAL_HOST_ID } from '../../lib/hosts'
 import {
     type SchedulerTaskStatus,
-    schedulerDoctor,
     removeScheduledTask as schedulerRemoveTask,
     schedulerRunNow,
     schedulerStatus,
-    updateScheduledTask as schedulerUpdateTask,
     schedulerValidateCron,
     setScheduledTaskEnabled,
     useSchedulerSupported,
@@ -72,29 +62,6 @@ export default function Schedules() {
         [onOpen]
     )
 
-    const doctorMutation = useMutation({
-        mutationFn: async () => {
-            const checks = await schedulerDoctor()
-            const report = checks
-                .map(
-                    (check) =>
-                        `${check.ok ? '✓' : '✗'} ${check.name}: ${check.detail}${check.fix ? `\n   → ${check.fix}` : ''}`
-                )
-                .join('\n\n')
-            const hasFailure = checks.some((check) => !check.ok)
-            await message(report, {
-                title: 'Scheduling diagnostics',
-                kind: hasFailure ? 'warning' : 'info',
-            })
-        },
-        onError: async (error) => {
-            await message(formatErrorMessage(error, 'Diagnostics failed'), {
-                title: 'Scheduling diagnostics',
-                kind: 'error',
-            })
-        },
-    })
-
     if (scheduledTasks.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-screen gap-8">
@@ -120,20 +87,6 @@ export default function Schedules() {
                     radius="none"
                     classNames={{ base: 'flex-shrink-0' }}
                 />
-            )}
-            {isLocalHost && (
-                <div className="flex justify-end flex-shrink-0 px-2 py-1">
-                    <Button
-                        size="sm"
-                        variant="light"
-                        startContent={<StethoscopeIcon className="w-4 h-4" />}
-                        isLoading={doctorMutation.isPending}
-                        onPress={() => doctorMutation.mutate()}
-                        data-focus-visible="false"
-                    >
-                        Diagnostics
-                    </Button>
-                </div>
             )}
             {scheduledTasks.map((task) => (
                 <TaskCard
@@ -163,14 +116,6 @@ function TaskCard({
     onOpenDrawer: (task: ScheduledTask) => void
 }) {
     const queryClient = useQueryClient()
-    const [isEditingName, setIsEditingName] = useState(false)
-    const [editingName, setEditingName] = useState(task.name)
-
-    useEffect(() => {
-        if (!isEditingName) {
-            setEditingName(task.name)
-        }
-    }, [task.name, isEditingName])
 
     // The card's time-derived values are anchored to this tick — without it the memos freeze at
     // their last dep change (e.g. a past occurrence kept showing as the "next run" forever).
@@ -258,16 +203,6 @@ function TaskCard({
         onError: onErrorDialog('Schedule', 'Failed to remove the task', { capture: false }),
     })
 
-    const commitName = (name: string | undefined) => {
-        setIsEditingName(false)
-        if (name === task.name) {
-            return
-        }
-        schedulerUpdateTask(task.id, { name }).catch((error) => {
-            console.error('[Schedules] rename failed', error)
-        })
-    }
-
     const errorLine = task.registrationError
         ? `Not scheduled: ${task.registrationError}`
         : status?.warning
@@ -327,50 +262,9 @@ function TaskCard({
                             </Tooltip>
                         )}
                         <div className="flex flex-col gap-0">
-                            <Tooltip
-                                content="Tap to edit the name"
-                                placement="bottom"
-                                size="lg"
-                                color="foreground"
-                            >
-                                <Input
-                                    size="sm"
-                                    value={
-                                        isEditingName
-                                            ? editingName
-                                            : task.name || 'Untitled Schedule'
-                                    }
-                                    variant="bordered"
-                                    isReadOnly={!isEditingName}
-                                    classNames={{
-                                        'input': 'font-bold',
-                                        'inputWrapper': 'p-0 border-0 min-h-0 h-full w-64',
-                                    }}
-                                    autoCapitalize="off"
-                                    autoComplete="off"
-                                    autoCorrect="off"
-                                    spellCheck="false"
-                                    onClick={(e) => {
-                                        setEditingName(task.name || 'Untitled Schedule')
-                                        setIsEditingName(true)
-                                        e.currentTarget.select()
-                                    }}
-                                    onBlur={() => {
-                                        commitName(editingName)
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            commitName(editingName)
-                                            e.currentTarget.blur()
-                                        } else if (e.key === 'Escape') {
-                                            setEditingName(task.name)
-                                            setIsEditingName(false)
-                                            e.currentTarget.blur()
-                                        }
-                                    }}
-                                    onValueChange={(newName) => setEditingName(newName)}
-                                />
-                            </Tooltip>
+                            <p className="w-64 text-sm font-bold truncate text-start">
+                                {task.name || 'Untitled Schedule'}
+                            </p>
                             <div className="text-sm text-gray-500 text-start">
                                 {buildReadablePath(source, 'short')} {'→'}{' '}
                                 {'destination' in task.args

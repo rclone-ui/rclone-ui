@@ -13,12 +13,12 @@ import {
     Switch,
     Tab,
     Tabs,
+    Tooltip,
     cn,
 } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { platform } from '@tauri-apps/plugin-os'
 import { format, formatDistance } from 'date-fns'
-import { CalendarClockIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { formatErrorMessage } from '../../lib/errors'
 import { buildReadablePath } from '../../lib/format'
@@ -49,6 +49,7 @@ export default function ScheduleEditDrawer({
     const queryClient = useQueryClient()
     const configFiles = useHostStore((state) => state.configFiles)
 
+    const [name, setName] = useState(selectedTask.name ?? '')
     const [cronExpression, setCronExpression] = useState(selectedTask.cron)
     const [configId, setConfigId] = useState(selectedTask.configId)
     const [binaryPath, setBinaryPath] = useState(selectedTask.binaryPath)
@@ -63,6 +64,7 @@ export default function ScheduleEditDrawer({
 
     useEffect(() => {
         if (isOpen) {
+            setName(selectedTask.name ?? '')
             setCronExpression(selectedTask.cron)
             setConfigId(selectedTask.configId)
             setBinaryPath(selectedTask.binaryPath)
@@ -141,6 +143,7 @@ export default function ScheduleEditDrawer({
 
     const hasChanges = useMemo(
         () =>
+            name !== (selectedTask.name ?? '') ||
             cronExpression !== selectedTask.cron ||
             configId !== selectedTask.configId ||
             binaryPath !== selectedTask.binaryPath ||
@@ -149,6 +152,7 @@ export default function ScheduleEditDrawer({
             runMode !== (selectedTask.runMode ?? 'user') ||
             maxRunHoursNumber !== (selectedTask.maxRunHours ?? DEFAULT_MAX_RUN_HOURS),
         [
+            name,
             cronExpression,
             configId,
             binaryPath,
@@ -171,6 +175,7 @@ export default function ScheduleEditDrawer({
         mutationFn: async () => {
             setSaveError(null)
             await schedulerUpdateTask(selectedTask.id, {
+                name: name.trim(),
                 cron: cronExpression,
                 configId,
                 binaryPath,
@@ -222,9 +227,6 @@ export default function ScheduleEditDrawer({
                                     >
                                         {selectedTask.operation.toUpperCase()}
                                     </Chip>
-                                    <p className="text-small text-foreground-500 line-clamp-1">
-                                        {selectedTask.name || 'Untitled Schedule'}
-                                    </p>
                                 </div>
                                 <Divider />
                             </div>
@@ -251,155 +253,214 @@ export default function ScheduleEditDrawer({
                                         </Alert>
                                     )}
 
-                                    <div className="flex flex-col gap-3">
-                                        <h3 className="text-lg font-medium">Details</h3>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="flex flex-col gap-1">
-                                                <p className="text-sm text-foreground-500">
-                                                    Source
-                                                </p>
-                                                <p className="font-mono text-sm">
-                                                    {buildReadablePath(source, 'long')}
-                                                </p>
+                                    <div className="flex flex-col gap-6">
+                                        <div className="flex flex-row justify-center w-full gap-8">
+                                            <div className="flex flex-col items-end flex-1 gap-2">
+                                                <h4 className="font-medium">Enabled</h4>
                                             </div>
-                                            {destination && (
-                                                <div className="flex flex-col gap-1">
-                                                    <p className="text-sm text-foreground-500">
-                                                        Destination
+                                            <div className="flex flex-col w-3/5 gap-3">
+                                                <Switch
+                                                    size="sm"
+                                                    color="primary"
+                                                    isSelected={isEnabled}
+                                                    onValueChange={setIsEnabled}
+                                                    aria-label="Enabled"
+                                                    data-focus-visible="false"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-row justify-center w-full gap-8">
+                                            <div className="flex flex-col items-end flex-1 gap-2">
+                                                <h4 className="font-medium">Name</h4>
+                                            </div>
+                                            <div className="flex flex-col w-3/5 gap-3">
+                                                <Input
+                                                    aria-label="Schedule name"
+                                                    placeholder="Untitled Schedule"
+                                                    value={name}
+                                                    onValueChange={setName}
+                                                    autoCapitalize="off"
+                                                    autoComplete="off"
+                                                    autoCorrect="off"
+                                                    spellCheck="false"
+                                                    data-focus-visible="false"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-row justify-center w-full gap-8">
+                                            <div className="flex flex-col items-end flex-1 gap-2">
+                                                <h4 className="font-medium">Source</h4>
+                                            </div>
+                                            <div className="flex flex-col w-3/5 gap-3">
+                                                <Tooltip
+                                                    content={
+                                                        <span className="font-mono break-all">
+                                                            {source}
+                                                        </span>
+                                                    }
+                                                    placement="top-start"
+                                                    color="foreground"
+                                                    className="max-w-md"
+                                                >
+                                                    <p className="font-mono text-sm break-all w-fit">
+                                                        {buildReadablePath(source, 'long')}
                                                     </p>
-                                                    <p className="font-mono text-sm">
-                                                        {buildReadablePath(destination, 'long')}
-                                                    </p>
+                                                </Tooltip>
+                                            </div>
+                                        </div>
+
+                                        {destination && (
+                                            <div className="flex flex-row justify-center w-full gap-8">
+                                                <div className="flex flex-col items-end flex-1 gap-2">
+                                                    <h4 className="font-medium">Destination</h4>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <Divider />
-
-                                    <div className="flex flex-col gap-3">
-                                        <h3 className="text-lg font-medium">Execution</h3>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <ConfigSelect
-                                                configFiles={configFiles}
-                                                value={configId}
-                                                onChange={setConfigId}
-                                                placeholder={
-                                                    configMissing
-                                                        ? 'Config no longer exists'
-                                                        : undefined
-                                                }
-                                            />
-                                            <BinarySelect
-                                                value={binaryPath}
-                                                onChange={(path) => {
-                                                    setSaveError(null)
-                                                    setBinaryPath(path)
-                                                }}
-                                                onError={setSaveError}
-                                            />
-                                        </div>
-                                        {configMissing && (
-                                            <Alert color="danger" variant="faded" title="">
-                                                The config this task used no longer exists — pick
-                                                another one.
-                                            </Alert>
+                                                <div className="flex flex-col w-3/5 gap-3">
+                                                    <Tooltip
+                                                        content={
+                                                            <span className="font-mono break-all">
+                                                                {destination}
+                                                            </span>
+                                                        }
+                                                        placement="top-start"
+                                                        color="foreground"
+                                                        className="max-w-md"
+                                                    >
+                                                        <p className="font-mono text-sm break-all w-fit">
+                                                            {buildReadablePath(destination, 'long')}
+                                                        </p>
+                                                    </Tooltip>
+                                                </div>
+                                            </div>
                                         )}
-                                        {configPasswordMissing && (
-                                            <Alert
-                                                color="warning"
-                                                variant="faded"
-                                                title="Encrypted config without a saved password"
-                                            >
-                                                This config is encrypted and has no saved password
-                                                or password command. The scheduled runner cannot
-                                                prompt for it, so runs will fail until you save the
-                                                password in Settings → Config.
-                                            </Alert>
-                                        )}
-                                        <Switch
-                                            size="sm"
-                                            color="primary"
-                                            isSelected={isEnabled}
-                                            onValueChange={setIsEnabled}
-                                            data-focus-visible="false"
-                                        >
-                                            Enabled
-                                        </Switch>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-small">Run mode</span>
-                                            <Tabs
-                                                size="sm"
-                                                selectedKey={runMode}
-                                                onSelectionChange={(key) =>
-                                                    setRunMode(key as 'system' | 'user')
-                                                }
-                                                data-focus-visible="false"
-                                            >
-                                                <Tab key="user" title="User" />
-                                                <Tab key="system" title="System" />
-                                            </Tabs>
-                                            <span className="text-tiny text-default-400">
-                                                {runMode === 'user'
-                                                    ? 'Runs only while you are logged in, inside your session. OS keychain passwords and session-mounted drives work; fires while logged out are skipped. On macOS it runs as Rclone UI, so protected folders work once you grant the app access.'
-                                                    : 'Runs even while logged out, but outside your login session. No OS keychain or session-mounted drives, and protected folders on macOS need Full Disk Access for cron.'}
-                                            </span>
+
+                                        <div className="flex flex-row justify-center w-full gap-8">
+                                            <div className="flex flex-col items-end flex-1 gap-2">
+                                                <h4 className="font-medium">Config</h4>
+                                            </div>
+                                            <div className="flex flex-col w-3/5 gap-3">
+                                                <ConfigSelect
+                                                    configFiles={configFiles}
+                                                    value={configId}
+                                                    onChange={setConfigId}
+                                                    label=""
+                                                    placeholder={
+                                                        configMissing
+                                                            ? 'Config no longer exists'
+                                                            : undefined
+                                                    }
+                                                />
+                                                {configMissing && (
+                                                    <Alert color="danger" variant="faded" title="">
+                                                        The config this task used no longer exists —
+                                                        pick another one.
+                                                    </Alert>
+                                                )}
+                                                {configPasswordMissing && (
+                                                    <Alert
+                                                        color="warning"
+                                                        variant="faded"
+                                                        title="Encrypted config without a saved password"
+                                                    >
+                                                        This config is encrypted and has no saved
+                                                        password or password command. The scheduled
+                                                        runner cannot prompt for it, so runs will
+                                                        fail until you save the password in Settings
+                                                        → Config.
+                                                    </Alert>
+                                                )}
+                                            </div>
                                         </div>
-                                        <Switch
-                                            size="sm"
-                                            color="primary"
-                                            isSelected={verboseLogging}
-                                            onValueChange={setVerboseLogging}
-                                            data-focus-visible="false"
-                                        >
-                                            <div className="flex flex-col">
-                                                <span className="text-small">Verbose logging</span>
+
+                                        <div className="flex flex-row justify-center w-full gap-8">
+                                            <div className="flex flex-col items-end flex-1 gap-2">
+                                                <h4 className="font-medium">Binary</h4>
+                                            </div>
+                                            <div className="flex flex-col w-3/5 gap-3">
+                                                <BinarySelect
+                                                    value={binaryPath}
+                                                    onChange={(path) => {
+                                                        setSaveError(null)
+                                                        setBinaryPath(path)
+                                                    }}
+                                                    onError={setSaveError}
+                                                    label=""
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-row justify-center w-full gap-8">
+                                            <div className="flex flex-col items-end flex-1 gap-2">
+                                                <h4 className="font-medium">Run mode</h4>
+                                            </div>
+                                            <div className="flex flex-col w-3/5 gap-1">
+                                                <Tabs
+                                                    size="sm"
+                                                    selectedKey={runMode}
+                                                    onSelectionChange={(key) =>
+                                                        setRunMode(key as 'system' | 'user')
+                                                    }
+                                                    data-focus-visible="false"
+                                                >
+                                                    <Tab key="user" title="User" />
+                                                    <Tab key="system" title="System" />
+                                                </Tabs>
                                                 <span className="text-tiny text-default-400">
-                                                    Log individual transfers to the rclone log
-                                                    (grows faster)
+                                                    {runMode === 'user'
+                                                        ? `Runs only while you are logged in, inside your session. OS keychain passwords and session-mounted drives work; fires while logged out are skipped.${platform() === 'macos' ? ' On macOS it runs as Rclone UI, so protected folders work once you grant the app access.' : ''}`
+                                                        : `Runs even while logged out, but outside your login session. No OS keychain or session-mounted drives.${platform() === 'macos' ? ' To read protected folders (Desktop, Documents, Downloads) or external volumes, grant Full Disk Access to /usr/sbin/cron in System Settings → Privacy & Security.' : ''}`}
                                                 </span>
                                             </div>
-                                        </Switch>
-                                    </div>
+                                        </div>
 
-                                    <Divider />
-
-                                    <div className="flex flex-col gap-3">
-                                        <h3 className="flex items-center gap-2 text-lg font-medium">
-                                            <CalendarClockIcon className="w-5 h-5" />
-                                            Upcoming Runs
-                                        </h3>
-                                        {upcomingRuns.length > 0 ? (
-                                            <div className="flex flex-col gap-2">
-                                                {upcomingRuns.map((run, index) => (
-                                                    <div
-                                                        key={run.toISOString()}
-                                                        className="flex items-center gap-3 text-sm"
-                                                    >
-                                                        <Chip
-                                                            size="sm"
-                                                            variant="flat"
-                                                            color="default"
-                                                        >
-                                                            {index + 1}
-                                                        </Chip>
-                                                        <span>
-                                                            {format(run, 'EEEE, MMMM d, yyyy')}
-                                                        </span>
-                                                        <span className="text-foreground-500">
-                                                            at
-                                                        </span>
-                                                        <span className="font-mono">
-                                                            {format(run, 'HH:mm')}
+                                        <div className="flex flex-row justify-center w-full gap-8">
+                                            <div className="flex flex-col items-end flex-1 gap-2">
+                                                <h4 className="font-medium">Logging</h4>
+                                            </div>
+                                            <div className="flex flex-col w-3/5 gap-3">
+                                                <Switch
+                                                    size="sm"
+                                                    color="primary"
+                                                    isSelected={verboseLogging}
+                                                    onValueChange={setVerboseLogging}
+                                                    data-focus-visible="false"
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <span className="text-small">Verbose</span>
+                                                        <span className="text-tiny text-default-400">
+                                                            Log individual transfers to the rclone
+                                                            log
                                                         </span>
                                                     </div>
-                                                ))}
+                                                </Switch>
                                             </div>
-                                        ) : (
-                                            <p className="text-sm text-foreground-500">
-                                                No upcoming runs scheduled (invalid cron expression)
-                                            </p>
-                                        )}
+                                        </div>
+
+                                        <div className="flex flex-row justify-center w-full gap-8">
+                                            <div className="flex flex-col items-end flex-1 gap-2">
+                                                <h4 className="font-medium">Max run time</h4>
+                                            </div>
+                                            <div className="flex flex-col w-3/5 gap-2">
+                                                <Input
+                                                    type="number"
+                                                    aria-label="Max run time in hours"
+                                                    endContent={
+                                                        <span className="text-small text-default-400">
+                                                            hours
+                                                        </span>
+                                                    }
+                                                    min={1}
+                                                    max={MAX_RUN_HOURS_LIMIT}
+                                                    value={maxRunHours}
+                                                    onValueChange={setMaxRunHours}
+                                                    isInvalid={maxRunHoursInvalid}
+                                                    errorMessage={`Enter a whole number of hours between 1 and ${MAX_RUN_HOURS_LIMIT}`}
+                                                    className="max-w-36"
+                                                    data-focus-visible="false"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <Divider />
@@ -418,21 +479,37 @@ export default function ScheduleEditDrawer({
                                     <Divider />
 
                                     <div className="flex flex-col gap-3">
-                                        <h3 className="text-lg font-medium">Advanced</h3>
-                                        <Input
-                                            type="number"
-                                            label="Max run time (hours)"
-                                            labelPlacement="outside"
-                                            min={1}
-                                            max={MAX_RUN_HOURS_LIMIT}
-                                            value={maxRunHours}
-                                            onValueChange={setMaxRunHours}
-                                            isInvalid={maxRunHoursInvalid}
-                                            errorMessage={`Enter a whole number of hours between 1 and ${MAX_RUN_HOURS_LIMIT}`}
-                                            description="A run still going after this long is stopped and marked failed."
-                                            className="max-w-64"
-                                            data-focus-visible="false"
-                                        />
+                                        <h3 className="text-lg font-medium">Upcoming Runs</h3>
+                                        {upcomingRuns.length > 0 ? (
+                                            <div className="flex flex-row justify-between">
+                                                <div className="flex flex-col gap-2">
+                                                    {upcomingRuns.slice(0, 5).map((run, index) => (
+                                                        <UpcomingRunRow
+                                                            key={run.toISOString()}
+                                                            run={run}
+                                                            index={index}
+                                                        />
+                                                    ))}
+                                                </div>
+                                                {upcomingRuns.length > 5 && (
+                                                    <div className="flex flex-col gap-2">
+                                                        {upcomingRuns
+                                                            .slice(5, 10)
+                                                            .map((run, index) => (
+                                                                <UpcomingRunRow
+                                                                    key={run.toISOString()}
+                                                                    run={run}
+                                                                    index={index + 5}
+                                                                />
+                                                            ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-foreground-500">
+                                                No upcoming runs scheduled (invalid cron expression)
+                                            </p>
+                                        )}
                                     </div>
 
                                     <Divider />
@@ -561,5 +638,18 @@ export default function ScheduleEditDrawer({
                 )}
             </DrawerContent>
         </Drawer>
+    )
+}
+
+function UpcomingRunRow({ run, index }: { run: Date; index: number }) {
+    return (
+        <div className="flex items-center gap-3 text-sm">
+            <Chip size="sm" variant="flat" color="default">
+                {index + 1}
+            </Chip>
+            <span>{format(run, 'EEEE, MMMM d, yyyy')}</span>
+            <span className="text-foreground-500">at</span>
+            <span className="font-mono">{format(run, 'HH:mm')}</span>
+        </div>
     )
 }

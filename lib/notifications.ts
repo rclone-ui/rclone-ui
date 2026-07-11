@@ -186,6 +186,9 @@ export const NOTIFICATION_PROVIDERS: Record<
         description: string
         urlPlaceholder: string
         accentClass: string
+        // Official docs page for obtaining the webhook/bot token, shown as a button in the drawer.
+        helpUrl?: string
+        helpLabel?: string
     }
 > = {
     discord: {
@@ -194,6 +197,8 @@ export const NOTIFICATION_PROVIDERS: Record<
         description: 'Post to a Discord channel',
         urlPlaceholder: 'https://discord.com/api/webhooks/1234567890/AbCdEf...',
         accentClass: 'text-indigo-500',
+        helpUrl: 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks',
+        helpLabel: 'How to create a webhook',
     },
     slack: {
         label: 'Slack',
@@ -201,6 +206,8 @@ export const NOTIFICATION_PROVIDERS: Record<
         description: 'Post to a Slack channel',
         urlPlaceholder: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX',
         accentClass: 'text-emerald-500',
+        helpUrl: 'https://api.slack.com/messaging/webhooks',
+        helpLabel: 'How to create a webhook',
     },
     telegram: {
         label: 'Telegram',
@@ -208,6 +215,8 @@ export const NOTIFICATION_PROVIDERS: Record<
         description: 'Message a chat via your bot',
         urlPlaceholder: 'https://api.telegram.org/bot123456:ABC-DEF...',
         accentClass: 'text-sky-500',
+        helpUrl: 'https://core.telegram.org/bots#how-do-i-create-a-bot',
+        helpLabel: 'How to create a bot & get a token',
     },
     webhook: {
         label: 'Webhook',

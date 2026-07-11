@@ -11,7 +11,6 @@ import {
     EyeIcon,
     GlobeIcon,
     InfoIcon,
-    KeyboardIcon,
     MedalIcon,
     PackageIcon,
     SatelliteDishIcon,
@@ -34,7 +33,6 @@ import MobileSection from './MobileSection'
 import NotificationsSection from './NotificationsSection'
 import ProxySection from './ProxySection'
 import RemotesSection from './RemotesSection'
-import ToolbarSection from './ToolbarSection'
 
 export default function Settings() {
     const [searchParams] = useSearchParams()
@@ -143,9 +141,11 @@ export default function Settings() {
                 variant="light"
                 destroyInactiveTabPanel={false}
                 disableAnimation={true}
-                className="flex-shrink-0 h-screen px-2 py-4 border-r w-52 dark:bg-transparent bg-content2 border-divider dark:border-neutral-700"
+                className="flex-shrink-0 h-screen px-2 py-4 overflow-y-auto border-r w-52 dark:bg-transparent bg-content2 border-divider dark:border-neutral-700"
                 classNames={{
-                    tabList: 'w-full gap-3' + (platform() === 'macos' ? ' pt-6' : ''),
+                    // pb clears the fixed version bar (and the connected-host strip above it) so the
+                    // last tabs stay reachable once the list scrolls.
+                    tabList: 'w-full gap-3 pb-10' + (platform() === 'macos' ? ' pt-6' : ''),
                     tab: 'h-14 justify-start rounded-large',
                     tabContent: 'pl-8',
                 }}
@@ -168,19 +168,6 @@ export default function Settings() {
                     <GeneralSection />
                 </Tab>
                 <Tab
-                    key="toolbar"
-                    title={
-                        <div className="flex items-center gap-2">
-                            <KeyboardIcon className="w-5 h-5" />
-                            <span>Toolbar</span>
-                        </div>
-                    }
-                    data-focus-visible="false"
-                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
-                >
-                    <ToolbarSection />
-                </Tab>
-                <Tab
                     key="remotes"
                     title={
                         <div className="flex items-center gap-2">
@@ -192,6 +179,46 @@ export default function Settings() {
                     className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
                 >
                     <RemotesSection />
+                </Tab>
+                <Tab
+                    key="notifications"
+                    title={
+                        <div className="flex items-center gap-2">
+                            <BellIcon className="w-5 h-5" />
+                            <span>Notifications</span>
+                        </div>
+                    }
+                    data-focus-visible="false"
+                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
+                >
+                    <NotificationsSection />
+                </Tab>
+                <Tab
+                    key="mobile"
+                    title={
+                        <Tooltip
+                            content={
+                                currentHost?.id !== 'local'
+                                    ? 'Mobile access is only available when using your local machine, not a remote host'
+                                    : undefined
+                            }
+                            isDisabled={currentHost?.id === 'local'}
+                            placement="right"
+                            size="lg"
+                            color="foreground"
+                            className="max-w-48"
+                            offset={90}
+                        >
+                            <div className="flex items-center gap-2">
+                                <TabletSmartphoneIcon className="w-5 h-5" />
+                                <span>Mobile</span>
+                            </div>
+                        </Tooltip>
+                    }
+                    data-focus-visible="false"
+                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
+                >
+                    <MobileSection />
                 </Tab>
                 <Tab
                     key="hosts"
@@ -288,46 +315,6 @@ export default function Settings() {
                     className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
                 >
                     <ProxySection />
-                </Tab>
-                <Tab
-                    key="notifications"
-                    title={
-                        <div className="flex items-center gap-2">
-                            <BellIcon className="w-5 h-5" />
-                            <span>Notifications</span>
-                        </div>
-                    }
-                    data-focus-visible="false"
-                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
-                >
-                    <NotificationsSection />
-                </Tab>
-                <Tab
-                    key="mobile"
-                    title={
-                        <Tooltip
-                            content={
-                                currentHost?.id !== 'local'
-                                    ? 'Mobile access is only available when using your local machine, not a remote host'
-                                    : undefined
-                            }
-                            isDisabled={currentHost?.id === 'local'}
-                            placement="right"
-                            size="lg"
-                            color="foreground"
-                            className="max-w-48"
-                            offset={90}
-                        >
-                            <div className="flex items-center gap-2">
-                                <TabletSmartphoneIcon className="w-5 h-5" />
-                                <span>Mobile</span>
-                            </div>
-                        </Tooltip>
-                    }
-                    data-focus-visible="false"
-                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
-                >
-                    <MobileSection />
                 </Tab>
                 <Tab
                     key="license"

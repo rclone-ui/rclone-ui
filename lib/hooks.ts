@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { RcloneFeatures, RcloneFsInfo } from '../types/rclone'
+import { UserCancelledError } from './errors'
 import { sortByName } from './flags'
 import rclone from './rclone/client'
 import { SERVE_TYPES } from './rclone/constants'
@@ -47,11 +48,14 @@ export function useRemoteConfig(remote: string | undefined | null) {
 export function fsInfoQueryOptions(remote: string | undefined | null) {
     return {
         queryKey: ['remote', remote, 'fsinfo'] as const,
-        queryFn: () =>
-            rclone('/operations/fsinfo', { params: { query: { fs: `${remote}:` } } }),
+        queryFn: () => rclone('/operations/fsinfo', { params: { query: { fs: `${remote}:` } } }),
         enabled: !!remote && remote !== 'UI_LOCAL_FS' && remote !== 'UI_FAVORITES',
         staleTime: 1000 * 60 * 60 * 24,
-        retry: 1,
+        // Cap retries low (dead remotes shouldn't retry 3× like the default) but keep the default's
+        // UserCancelledError guard: a plain `retry: 1` would override it, and since fsinfo connects
+        // to the remote, retrying a dismissed reconnect prompt re-prompts the user (client.ts).
+        retry: (failureCount: number, error: unknown) =>
+            !(error instanceof UserCancelledError) && failureCount < 1,
     }
 }
 

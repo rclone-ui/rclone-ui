@@ -1,8 +1,7 @@
-import { sep } from '@tauri-apps/api/path'
-
 const RE_WINDOWS_DRIVE = /^[a-zA-Z]:([/\\]|$)/
 const RE_WINDOWS_DRIVE_WITH_SLASH = /^([a-zA-Z]:)\/?/
 const RE_LOCAL_WINDOWS_PATH = /^:local:([a-zA-Z]:\/?.*)$/
+const RE_LOCAL_PREFIX = /^:local:/
 const RE_PATH_SEPARATOR = /[/\\]/
 
 export function formatBytes(bytes: number) {
@@ -48,21 +47,45 @@ export function getRemoteName(path?: string) {
 }
 
 export function buildReadablePath(path: string, type: 'short' | 'long' = 'long') {
-    console.log('[buildReadablePath] path', path)
-    console.log('[buildReadablePath] sep()', sep())
-
     if (!path) {
         return ''
     }
 
-    const lastSegment = path.split(RE_PATH_SEPARATOR).filter(Boolean).pop()
-    console.log('[buildReadablePath] lastSegment', lastSegment)
-
     if (type === 'short') {
-        return lastSegment
+        return path.split(RE_PATH_SEPARATOR).filter(Boolean).pop() ?? ''
     }
 
-    return `${path.split(':')[0]}:/.../${lastSegment}`
+    // 'long' = a compact readable path (toolbar command-palette style): an optional container
+    // (remote-name or Windows drive, each with its colon), then the path abbreviated to
+    // "<first>/.../<parent>/<name>" (fewer joints for short paths). A plain local (Unix) path has no
+    // container, so its own first segment (/Users, /Volumes, /mnt, …) is the leading item. Never
+    // colon-split blindly — that mangles Unix paths.
+    const remote = getRemoteName(path)
+    let prefix = ''
+    let rest = path
+
+    if (remote && remote !== ':local') {
+        prefix = `${remote}:`
+        rest = path.slice(path.indexOf(':') + 1)
+    } else {
+        rest = path.replace(RE_LOCAL_PREFIX, '') // defensive; :local: isn't stored but keeps C:/ intact
+        const drive = rest.match(RE_WINDOWS_DRIVE_WITH_SLASH)
+        if (drive) {
+            prefix = drive[1]
+            rest = rest.slice(drive[0].length)
+        }
+    }
+
+    const body = abbreviateSegments(rest.split(RE_PATH_SEPARATOR).filter(Boolean))
+    return `${prefix}/${body}`
+}
+
+// Keep the first, immediate-parent, and last path segments, collapsing anything between to "…".
+function abbreviateSegments(segments: string[]): string {
+    if (segments.length <= 3) {
+        return segments.join('/')
+    }
+    return `${segments[0]}/.../${segments[segments.length - 2]}/${segments[segments.length - 1]}`
 }
 
 export function buildReadablePathMultiple(

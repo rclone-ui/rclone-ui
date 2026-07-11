@@ -1,4 +1,5 @@
 import {
+    Alert,
     Button,
     Checkbox,
     CheckboxGroup,
@@ -13,7 +14,9 @@ import {
 } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { message } from '@tauri-apps/plugin-dialog'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
+import { ExternalLinkIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
     NOTIFICATION_PROVIDERS,
@@ -303,6 +306,29 @@ export default function NotificationTargetDrawer({
                                         />
                                     )}
                                 </section>
+
+                                {!!providerMeta.helpUrl && (
+                                    <Button
+                                        fullWidth={true}
+                                        variant="flat"
+                                        startContent={<ExternalLinkIcon className="w-4 h-4" />}
+                                        onPress={() => openUrl(providerMeta.helpUrl!)}
+                                        data-focus-visible="false"
+                                    >
+                                        {providerMeta.helpLabel}
+                                    </Button>
+                                )}
+
+                                {isTelegram && (
+                                    <Alert
+                                        color="primary"
+                                        variant="faded"
+                                        title="Start the bot first"
+                                    >
+                                        Open your bot in Telegram and tap Start (or send it any
+                                        message). Telegram won't let a bot message you until you do.
+                                    </Alert>
+                                )}
 
                                 <section className="flex flex-col gap-4">
                                     <div className="flex items-center justify-between">

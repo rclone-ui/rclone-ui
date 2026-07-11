@@ -52,10 +52,7 @@ export default function RemotesSection() {
 
     const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data])
 
-    const sortedRemotes = useMemo(
-        () => [...remotes].sort((a, b) => a.localeCompare(b)),
-        [remotes]
-    )
+    const sortedRemotes = useMemo(() => [...remotes].sort((a, b) => a.localeCompare(b)), [remotes])
 
     const [searchQuery, setSearchQuery] = useState('')
 
@@ -348,7 +345,7 @@ function RemoteCard({
                 <div className="flex items-center justify-between h-full">
                     <div className="flex items-center gap-4">
                         <img src={imageUrl} className="object-contain ml-2 size-10" alt={remote} />
-                        <p className="font-light text-large">{remote}</p>
+                        <p className="text-large">{remote}</p>
                     </div>
                     <div className="flex items-center justify-end gap-4">
                         {/* Storage info boxes */}

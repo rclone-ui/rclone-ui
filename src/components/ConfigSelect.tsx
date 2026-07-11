@@ -18,7 +18,8 @@ export default function ConfigSelect({
 }) {
     return (
         <Select
-            label={label}
+            label={label || undefined}
+            aria-label={label ? undefined : 'Config file'}
             labelPlacement="outside"
             selectedKeys={value ? [value] : []}
             onSelectionChange={(keys) => {

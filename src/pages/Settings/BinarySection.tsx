@@ -2,7 +2,6 @@ import { Button, Checkbox, Chip, Input, Progress, Spinner, Tooltip } from '@hero
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message, open } from '@tauri-apps/plugin-dialog'
 import {
-    CheckIcon,
     DownloadIcon,
     FolderOpenIcon,
     HardDriveIcon,
@@ -157,155 +156,188 @@ export default function BinarySection() {
 
     return (
         <BaseSection header={{ title: 'Binary' }}>
-            <div className="flex flex-col w-full gap-6 px-8 pb-10">
-                {/* ---- Custom binary ---- */}
-                <CustomBinaryRow
-                    active={active}
-                    systemPath={systemQuery.data ?? null}
-                    rclonePath={rclonePath}
-                    onActivated={invalidateActive}
-                />
+            {/* ---- Custom binary ---- */}
+            <div className="flex flex-row justify-center w-full gap-8 px-8">
+                <div className="flex flex-col items-end flex-1 gap-2">
+                    <h3 className="font-medium">Custom binary</h3>
+                    <p className="text-xs text-neutral-500 text-end">
+                        Point to an rclone binary on your machine.
+                    </p>
+                </div>
+                <div className="flex flex-col w-3/5 gap-3">
+                    <CustomBinaryRow
+                        active={active}
+                        systemPath={systemQuery.data ?? null}
+                        rclonePath={rclonePath}
+                        onActivated={invalidateActive}
+                    />
+                </div>
+            </div>
 
-                {/* ---- PATH integration ---- */}
-                <PathIntegrationRow
-                    rclonePath={rclonePath}
-                    isSystemActive={active?.kind === 'system'}
-                />
+            {/* ---- PATH integration ---- */}
+            <div className="flex flex-row justify-center w-full gap-8 px-8">
+                <div className="flex flex-col items-end flex-1 gap-2">
+                    <h3 className="font-medium">Path</h3>
+                </div>
+                <div className="flex flex-col w-3/5 gap-3">
+                    <PathIntegrationRow
+                        rclonePath={rclonePath}
+                        isSystemActive={active?.kind === 'system'}
+                    />
+                </div>
+            </div>
 
-                {/* ---- Auto update ---- */}
-                <AutoUpdateRow />
+            {/* ---- Auto update ---- */}
+            <div className="flex flex-row justify-center w-full gap-8 px-8">
+                <div className="flex flex-col items-end flex-1 gap-2">
+                    <h3 className="font-medium">Updates</h3>
+                </div>
+                <div className="flex flex-col w-3/5 gap-3">
+                    <AutoUpdateRow />
+                </div>
+            </div>
 
-                {/* ---- Versions ---- */}
-                <div className="flex flex-col overflow-hidden border divide-y rounded-large border-divider divide-divider">
-                    {/* System */}
-                    {systemQuery.data && (
-                        <VersionRow
-                            label={
-                                systemVersionQuery.data
-                                    ? `System — v${systemVersionQuery.data}`
-                                    : 'System'
-                            }
-                            sublabel={systemQuery.data}
-                            warning={subFloorWarning(systemVersionQuery.data)}
-                            isActive={active?.kind === 'system'}
-                            actionLabel="Use"
-                            isActivating={activateMutation.isPending}
-                            onActivate={() =>
-                                activateMutation.mutate({
-                                    path: systemQuery.data!,
-                                    isSystem: true,
-                                })
-                            }
-                        />
-                    )}
-
-                    {/* Downloaded (managed) */}
-                    {downloadedVersions.map((v) => {
-                        const isActive = active?.kind === 'managed' && active.version === v.version
-                        return (
+            {/* ---- Versions ---- */}
+            <div className="flex flex-row justify-center w-full gap-8 px-8 pb-10">
+                <div className="flex flex-col items-end flex-1 gap-2">
+                    <h3 className="font-medium">Versions</h3>
+                </div>
+                <div className="flex flex-col w-3/5 gap-3">
+                    <div className="flex flex-col overflow-hidden border divide-y rounded-large border-divider divide-divider">
+                        {/* System */}
+                        {systemQuery.data && (
                             <VersionRow
-                                key={v.path}
-                                label={`v${v.version}`}
-                                sublabel={formatBytes(v.sizeBytes)}
-                                warning={subFloorWarning(v.version)}
-                                isActive={isActive}
+                                label={
+                                    systemVersionQuery.data
+                                        ? `System — v${systemVersionQuery.data}`
+                                        : 'System'
+                                }
+                                sublabel={systemQuery.data}
+                                warning={subFloorWarning(systemVersionQuery.data)}
+                                isActive={active?.kind === 'system'}
                                 actionLabel="Use"
                                 isActivating={activateMutation.isPending}
-                                onActivate={() => activateMutation.mutate({ path: v.path })}
-                                onDelete={isActive ? undefined : () => handleDeleteVersion(v)}
-                                isDeleting={
-                                    deleteMutation.isPending &&
-                                    deleteMutation.variables === v.version
+                                onActivate={() =>
+                                    activateMutation.mutate({
+                                        path: systemQuery.data!,
+                                        isSystem: true,
+                                    })
                                 }
                             />
-                        )
-                    })}
-
-                    {/* Available to download */}
-                    {availableToDownload.map((r) => {
-                        const prog = progress[r.version]
-                        const percent = prog?.total
-                            ? Math.min(100, Math.round((prog.downloaded / prog.total) * 100))
-                            : undefined
-                        const isDownloading =
-                            downloadMutation.isPending && downloadMutation.variables === r.version
-                        return (
-                            <div key={r.version} className="flex items-center gap-3 px-4 py-3">
-                                <div className="flex flex-col flex-1 min-w-0">
-                                    <span className="text-sm text-neutral-500">v{r.version}</span>
-                                    {isDownloading && (
-                                        <Progress
-                                            aria-label="download progress"
-                                            size="sm"
-                                            value={percent ?? 0}
-                                            isIndeterminate={percent === undefined}
-                                            className="mt-1 max-w-52"
-                                        />
-                                    )}
-                                </div>
-                                <Button
-                                    size="sm"
-                                    variant="light"
-                                    isIconOnly={true}
-                                    isLoading={isDownloading}
-                                    onPress={() => downloadMutation.mutate(r.version)}
-                                    data-focus-visible="false"
-                                >
-                                    <DownloadIcon className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        )
-                    })}
-
-                    {(downloadedVersions.length > 0 || systemQuery.data) &&
-                        availableToDownload.length === 0 &&
-                        releasesQuery.isError && (
-                            <div className="flex items-center justify-between gap-2 px-4 py-3">
-                                <span className="text-xs text-warning">
-                                    Couldn't load available versions (offline or rate-limited).
-                                </span>
-                                <Button
-                                    size="sm"
-                                    variant="light"
-                                    onPress={() => releasesQuery.refetch()}
-                                    startContent={<RefreshCwIcon className="w-3.5 h-3.5" />}
-                                    data-focus-visible="false"
-                                >
-                                    Retry
-                                </Button>
-                            </div>
                         )}
 
-                    {releasesQuery.isLoading && downloadedVersions.length === 0 && (
-                        <div className="flex items-center justify-center py-6">
-                            <Spinner size="sm" />
+                        {/* Downloaded (managed) */}
+                        {downloadedVersions.map((v) => {
+                            const isActive =
+                                active?.kind === 'managed' && active.version === v.version
+                            return (
+                                <VersionRow
+                                    key={v.path}
+                                    label={`v${v.version}`}
+                                    sublabel={formatBytes(v.sizeBytes)}
+                                    warning={subFloorWarning(v.version)}
+                                    isActive={isActive}
+                                    actionLabel="Use"
+                                    isActivating={activateMutation.isPending}
+                                    onActivate={() => activateMutation.mutate({ path: v.path })}
+                                    onDelete={isActive ? undefined : () => handleDeleteVersion(v)}
+                                    isDeleting={
+                                        deleteMutation.isPending &&
+                                        deleteMutation.variables === v.version
+                                    }
+                                />
+                            )
+                        })}
+
+                        {/* Available to download */}
+                        {availableToDownload.map((r) => {
+                            const prog = progress[r.version]
+                            const percent = prog?.total
+                                ? Math.min(100, Math.round((prog.downloaded / prog.total) * 100))
+                                : undefined
+                            const isDownloading =
+                                downloadMutation.isPending &&
+                                downloadMutation.variables === r.version
+                            return (
+                                <div key={r.version} className="flex items-center gap-3 px-4 py-3">
+                                    <div className="flex flex-col flex-1 min-w-0">
+                                        <span className="text-sm text-neutral-500">
+                                            v{r.version}
+                                        </span>
+                                        {isDownloading && (
+                                            <Progress
+                                                aria-label="download progress"
+                                                size="sm"
+                                                value={percent ?? 0}
+                                                isIndeterminate={percent === undefined}
+                                                className="mt-1 max-w-52"
+                                            />
+                                        )}
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="light"
+                                        isIconOnly={true}
+                                        isLoading={isDownloading}
+                                        onPress={() => downloadMutation.mutate(r.version)}
+                                        data-focus-visible="false"
+                                    >
+                                        <DownloadIcon className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            )
+                        })}
+
+                        {(downloadedVersions.length > 0 || systemQuery.data) &&
+                            availableToDownload.length === 0 &&
+                            releasesQuery.isError && (
+                                <div className="flex items-center justify-between gap-2 px-4 py-3">
+                                    <span className="text-xs text-warning">
+                                        Couldn't load available versions (offline or rate-limited).
+                                    </span>
+                                    <Button
+                                        size="sm"
+                                        variant="light"
+                                        onPress={() => releasesQuery.refetch()}
+                                        startContent={<RefreshCwIcon className="w-3.5 h-3.5" />}
+                                        data-focus-visible="false"
+                                    >
+                                        Retry
+                                    </Button>
+                                </div>
+                            )}
+
+                        {releasesQuery.isLoading && downloadedVersions.length === 0 && (
+                            <div className="flex items-center justify-center py-6">
+                                <Spinner size="sm" />
+                            </div>
+                        )}
+                    </div>
+
+                    {updateAvailable && (
+                        <div className="flex items-center gap-2">
+                            <Chip size="sm" color="primary" variant="flat">
+                                Update available: v{latestVersion}
+                            </Chip>
+                            <Button
+                                size="sm"
+                                color="primary"
+                                variant="flat"
+                                isLoading={
+                                    downloadMutation.isPending &&
+                                    downloadMutation.variables === latestVersion
+                                }
+                                onPress={async () => {
+                                    const path = await downloadMutation.mutateAsync(latestVersion!)
+                                    activateMutation.mutate({ path })
+                                }}
+                                data-focus-visible="false"
+                            >
+                                Update &amp; use
+                            </Button>
                         </div>
                     )}
                 </div>
-
-                {updateAvailable && (
-                    <div className="flex items-center gap-2 -mt-3">
-                        <Chip size="sm" color="primary" variant="flat">
-                            Update available: v{latestVersion}
-                        </Chip>
-                        <Button
-                            size="sm"
-                            color="primary"
-                            variant="flat"
-                            isLoading={
-                                downloadMutation.isPending &&
-                                downloadMutation.variables === latestVersion
-                            }
-                            onPress={async () => {
-                                const path = await downloadMutation.mutateAsync(latestVersion!)
-                                activateMutation.mutate({ path })
-                            }}
-                            data-focus-visible="false"
-                        >
-                            Update &amp; use
-                        </Button>
-                    </div>
-                )}
             </div>
         </BaseSection>
     )
@@ -341,13 +373,8 @@ function VersionRow({
                 {warning && <span className="text-xs text-warning">{warning}</span>}
             </div>
             {isActive ? (
-                <Chip
-                    size="sm"
-                    color="success"
-                    variant="flat"
-                    startContent={<CheckIcon className="w-3 h-3" />}
-                >
-                    Active
+                <Chip size="sm" color="success" variant="flat">
+                    ACTIVE
                 </Chip>
             ) : (
                 <Button
@@ -431,39 +458,38 @@ function CustomBinaryRow({
         })
         if (typeof selected === 'string') {
             setValue(selected)
+            // Picking a binary implies using it — activate immediately, no separate button.
+            useMutationState.mutate(selected)
         }
     }
 
     return (
         <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-                <Input
-                    value={value}
-                    onValueChange={setValue}
-                    size="sm"
-                    placeholder="/path/to/rclone"
-                    autoComplete="off"
-                    endContent={
+            <Input
+                value={value}
+                onValueChange={setValue}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' && value) {
+                        useMutationState.mutate(value)
+                    }
+                }}
+                size="lg"
+                placeholder="/path/to/rclone"
+                autoComplete="off"
+                endContent={
+                    useMutationState.isPending ? (
+                        <Spinner size="sm" />
+                    ) : (
                         <button
                             type="button"
                             onClick={browse}
                             className="transition-colors text-neutral-400 hover:text-neutral-200"
                         >
-                            <FolderOpenIcon className="w-4 h-4" />
+                            <FolderOpenIcon className="w-5 h-5" />
                         </button>
-                    }
-                />
-                <Button
-                    size="sm"
-                    variant="flat"
-                    isDisabled={!value}
-                    isLoading={useMutationState.isPending}
-                    onPress={() => useMutationState.mutate(value)}
-                    data-focus-visible="false"
-                >
-                    Use
-                </Button>
-            </div>
+                    )
+                }
+            />
             {isCustomActive && (
                 <span className="text-xs text-success">
                     Currently using a custom binary
@@ -538,6 +564,9 @@ function PathIntegrationRow({
             >
                 Add rclone to PATH
             </Checkbox>
+            <span className="text-xs text-neutral-500">
+                Lets you call rclone from your terminal.
+            </span>
             {isSystemActive && (
                 <span className="text-xs text-neutral-500">
                     The system rclone is already on your PATH.

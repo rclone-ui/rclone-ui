@@ -8,14 +8,13 @@ import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { startBisync } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
+import { useSchedulingAvailable } from '../../lib/scheduler'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { PathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
-import AdvancedScheduleSection, {
-    useAdvancedSchedule,
-} from '../components/operation/AdvancedScheduleSection'
+import CronSection from '../components/operation/CronSection'
 import OperationFooter from '../components/operation/OperationFooter'
 import OptionsAccordion, {
     type OptionsAccordionItemDef,
@@ -103,7 +102,8 @@ export default function Bisync() {
 
     const [outerBisyncOptions, setOuterBisyncOptions] = useState<Record<string, boolean>>({})
 
-    const advanced = useAdvancedSchedule()
+    const [cronExpression, setCronExpression] = useState<string | null>(null)
+    const schedulingAvailable = useSchedulingAvailable()
 
     const selectedRemotes = useMemo(() => [source, dest].filter(Boolean), [source, dest])
 
@@ -141,7 +141,7 @@ export default function Bisync() {
             return startBisync(buildStartArgs())
         },
         onSuccess: () => {
-            if (advanced.cronExpression) {
+            if (cronExpression) {
                 scheduleTaskMutation.mutate()
             }
         },
@@ -153,9 +153,7 @@ export default function Bisync() {
 
     const scheduleTaskMutation = useScheduleTask({
         operation: 'bisync',
-        cronExpression: advanced.cronExpression,
-        configId: advanced.configId,
-        binaryPath: advanced.binaryPath,
+        cronExpression,
         validate: () => {
             if (!source || !dest) {
                 throw new Error('Please select both a source and destination path')
@@ -170,9 +168,9 @@ export default function Bisync() {
         if (!dest) return 'Please select a destination path'
         if (source === dest) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (advanced.cronExpression) return 'START AND SCHEDULE BISYNC'
+        if (cronExpression) return 'START AND SCHEDULE BISYNC'
         return 'START BISYNC'
-    }, [startBisyncMutation.isPending, source, dest, jsonError, advanced.cronExpression])
+    }, [startBisyncMutation.isPending, source, dest, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startBisyncMutation.isPending) return
@@ -320,6 +318,20 @@ export default function Bisync() {
                     />
                 ),
             },
+            ...(schedulingAvailable
+                ? [
+                      {
+                          key: 'cron',
+                          category: 'cron' as const,
+                          children: (
+                              <CronSection
+                                  expression={cronExpression}
+                                  onChange={setCronExpression}
+                              />
+                          ),
+                      },
+                  ]
+                : []),
             {
                 key: 'config',
                 category: 'config',
@@ -371,6 +383,8 @@ export default function Bisync() {
             configFlags,
             selectedRemotes,
             remotesGroup,
+            cronExpression,
+            schedulingAvailable,
         ]
     )
 
@@ -423,8 +437,6 @@ export default function Bisync() {
                     destPath={dest}
                     setDestPath={setDest}
                 />
-
-                <AdvancedScheduleSection advanced={advanced} />
 
                 <OptionsAccordion items={accordionItems} />
             </OperationWindowContent>

@@ -96,6 +96,17 @@ export function useSchedulerSupported() {
     })
 }
 
+/**
+ * Whether scheduling can actually work here: the current host is the local machine AND the OS
+ * backend reports support. Unresolved support counts as unavailable. Shared by the operation
+ * pages (to gate the Cron section + footer Schedule button) and the footer.
+ */
+export function useSchedulingAvailable(): boolean {
+    const currentHostId = usePersistedStore((s) => s.currentHostId) ?? LOCAL_HOST_ID
+    const support = useSchedulerSupported()
+    return currentHostId === LOCAL_HOST_ID && (support.data?.supported ?? false)
+}
+
 export interface CronValidation {
     valid: boolean
     error?: string

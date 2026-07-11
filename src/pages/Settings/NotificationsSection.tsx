@@ -15,14 +15,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import {
+    MessageCircleIcon,
     PencilIcon,
-    PlusIcon,
     SendIcon,
     SettingsIcon,
     Trash2Icon,
     TriangleAlertIcon,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import {
     FREE_MAX_TARGETS,
     NOTIFICATION_PROVIDERS,
@@ -97,6 +97,28 @@ export default function NotificationsSection() {
                                 onPress={() => handleAddPress(provider)}
                             />
                         ))}
+                        <DummyProviderCard
+                            label="Telegram (bot-less)"
+                            description="Get messages without your own bot"
+                            icon={<SendIcon className="text-sky-500 size-8 shrink-0" />}
+                            onPress={() =>
+                                message(
+                                    'Telegram without your own bot is coming in v4. Upgrade to v4 to use it.',
+                                    { title: 'Coming in v4', kind: 'info' }
+                                )
+                            }
+                        />
+                        <DummyProviderCard
+                            label="WhatsApp"
+                            description="Get messages on WhatsApp"
+                            icon={<MessageCircleIcon className="text-green-500 size-8 shrink-0" />}
+                            onPress={() =>
+                                message(
+                                    'WhatsApp notifications are coming in v4. Upgrade to v4 to use them.',
+                                    { title: 'Coming in v4', kind: 'info' }
+                                )
+                            }
+                        />
                     </div>
                 </section>
 
@@ -153,7 +175,6 @@ function ProviderCard({
             data-focus-visible="false"
         >
             <CardBody className="relative flex flex-row items-center gap-3 px-4">
-                <PlusIcon className="absolute w-4 h-4 top-3 right-3 text-default-400" />
                 <ProviderIcon
                     provider={provider}
                     className={cn('size-8 shrink-0', providerMeta.accentClass)}
@@ -161,6 +182,39 @@ function ProviderCard({
                 <div className="flex flex-col gap-0.5 text-left">
                     <p className="font-medium">{providerMeta.label}</p>
                     <p className="text-small text-default-500">{providerMeta.description}</p>
+                </div>
+            </CardBody>
+        </Card>
+    )
+}
+
+// Placeholder cards for providers that don't exist yet — tapping explains they're coming in v4.
+function DummyProviderCard({
+    label,
+    description,
+    icon,
+    onPress,
+}: {
+    label: string
+    description: string
+    icon: ReactNode
+    onPress: () => void
+}) {
+    return (
+        <Card
+            shadow="sm"
+            isPressable={true}
+            onPress={onPress}
+            className="h-24 bg-content2"
+            data-focus-visible="false"
+        >
+            <CardBody className="relative flex flex-row items-center gap-3 px-4">
+                {icon}
+                <div className="flex flex-col gap-0.5 text-left">
+                    <div className="flex items-center gap-2">
+                        <p className="font-medium">{label}</p>
+                    </div>
+                    <p className="text-small text-default-500">{description}</p>
                 </div>
             </CardBody>
         </Card>

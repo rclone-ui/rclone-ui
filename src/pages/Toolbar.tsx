@@ -116,15 +116,23 @@ export default function Toolbar() {
     // Eager per-remote capability probes (operations/fsinfo), cached hard. Feeds the synchronous
     // engine so cleanup/purge can gate on the authoritative feature set. Unresolved/unreachable
     // remotes are simply absent from the map → those actions fall to their generic item.
-    const fsInfoQueries = useQueries({ queries: remotes.map((remote) => fsInfoQueryOptions(remote)) })
-    const capabilitiesByRemote = useMemo(() => {
-        const map: Record<string, RcloneFeatures> = {}
-        remotes.forEach((remote, i) => {
-            const features = fsInfoQueries[i]?.data?.Features
-            if (features) map[remote] = features
-        })
-        return map
-    }, [remotes, fsInfoQueries])
+    //
+    // Built via `combine` (not a useMemo over the raw useQueries array) on purpose: react-query runs
+    // the combined value through replaceEqualDeep, so `capabilitiesByRemote` keeps a STABLE reference
+    // across renders until the capability data actually changes. A useMemo keyed on the useQueries
+    // result recomputed every render (that array is new each time), so the engine effect below re-ran
+    // and called setState on every render — an infinite update loop.
+    const capabilitiesByRemote = useQueries({
+        queries: remotes.map((remote) => fsInfoQueryOptions(remote)),
+        combine: (results) => {
+            const map: Record<string, RcloneFeatures> = {}
+            remotes.forEach((remote, i) => {
+                const features = results[i]?.data?.Features
+                if (features) map[remote] = features
+            })
+            return map
+        },
+    })
 
     const [searchString, setSearchString] = useState('')
     const [searchStringDebounced] = useDebounce(searchString, 40)

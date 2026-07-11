@@ -12,7 +12,16 @@
         "url": "https://github.com/rclone-ui/rclone-ui"
     },
     "homepage": "https://rcloneui.com",
-    "keywords": ["rclone", "gui", "drive", "s3", "cloud", "storage", "sync", "backup"],
+    "keywords": [
+        "rclone",
+        "gui",
+        "drive",
+        "s3",
+        "cloud",
+        "storage",
+        "sync",
+        "backup"
+    ],
     "license": "Apache-2.0",
     "scripts": {
         "dev": "node scripts/buildExternal.js && vite",

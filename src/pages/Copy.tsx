@@ -7,15 +7,14 @@ import { getOptionsSubtitle } from '../../lib/flags'
 import { useFlags } from '../../lib/hooks'
 import { startCopy, startDryRun } from '../../lib/rclone/api'
 import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
+import { useSchedulingAvailable } from '../../lib/scheduler'
 import { usePersistedStore } from '../../store/persisted'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
 import { MultiPathFinder } from '../components/PathFinder'
 import RemoteOptionsSection from '../components/RemoteOptionsSection'
-import AdvancedScheduleSection, {
-    useAdvancedSchedule,
-} from '../components/operation/AdvancedScheduleSection'
+import CronSection from '../components/operation/CronSection'
 import OperationFooter from '../components/operation/OperationFooter'
 import OptionsAccordion, {
     type OptionsAccordionItemDef,
@@ -42,7 +41,7 @@ Expand the accordion sections to customize your copy operation. Tap any chip on 
 
 • Filters — Include or exclude files by pattern, limit by size (max_size, min_size) or age (max_age, min_age).
 
-• Cron — Schedule this copy to run automatically at set intervals. It runs on a system schedule, even when the app is closed.
+• Cron — Schedule this copy to run automatically at set intervals. It runs even when the app is closed.
 
 • Config — Performance tuning: parallel transfers, checkers, buffer_size, bandwidth limits (bwlimit), and fast_list for faster directory listings on supported remotes.
 
@@ -86,7 +85,8 @@ export default function Copy() {
     const filterGroup = optionGroups.filter
     const configGroup = optionGroups.config
 
-    const advanced = useAdvancedSchedule()
+    const [cronExpression, setCronExpression] = useState<string | null>(null)
+    const schedulingAvailable = useSchedulingAvailable()
 
     const selectedRemotes = useMemo(
         () => [...(sources || []), dest].filter(Boolean),
@@ -113,7 +113,7 @@ export default function Copy() {
             return startCopy(buildArgs())
         },
         onSuccess: () => {
-            if (advanced.cronExpression) {
+            if (cronExpression) {
                 scheduleTaskMutation.mutate()
             }
         },
@@ -125,9 +125,7 @@ export default function Copy() {
 
     const scheduleTaskMutation = useScheduleTask({
         operation: 'copy',
-        cronExpression: advanced.cronExpression,
-        configId: advanced.configId,
-        binaryPath: advanced.binaryPath,
+        cronExpression,
         validate: () => {
             if (!sources || sources.length === 0 || !dest) {
                 throw new Error('Please select both a source and destination path')
@@ -164,9 +162,9 @@ export default function Copy() {
         if (!dest) return 'Please select a destination path'
         if (sources.some((s) => s === dest)) return 'Source and destination cannot be the same'
         if (jsonError) return 'Invalid JSON for ' + jsonError.toUpperCase() + ' options'
-        if (advanced.cronExpression) return 'START AND SCHEDULE COPY'
+        if (cronExpression) return 'START AND SCHEDULE COPY'
         return 'START COPY'
-    }, [startCopyMutation.isPending, sources, dest, jsonError, advanced.cronExpression])
+    }, [startCopyMutation.isPending, sources, dest, jsonError, cronExpression])
 
     const buttonIcon = useMemo(() => {
         if (startCopyMutation.isPending) return
@@ -208,6 +206,20 @@ export default function Copy() {
                     />
                 ),
             },
+            ...(schedulingAvailable
+                ? [
+                      {
+                          key: 'cron',
+                          category: 'cron' as const,
+                          children: (
+                              <CronSection
+                                  expression={cronExpression}
+                                  onChange={setCronExpression}
+                              />
+                          ),
+                      },
+                  ]
+                : []),
             {
                 key: 'config',
                 category: 'config',
@@ -258,6 +270,8 @@ export default function Copy() {
             filterFlags,
             configFlags,
             selectedRemotes,
+            cronExpression,
+            schedulingAvailable,
         ]
     )
 
@@ -282,21 +296,21 @@ export default function Copy() {
     const handleResetOptions = useCallback(() => {
         startTransition(() => {
             resetJson()
-            advanced.reset()
+            setCronExpression(null)
             startCopyMutation.reset()
         })
-    }, [advanced.reset, resetJson, startCopyMutation.reset])
+    }, [resetJson, startCopyMutation.reset])
 
     const handleResetAll = useCallback(() => {
         startTransition(() => {
             resetJson()
             resetLocks()
-            advanced.reset()
+            setCronExpression(null)
             setSources(undefined)
             setDest(undefined)
             startCopyMutation.reset()
         })
-    }, [advanced.reset, resetJson, resetLocks, startCopyMutation.reset])
+    }, [resetJson, resetLocks, startCopyMutation.reset])
 
     useEffect(() => {
         console.log('[Copy] remoteOptions', remotesGroup.options)
@@ -314,8 +328,6 @@ export default function Copy() {
                     destPath={dest}
                     setDestPath={setDest}
                 />
-
-                <AdvancedScheduleSection advanced={advanced} />
 
                 <OptionsAccordion banner={true} items={accordionItems} />
             </OperationWindowContent>
