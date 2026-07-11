@@ -3,6 +3,7 @@ import { Button, Input } from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
 import { invoke } from '@tauri-apps/api/core'
 import { message } from '@tauri-apps/plugin-dialog'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useState } from 'react'
@@ -174,31 +175,32 @@ export default function MobileSection() {
 
                 {!cloudflaredTunnel && (
                     <div className="flex flex-col items-center gap-2 overflow-hidden max-h-[525px]">
-                        <img
-                            src={'/mobile.png'}
-                            alt="Mobile"
-                            className="w-full px-10 !cursor-pointer"
-                            // onClick={() => openUrl('https://google.com')}
-                        />
+                        <img src={'/mobile.png'} alt="Mobile" className="w-full px-10" />
 
-                        {/* <div className="absolute left-0 right-0 flex flex-col items-center bottom-5">
+                        <div className="absolute left-0 right-0 flex flex-col items-center bottom-5">
                             <p className="p-2 px-3.5 text-medium text-primary-800 bg-content2 border-1 border-divider rounded-small">
                                 Download on the{' '}
                                 <span
                                     className="font-medium !cursor-pointer hover:text-primary-foreground"
-                                    onClick={() => openUrl('https://apple.com')}
+                                    onClick={() =>
+                                        openUrl('https://apps.apple.com/app/rclone-ui/id6756127598')
+                                    }
                                 >
                                     App Store
                                 </span>{' '}
                                 and{' '}
                                 <span
                                     className="font-medium !cursor-pointer hover:text-primary-foreground"
-                                    onClick={() => openUrl('https://google.com')}
+                                    onClick={() =>
+                                        openUrl(
+                                            'https://play.google.com/store/apps/details?id=com.rclone.mobile'
+                                        )
+                                    }
                                 >
                                     Google Play
                                 </span>
                             </p>
-                        </div> */}
+                        </div>
                     </div>
                 )}
             </div>
