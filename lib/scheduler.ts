@@ -127,17 +127,6 @@ export async function schedulerReadLog(taskId: string, which: 'runner' | 'daemon
     })
 }
 
-export interface SchedulerDoctorCheck {
-    name: string
-    ok: boolean
-    detail: string
-    fix?: string
-}
-
-export async function schedulerDoctor() {
-    return invoke<SchedulerDoctorCheck[]>('scheduler_doctor')
-}
-
 function buildJobSpec(task: ScheduledTask): SchedulerJobSpec {
     return {
         schemaVersion: 1,

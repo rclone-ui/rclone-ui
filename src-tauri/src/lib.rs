@@ -885,7 +885,6 @@ pub fn run() {
             scheduler::scheduler_status,
             scheduler::scheduler_read_history,
             scheduler::scheduler_read_log,
-            scheduler::scheduler_doctor,
             scheduler::scheduler_unregister_all,
             scheduler::scheduler_sweep_orphans,
             notifications::notifications_catalog,
