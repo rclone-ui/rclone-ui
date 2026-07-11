@@ -1,6 +1,15 @@
 import * as Sentry from '@sentry/browser'
 import { message } from '@tauri-apps/plugin-dialog'
 
+// Signals that the user explicitly stopped a call (e.g. dismissed the reconnect prompt), so retry
+// layers should abort instead of re-running and re-prompting.
+export class UserCancelledError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = 'UserCancelledError'
+    }
+}
+
 // Coerce an unknown thrown value into a user-facing string. Mirrors the
 // `error instanceof Error ? error.message : <fallback>` idiom hand-written across the app.
 // Pass `String(error)` as the fallback to preserve sites that surfaced the raw value.

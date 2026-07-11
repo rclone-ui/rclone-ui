@@ -6,6 +6,7 @@ import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import { useStore } from '../../store/memory'
 import type { JobItem } from '../../types/jobs'
 import type { FlagValue } from '../../types/rclone'
+import { UserCancelledError, formatErrorMessage } from '../errors'
 import { getFsInfo } from '../format'
 import { restartActiveRclone, runRcloneCli } from './cli'
 import rclone, { rcloneAsync } from './client'
@@ -17,6 +18,10 @@ const RE_WINDOWS_EXTENDED_PATH = /(\/\/\?\/|\\\\\?\\)/
 const RE_WINDOWS_DRIVE_ROOT = /^:local:[a-zA-Z]:\/$/
 const RE_WINDOWS_DRIVE_LETTER = /^[a-zA-Z]:$/
 
+const RETRY_OPTIONS = {
+    retries: 3,
+    shouldRetry: ({ error }: { error: unknown }) => !(error instanceof UserCancelledError),
+}
 export async function startDryRun<T>(operation: () => Promise<T>): Promise<T> {
     await rclone('/options/set', {
         body: {
@@ -652,9 +657,7 @@ export async function startMount({
                         },
                     },
                 }),
-            {
-                retries: 3,
-            }
+            RETRY_OPTIONS
         )
         return response?.mountPoint
     }
@@ -681,9 +684,7 @@ export async function startMount({
                         },
                     },
                 }),
-            {
-                retries: 3,
-            }
+            RETRY_OPTIONS
         )
         if (!r || !r.item) {
             directoryExists = false
@@ -713,9 +714,7 @@ export async function startMount({
                             },
                         },
                     }),
-                {
-                    retries: 3,
-                }
+                RETRY_OPTIONS
             )
             isEmpty = !list || list.length === 0
         } catch (err) {
@@ -738,9 +737,7 @@ export async function startMount({
                                 },
                             },
                         }),
-                    {
-                        retries: 3,
-                    }
+                    RETRY_OPTIONS
                 )
             } catch (err) {
                 console.error('[Mount] Error removing directory:', err)
@@ -758,9 +755,7 @@ export async function startMount({
                             },
                         },
                     }),
-                {
-                    retries: 3,
-                }
+                RETRY_OPTIONS
             )
         } catch (error) {
             console.error('[Mount] Error creating directory:', error)
@@ -794,9 +789,7 @@ export async function startMount({
                     },
                 },
             }),
-        {
-            retries: 3,
-        }
+        RETRY_OPTIONS
     )
 }
 
@@ -862,9 +855,7 @@ export async function startBisync({
                     },
                 },
             }),
-        {
-            retries: 3,
-        }
+        RETRY_OPTIONS
     )
 
     if (!r?.jobid) {
@@ -883,9 +874,7 @@ export async function startBisync({
                     },
                 },
             }),
-        {
-            retries: 3,
-        }
+        RETRY_OPTIONS
     ).catch(() => null)
 
     console.log('jobStatus', JSON.stringify(jobStatus, null, 2))
@@ -1201,9 +1190,7 @@ export async function startBatch(inputs: ({ _path: string } & Record<string, any
                     _async: true,
                 },
             }),
-        {
-            retries: 3,
-        }
+        RETRY_OPTIONS
     )
 
     console.log('[startBatch] job created', { jobid: r.jobid })
@@ -1219,9 +1206,7 @@ export async function startBatch(inputs: ({ _path: string } & Record<string, any
                     },
                 },
             }),
-        {
-            retries: 3,
-        }
+        RETRY_OPTIONS
     ).catch(() => null)
 
     console.log('[startBatch] jobStatus', {

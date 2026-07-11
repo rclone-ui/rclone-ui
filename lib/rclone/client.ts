@@ -11,12 +11,15 @@ import createRCDClient, {
     type RCDClient,
 } from 'rclone-sdk'
 import { selectCurrentHost, usePersistedStore } from '../../store/persisted'
+import { UserCancelledError } from '../errors'
 
 const RE_RECONNECT = /rclone config reconnect (\S+?):/
 
+// Returns true when the user declined to reconnect (dismissed the prompt or the reconnect attempt
+// failed) so callers can abort retries instead of re-running and re-prompting.
 async function handleReconnectIfNeeded(errorMessage: string) {
     const match = errorMessage.match(RE_RECONNECT)
-    if (!match) return
+    if (!match) return false
     const remoteName = match[1]
     const confirmed = await ask(
         `Remote "${remoteName}" needs to be reconnected. This usually means the authentication token has expired.\n\nWould you like to reconnect now?`,
@@ -27,7 +30,7 @@ async function handleReconnectIfNeeded(errorMessage: string) {
             cancelLabel: 'Dismiss',
         }
     )
-    if (!confirmed) return
+    if (!confirmed) return true
     try {
         const { reconnectRemote } = await import('./api')
         await reconnectRemote(remoteName)
@@ -35,11 +38,13 @@ async function handleReconnectIfNeeded(errorMessage: string) {
             title: 'Reconnected',
             kind: 'info',
         })
+        return false
     } catch (err) {
         await message(err instanceof Error ? err.message : 'Reconnection failed', {
             title: 'Reconnect Error',
             kind: 'error',
         })
+        return true
     }
 }
 
@@ -123,8 +128,8 @@ async function request(mode: 'sync' | 'async', path: string, init: any[]): Promi
         const errMsg =
             typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
 
-        await handleReconnectIfNeeded(errMsg)
-        throw new Error(errMsg)
+        const cancelled = await handleReconnectIfNeeded(errMsg)
+        throw cancelled ? new UserCancelledError(errMsg) : new Error(errMsg)
     }
 
     const data = result.data as { error?: unknown } | undefined
@@ -132,8 +137,8 @@ async function request(mode: 'sync' | 'async', path: string, init: any[]): Promi
         console.error('[rclone] DATA ERROR', path, { error: data.error })
         const errMsg = typeof data.error === 'string' ? data.error : JSON.stringify(data.error)
 
-        await handleReconnectIfNeeded(errMsg)
-        throw new Error(errMsg)
+        const cancelled = await handleReconnectIfNeeded(errMsg)
+        throw cancelled ? new UserCancelledError(errMsg) : new Error(errMsg)
     }
 
     if (!result.response.ok) {
