@@ -22,7 +22,7 @@ import {
     resolveDefaultConfigPath,
     validateRcloneBinary,
 } from './common'
-import { downloadVersion, listDownloadedVersions } from './versions'
+import { downloadVersion, listDownloadedVersions, setPathIntegration } from './versions'
 
 export async function initRclone(args: string[]) {
     console.log('[initRclone] starting with args:', args)
@@ -49,6 +49,16 @@ export async function initRclone(args: string[]) {
 
         usePersistedStore.getState().setRclonePath(provisionedPath)
         rclonePath = provisionedPath
+
+        // The system had no rclone at all, so our copy should serve the shell too: enable PATH
+        // integration by default (the Settings toggle reflects it). Best-effort — on macOS this
+        // shows an admin prompt the user may cancel.
+        try {
+            await setPathIntegration(true, provisionedPath)
+        } catch (error) {
+            console.warn('[initRclone] default PATH integration failed', error)
+        }
+
         useStore.setState({ startupStatus: 'initialized' })
 
         if (!['windows', 'macos'].includes(platform())) {
