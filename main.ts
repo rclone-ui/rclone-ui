@@ -634,6 +634,25 @@ async function installUpdate(update: Update, required: boolean) {
         return
     }
 
+    if (await invoke<boolean>('is_flatpak')) {
+        console.log('[checkVersion] flatpak detected, skipping update')
+
+        await message(
+            'A Flatpak version cannot update itself. Please update Rclone UI through your software manager.',
+            {
+                title: required ? 'Update Required' : 'Update Available',
+                kind: 'info',
+                okLabel: required ? 'Exit' : 'OK',
+            }
+        )
+
+        if (required) {
+            return await exit(0)
+        }
+
+        return
+    }
+
     console.log('[checkVersion] downloading and installing update')
 
     await update.downloadAndInstall()
