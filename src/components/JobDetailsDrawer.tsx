@@ -17,9 +17,10 @@ import { platform } from '@tauri-apps/plugin-os'
 import { ExternalLinkIcon, RefreshCwIcon, SearchCheckIcon, SquareIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { formatBytes } from '../../lib/format'
-import notify from '../../lib/notify'
+import { notify } from '../../lib/notifications'
 import { startBatch } from '../../lib/rclone/api'
 import rclone from '../../lib/rclone/client'
+import { useStore } from '../../store/memory'
 import type { JobItem } from '../../types/jobs'
 
 export default function JobDetailsDrawer({
@@ -100,6 +101,13 @@ export default function JobDetailsDrawer({
 
     const stopJobMutation = useMutation({
         mutationFn: async (jobId: number) => {
+            // Un-watch before stopping: a stopped job finishes with an error, which would
+            // otherwise surface as a bogus "Transfer failed" webhook notification.
+            useStore.setState((state) => {
+                const watchedJobs = { ...state.watchedJobs }
+                delete watchedJobs[jobId]
+                return { watchedJobs }
+            })
             await rclone('/job/stopgroup', {
                 params: {
                     query: {

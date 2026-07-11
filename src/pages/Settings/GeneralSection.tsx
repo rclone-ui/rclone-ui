@@ -10,7 +10,7 @@ import { type Update, check } from '@tauri-apps/plugin-updater'
 import { EyeIcon } from 'lucide-react'
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { RELAUNCH_APP, emitToMain } from '../../../lib/events'
-import notify from '../../../lib/notify'
+import { notify } from '../../../lib/notifications'
 import { usePersistedStore } from '../../../store/persisted'
 import BaseSection from './BaseSection'
 

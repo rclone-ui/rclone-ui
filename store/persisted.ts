@@ -8,7 +8,6 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Host } from '../lib/hosts'
 import type { SERVE_TYPES } from '../lib/rclone/constants'
 import type { ConfigFile } from '../types/config'
-import type { ScheduledTask } from '../types/schedules'
 import type { Template } from '../types/template'
 import type { RemoteConfig as HostRemoteConfig } from './host'
 import { createTauriStateStorage } from './lib'
@@ -60,7 +59,8 @@ interface PersistedStateV1 {
 
     startOnBoot: boolean
 
-    scheduledTasks: ScheduledTask[]
+    // Legacy v1 field; the v1→v2 migration never reads it (host stores own scheduling data).
+    scheduledTasks: unknown[]
 
     templates: TemplateV1[]
 
@@ -92,6 +92,9 @@ interface PersistedStateV2 {
     setToolbarShortcut: (shortcut: string | undefined) => Promise<void>
 
     templates: Template[]
+
+    // Notification targets are NOT here: they live in a Rust-owned store
+    // (notifications/targets.json) so the headless scheduler runner can read AND write them.
 
     hosts: Host[]
     currentHostId: string | null

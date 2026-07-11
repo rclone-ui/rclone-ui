@@ -5,6 +5,7 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import {
+    BellIcon,
     CodeIcon,
     CogIcon,
     EyeIcon,
@@ -30,6 +31,7 @@ import GeneralSection from './GeneralSection'
 import HostsSection from './HostsSection'
 import LicenseSection from './LicenseSection'
 import MobileSection from './MobileSection'
+import NotificationsSection from './NotificationsSection'
 import ProxySection from './ProxySection'
 import RemotesSection from './RemotesSection'
 import ToolbarSection from './ToolbarSection'
@@ -286,6 +288,19 @@ export default function Settings() {
                     className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
                 >
                     <ProxySection />
+                </Tab>
+                <Tab
+                    key="notifications"
+                    title={
+                        <div className="flex items-center gap-2">
+                            <BellIcon className="w-5 h-5" />
+                            <span>Notifications</span>
+                        </div>
+                    }
+                    data-focus-visible="false"
+                    className="w-full max-h-screen p-0 overflow-scroll overscroll-none"
+                >
+                    <NotificationsSection />
                 </Tab>
                 <Tab
                     key="mobile"

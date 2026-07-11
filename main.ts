@@ -14,6 +14,12 @@ import { getDeepLinkUrl, handleDeepLinkUrl } from './lib/deep'
 import { CLOSE_APP, RELAUNCH_APP, RESTART_RCLONE, type RestartRclonePayload } from './lib/events'
 import { LOCAL_HOST_ID, RC_PORT, getHostInfo, makeLocalHost } from './lib/hosts'
 import { validateLicense } from './lib/license'
+import {
+    clearWatchedJobs,
+    dispatchNotification,
+    initJobWatcher,
+    reconcileNotificationTargets,
+} from './lib/notifications'
 import queryClient from './lib/query'
 import { listTransfers, startMount } from './lib/rclone/api'
 import rcloneClient from './lib/rclone/client'
@@ -381,6 +387,9 @@ async function registerRcloneWindowListeners() {
         try {
             await killRcloneDaemon()
 
+            // Jobids do not survive a daemon restart — polling them would only 404.
+            clearWatchedJobs()
+
             await startRclone()
         } catch (error) {
             console.error('[restart-rclone] failed to restart rclone', error)
@@ -448,6 +457,19 @@ async function startRclone() {
         if (payload.intentional) {
             return
         }
+
+        // Awaited: the Windows branch below exits the app, so webhook delivery must finish
+        // first — but capped so an unreachable endpoint can't stall crash recovery.
+        // dispatchNotification never throws. Watched jobids died with the daemon.
+        await Promise.race([
+            dispatchNotification('rclone.crashed', {
+                title: 'Rclone daemon crashed',
+                body: `rclone exited unexpectedly${payload.code !== null ? ` (code ${payload.code})` : ''}`,
+                data: { exitCode: payload.code },
+            }),
+            new Promise((resolve) => setTimeout(resolve, 20_000)),
+        ])
+        clearWatchedJobs()
 
         if (platform() === 'windows') {
             return await exit(0)
@@ -718,6 +740,17 @@ async function checkVersion() {
             return
         }
 
+        dispatchNotification('app.update-available', {
+            title: 'Rclone UI update available',
+            body: `Version ${receivedUpdate.version} is available (current: ${currentVersion})`,
+            data: {
+                currentVersion,
+                latestVersion: receivedUpdate.version,
+                minimumVersion,
+                okVersion,
+            },
+        })
+
         if (compareVersions(currentVersion, minimumVersion) < 0) {
             console.log('[checkVersion] currentVersion is outdated')
             await installUpdate(receivedUpdate, true)
@@ -826,6 +859,8 @@ waitForHydration()
     .then(() => checkAlreadyRunning())
     .then(() => startRclone())
     .then(() => checkRclone())
+    .then(() => reconcileNotificationTargets())
+    .then(() => initJobWatcher())
     .then(() => handleDeepLink())
     .then(() => showStartup())
     .then(() => startupMounts())

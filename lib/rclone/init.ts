@@ -10,7 +10,7 @@ import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import { useStore } from '../../store/memory'
 import { usePersistedStore } from '../../store/persisted'
 import { getConfigParentFolder } from '../format'
-import notify from '../notify'
+import { dispatchNotification, notify } from '../notifications'
 import { openSmallWindow } from '../window'
 import { buildRcloneEnv } from './cli'
 import {
@@ -384,6 +384,11 @@ async function maybeAutoUpdateRclone(currentPath: string): Promise<string> {
         if (!persisted.autoUpdateRclone) {
             if (persisted.lastNotifiedRcloneVersion !== latest) {
                 usePersistedStore.setState({ lastNotifiedRcloneVersion: latest })
+                dispatchNotification('rclone.update-available', {
+                    title: 'Rclone update available',
+                    body: `rclone v${latest} is available. You can update from Settings → Binary.`,
+                    data: { currentVersion: active.version, latestVersion: latest },
+                })
                 await notify({
                     title: 'Rclone update available',
                     body: `rclone v${latest} is available. You can update from Settings → Binary.`,

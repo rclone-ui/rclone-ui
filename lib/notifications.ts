@@ -206,7 +206,7 @@ export const NOTIFICATION_PROVIDERS: Record<
         label: 'Telegram',
         titleLabel: 'Telegram Bot',
         description: 'Message a chat via your bot',
-        urlPlaceholder: 'https://api.telegram.org/bot123456:ABC-DEF.../sendMessage',
+        urlPlaceholder: 'https://api.telegram.org/bot123456:ABC-DEF...',
         accentClass: 'text-sky-500',
     },
     webhook: {
@@ -223,7 +223,14 @@ const RE_DISCORD_WEBHOOK =
     /^https:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/
 const RE_SLACK_WEBHOOK = /^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/\w+$/
 // Standard Bot API endpoint: the path carries "bot<botid>:<token>"; chat_id rides the query.
+// This is the STORED shape — the form collects only the pure bot URL (below) and the
+// /sendMessage method is appended by buildTelegramUrl.
 const RE_TELEGRAM_SEND_MESSAGE = /^https:\/\/api\.telegram\.org\/bot\d+:[\w-]+\/sendMessage(\?.*)?$/
+// What the form accepts: the pure bot URL. A pasted full endpoint or trailing slash is
+// tolerated (normalized away when the URL is built) rather than rejected.
+const RE_TELEGRAM_BOT_URL = /^https:\/\/api\.telegram\.org\/bot\d+:[\w-]+(\/sendMessage)?\/?$/
+const RE_TELEGRAM_SEND_MESSAGE_SUFFIX = /\/sendMessage$/
+const RE_TRAILING_SLASHES = /\/+$/
 
 export function validateWebhookUrl(provider: NotificationProvider, url: string): string | null {
     const trimmed = url.trim()
@@ -278,14 +285,19 @@ export const TELEGRAM_CHAT_ID_HELP =
     'Message @userinfobot on Telegram for your own ID, add @getidsbot to a group for its ID, or use @channelname for a public channel.'
 
 /**
- * The Telegram form collects the bot endpoint and the chat id separately; they are merged into
- * one stored URL (…/sendMessage?chat_id=…) so the dispatcher and the NotificationTarget shape
- * stay provider-agnostic. The UI never lets users type query params directly.
+ * The Telegram form collects the pure bot URL and the chat id separately; the /sendMessage
+ * method and the chat_id are both OURS to add — they are merged into one stored URL
+ * (…/sendMessage?chat_id=…) so the dispatcher and the NotificationTarget shape stay
+ * provider-agnostic. The UI never lets users type query params directly.
  */
 export function buildTelegramUrl(baseUrl: string, chatId: string): string {
     const parsed = new URL(baseUrl.trim())
     parsed.search = ''
-    return `${parsed.toString()}?chat_id=${encodeURIComponent(chatId.trim())}`
+    const base = parsed
+        .toString()
+        .replace(RE_TRAILING_SLASHES, '')
+        .replace(RE_TELEGRAM_SEND_MESSAGE_SUFFIX, '')
+    return `${base}/sendMessage?chat_id=${encodeURIComponent(chatId.trim())}`
 }
 
 /** Inverse of buildTelegramUrl, for seeding the edit form from a stored URL. */
@@ -294,13 +306,17 @@ export function splitTelegramUrl(url: string): { baseUrl: string; chatId: string
         const parsed = new URL(url)
         const chatId = parsed.searchParams.get('chat_id') ?? ''
         parsed.search = ''
-        return { baseUrl: parsed.toString(), chatId }
+        const baseUrl = parsed
+            .toString()
+            .replace(RE_TRAILING_SLASHES, '')
+            .replace(RE_TELEGRAM_SEND_MESSAGE_SUFFIX, '')
+        return { baseUrl, chatId }
     } catch {
         return { baseUrl: url, chatId: '' }
     }
 }
 
-/** Validates the drawer's Telegram URL field: base sendMessage endpoint, no query params. */
+/** Validates the drawer's Telegram URL field: the pure bot URL, no query params. */
 export function validateTelegramBotUrl(url: string): string | null {
     const trimmed = url.trim()
     if (!trimmed) {
@@ -309,8 +325,8 @@ export function validateTelegramBotUrl(url: string): string | null {
     if (trimmed.includes('?')) {
         return "Don't include query parameters — enter the Chat ID in its own field below"
     }
-    if (!RE_TELEGRAM_SEND_MESSAGE.test(trimmed)) {
-        return "This doesn't look like a Telegram Bot API URL — expected https://api.telegram.org/bot<token>/sendMessage"
+    if (!RE_TELEGRAM_BOT_URL.test(trimmed)) {
+        return "This doesn't look like a Telegram Bot API URL — expected https://api.telegram.org/bot<token>"
     }
     return null
 }
