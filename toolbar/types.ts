@@ -1,3 +1,5 @@
+import type { RcloneFeatures } from '../types/rclone'
+
 export type ToolbarCommandId =
     | 'copy'
     | 'move'
@@ -43,6 +45,9 @@ export interface ToolbarActionPath {
     isLocal: boolean
     remoteName?: string
     remoteType?: string
+    // Authoritative backend capability set from `operations/fsinfo`; undefined until the probe
+    // resolves (or for local paths), in which case capability-gated actions fall to their generic item.
+    features?: RcloneFeatures
 }
 
 export interface ToolbarActionContext {

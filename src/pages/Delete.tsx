@@ -6,10 +6,10 @@ import { useSearchParams } from 'react-router-dom'
 import { onErrorDialog } from '../../lib/errors'
 import { getOptionsSubtitle } from '../../lib/flags'
 import { getRemoteName } from '../../lib/format'
-import { useFlags, useRemoteConfig } from '../../lib/hooks'
+import { hasFeature, useFlags, useFsInfo } from '../../lib/hooks'
 import { notify } from '../../lib/notifications'
 import { startDelete, startDryRun } from '../../lib/rclone/api'
-import { RCLONE_CONFIG_DEFAULTS, SUPPORTS_PURGE } from '../../lib/rclone/constants'
+import { RCLONE_CONFIG_DEFAULTS } from '../../lib/rclone/constants'
 import OperationWindowContent from '../components/OperationWindowContent'
 import OperationWindowFooter from '../components/OperationWindowFooter'
 import OptionsSection from '../components/OptionsSection'
@@ -79,14 +79,12 @@ export default function Delete() {
 
     const sourceRemoteName = useMemo(() => getRemoteName(sourceFs), [sourceFs])
 
-    const sourceRemoteConfigQuery = useRemoteConfig(sourceRemoteName)
+    const sourceFsInfoQuery = useFsInfo(sourceRemoteName)
 
+    // false while loading — matches the previous default (offer the plain delete until purge is confirmed).
     const supportsPurge = useMemo(
-        () =>
-            sourceRemoteConfigQuery.data
-                ? SUPPORTS_PURGE.includes(sourceRemoteConfigQuery.data.type)
-                : false,
-        [sourceRemoteConfigQuery.data]
+        () => hasFeature(sourceFsInfoQuery.data, 'Purge'),
+        [sourceFsInfoQuery.data]
     )
 
     const buildArgs = () => ({

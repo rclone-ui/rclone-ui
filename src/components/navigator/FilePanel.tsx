@@ -11,8 +11,7 @@ import {
     useRef,
     useState,
 } from 'react'
-import { remoteConfigQueryOptions } from '../../../lib/hooks'
-import { supportsPublicLink } from '../../../lib/rclone/constants'
+import { fsInfoQueryOptions, hasFeature } from '../../../lib/hooks'
 import { useHostStore } from '../../../store/host.ts'
 import FileList from './FileList'
 import PanelToolbar, { type ToolbarButtons } from './PanelToolbar'
@@ -89,12 +88,13 @@ const FilePanel = forwardRef<
         isActive,
     })
 
-    const remoteConfigQuery = useQuery({
-        ...remoteConfigQueryOptions(nav.selectedRemote),
+    const fsInfoQuery = useQuery({
+        ...fsInfoQueryOptions(nav.selectedRemote),
         enabled: nav.isRemote,
     })
 
-    const canShare = supportsPublicLink(remoteConfigQuery.data?.type)
+    // false while loading — matches the previous default (hide the share affordance until confirmed).
+    const canShare = hasFeature(fsInfoQuery.data, 'PublicLink')
 
     const { canCreateFolder, createFolder } = useCreateFolder(
         nav.selectedRemote,

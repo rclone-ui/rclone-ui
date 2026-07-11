@@ -1,14 +1,16 @@
 import { Divider, Kbd, ScrollShadow, cn } from '@heroui/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { platform } from '@tauri-apps/plugin-os'
 import type { KeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebounce } from 'use-debounce'
+import { fsInfoQueryOptions } from '../../lib/hooks'
 import { fetchMountList, fetchServeList } from '../../lib/rclone/api'
 import rclone from '../../lib/rclone/client'
 import { openWindow } from '../../lib/window'
 import { type ResolvedToolbarResult, runToolbarEngine } from '../../toolbar/engine'
+import type { RcloneFeatures } from '../../types/rclone'
 
 const toolbarWindow = getCurrentWebviewWindow()
 const isWindows = platform() === 'windows'
@@ -111,6 +113,19 @@ export default function Toolbar() {
     const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data])
     const remoteTypes = useMemo(() => remoteTypesQuery.data ?? {}, [remoteTypesQuery.data])
 
+    // Eager per-remote capability probes (operations/fsinfo), cached hard. Feeds the synchronous
+    // engine so cleanup/purge can gate on the authoritative feature set. Unresolved/unreachable
+    // remotes are simply absent from the map → those actions fall to their generic item.
+    const fsInfoQueries = useQueries({ queries: remotes.map((remote) => fsInfoQueryOptions(remote)) })
+    const capabilitiesByRemote = useMemo(() => {
+        const map: Record<string, RcloneFeatures> = {}
+        remotes.forEach((remote, i) => {
+            const features = fsInfoQueries[i]?.data?.Features
+            if (features) map[remote] = features
+        })
+        return map
+    }, [remotes, fsInfoQueries])
+
     const [searchString, setSearchString] = useState('')
     const [searchStringDebounced] = useDebounce(searchString, 40)
 
@@ -127,11 +142,24 @@ export default function Toolbar() {
         console.log(`${serveList?.length} serves`)
         console.log(`${vfsList?.length} vfses`)
 
-        const { results } = runToolbarEngine(searchStringDebounced, remotes, remoteTypes)
+        const { results } = runToolbarEngine(
+            searchStringDebounced,
+            remotes,
+            remoteTypes,
+            capabilitiesByRemote
+        )
         startTransition(() => {
             setEngineResults(results)
         })
-    }, [mountList, serveList, vfsList, searchStringDebounced, remotes, remoteTypes])
+    }, [
+        mountList,
+        serveList,
+        vfsList,
+        searchStringDebounced,
+        remotes,
+        remoteTypes,
+        capabilitiesByRemote,
+    ])
 
     useEffect(() => {
         let unlisten: (() => void) | undefined

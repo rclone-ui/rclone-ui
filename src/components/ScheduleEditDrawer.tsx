@@ -341,8 +341,8 @@ export default function ScheduleEditDrawer({
                                             </Tabs>
                                             <span className="text-tiny text-default-400">
                                                 {runMode === 'user'
-                                                    ? 'Runs only while you are logged in, inside your session — OS keychain passwords and session-mounted drives work; fires while logged out are skipped. On macOS it runs as Rclone UI, so protected folders work once you grant the app access.'
-                                                    : 'Runs even while logged out, but outside your login session — no OS keychain or session-mounted drives, and protected folders on macOS need Full Disk Access for cron.'}
+                                                    ? 'Runs only while you are logged in, inside your session. OS keychain passwords and session-mounted drives work; fires while logged out are skipped. On macOS it runs as Rclone UI, so protected folders work once you grant the app access.'
+                                                    : 'Runs even while logged out, but outside your login session. No OS keychain or session-mounted drives, and protected folders on macOS need Full Disk Access for cron.'}
                                             </span>
                                         </div>
                                         <Switch

@@ -111,6 +111,9 @@ export default function RemoteEditDrawer({
                     ...updatedRemoteConfig,
                 })
             )
+            // Capabilities can change with the config (e.g. s3 provider, webdav vendor, a wrapped
+            // backend's target), so drop the cached fsinfo probe and let consumers re-fetch.
+            queryClient.invalidateQueries({ queryKey: ['remote', remoteName, 'fsinfo'] })
             onClose()
         },
         onError: onErrorDialog('Could not update remote', 'Unknown error occurred', {

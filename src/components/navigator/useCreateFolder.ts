@@ -3,26 +3,21 @@ import { message } from '@tauri-apps/plugin-dialog'
 import { useCallback, useMemo } from 'react'
 import { reportError } from '../../../lib/errors'
 import { getFsInfo } from '../../../lib/format'
-import { useRemoteConfig } from '../../../lib/hooks'
+import { hasFeature, useFsInfo } from '../../../lib/hooks'
 import rclone from '../../../lib/rclone/client'
-import { supportsPersistentEmptyFolders } from '../../../lib/rclone/constants'
 import type { RemoteString } from './types'
 import { RE_TRAILING_SEPARATORS } from './utils'
 
 export default function useCreateFolder(remote: RemoteString, cwd: string, refresh: () => void) {
-    const remoteConfigQuery = useRemoteConfig(remote)
-
-    const backendType = useMemo(() => {
-        if (!remote || remote === 'UI_FAVORITES') return null
-        if (remote === 'UI_LOCAL_FS') return 'local'
-        return remoteConfigQuery.data?.type ?? null
-    }, [remote, remoteConfigQuery.data])
+    const fsInfoQuery = useFsInfo(remote)
 
     const canCreateFolder = useMemo(() => {
         if (!remote || remote === 'UI_FAVORITES') return false
         if (remote === 'UI_LOCAL_FS') return true
-        return supportsPersistentEmptyFolders(backendType)
-    }, [remote, backendType])
+        // Optimistic while probing: the previous static check defaulted to "supported" for unknown
+        // types, so keep that until fsinfo actually says the backend can't persist empty folders.
+        return fsInfoQuery.data ? hasFeature(fsInfoQuery.data, 'CanHaveEmptyDirectories') : true
+    }, [remote, fsInfoQuery.data])
 
     const createFolder = useCallback(async () => {
         if (!remote || remote === 'UI_FAVORITES') return

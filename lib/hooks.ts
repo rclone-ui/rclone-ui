@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import type { RcloneFeatures, RcloneFsInfo } from '../types/rclone'
 import { sortByName } from './flags'
 import rclone from './rclone/client'
 import { SERVE_TYPES } from './rclone/constants'
@@ -35,6 +36,36 @@ export function remoteConfigQueryOptions(remote: string | undefined | null) {
 
 export function useRemoteConfig(remote: string | undefined | null) {
     return useQuery(remoteConfigQueryOptions(remote))
+}
+
+// Shared query options for a remote's `operations/fsinfo` — the authoritative, per-remote backend
+// capability set (correct even for wrapping backends like crypt/alias/union, which the old static
+// type lists could not express). fsinfo instantiates/connects the remote, so it's cached hard:
+// capabilities are ~immutable per config and only change on a remote edit (explicit invalidation)
+// or an rclone upgrade (self-heals on the 24h staleTime / next cold launch). retry: 1 overrides the
+// app-wide 3-retry default so an unreachable remote costs one attempt, then error-caches.
+export function fsInfoQueryOptions(remote: string | undefined | null) {
+    return {
+        queryKey: ['remote', remote, 'fsinfo'] as const,
+        queryFn: () =>
+            rclone('/operations/fsinfo', { params: { query: { fs: `${remote}:` } } }),
+        enabled: !!remote && remote !== 'UI_LOCAL_FS' && remote !== 'UI_FAVORITES',
+        staleTime: 1000 * 60 * 60 * 24,
+        retry: 1,
+    }
+}
+
+export function useFsInfo(remote: string | undefined | null) {
+    return useQuery(fsInfoQueryOptions(remote))
+}
+
+// undefined while loading/errored → false. Callers that need an optimistic default (e.g. create
+// folder, which historically assumed "supported" until proven otherwise) handle that explicitly.
+export function hasFeature(
+    fsInfo: RcloneFsInfo | undefined,
+    feature: keyof RcloneFeatures
+): boolean {
+    return !!fsInfo?.Features?.[feature]
 }
 
 export function useFlags() {

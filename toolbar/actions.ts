@@ -8,7 +8,7 @@ import { notify } from '../lib/notifications'
 import queryClient from '../lib/query'
 import type { fetchMountList, fetchServeList } from '../lib/rclone/api'
 import rclone from '../lib/rclone/client'
-import { SERVE_TYPES, SUPPORTS_CLEANUP, SUPPORTS_PURGE } from '../lib/rclone/constants'
+import { SERVE_TYPES } from '../lib/rclone/constants'
 import { openFullWindow } from '../lib/window'
 import { selectCurrentHost, usePersistedStore } from '../store/persisted'
 import { COMMAND_CONFIG, COMMAND_DESCRIPTIONS, COMMAND_KEYWORDS } from './constants'
@@ -656,9 +656,7 @@ const actions: ToolbarActionDefinition[] = [
                 return []
             }
 
-            const supportedRemotePaths = paths.filter(
-                (path) => path.remoteType && SUPPORTS_CLEANUP.includes(path.remoteType)
-            )
+            const supportedRemotePaths = paths.filter((path) => !!path.features?.CleanUp)
 
             if (supportedRemotePaths.length === 0) {
                 return [createBaseResult('Cleanup', COMMAND_DESCRIPTIONS.cleanup, {}, 36)]
@@ -878,9 +876,7 @@ const actions: ToolbarActionDefinition[] = [
                 return []
             }
 
-            const supportedPaths = paths.filter(
-                (path) => path.remoteType && SUPPORTS_PURGE.includes(path.remoteType)
-            )
+            const supportedPaths = paths.filter((path) => !!path.features?.Purge)
 
             if (supportedPaths.length === 0) {
                 return [createBaseResult('Purge', COMMAND_DESCRIPTIONS.purge, {}, 36)]

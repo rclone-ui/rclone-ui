@@ -9,7 +9,7 @@ import {
     Input,
     Spinner,
 } from '@heroui/react'
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import {
@@ -25,9 +25,8 @@ import { type ReactNode, startTransition, useEffect, useMemo, useState } from 'r
 import { useSearchParams } from 'react-router-dom'
 import { onErrorDialog } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
-import { remoteConfigQueryOptions } from '../../../lib/hooks'
+import { hasFeature, remoteConfigQueryOptions, useFsInfo } from '../../../lib/hooks'
 import rclone from '../../../lib/rclone/client'
-import { SUPPORTS_ABOUT } from '../../../lib/rclone/constants'
 import { usePersistedStore } from '../../../store/persisted'
 import RemoteAutoMountDrawer from '../../components/RemoteAutoMountDrawer'
 import RemoteCreateDrawer from '../../components/RemoteCreateDrawer'
@@ -53,33 +52,10 @@ export default function RemotesSection() {
 
     const remotes = useMemo(() => remotesQuery.data ?? [], [remotesQuery.data])
 
-    const remoteConfigQueries = useQueries({
-        queries: remotes.map((remote) => ({
-            ...remoteConfigQueryOptions(remote),
-            staleTime: 1000 * 60,
-        })),
-    })
-
-    const sortedRemotes = useMemo(() => {
-        // useQueries preserves input order, so remoteConfigQueries[i] corresponds to remotes[i].
-        const typeByRemote = new Map<string, string | null>()
-        remotes.forEach((remote, i) => {
-            typeByRemote.set(remote, remoteConfigQueries[i]?.data?.type ?? null)
-        })
-
-        return [...remotes].sort((a, b) => {
-            const aType = typeByRemote.get(a)
-            const bType = typeByRemote.get(b)
-
-            const aSupportsAbout = aType ? SUPPORTS_ABOUT.includes(aType) : false
-            const bSupportsAbout = bType ? SUPPORTS_ABOUT.includes(bType) : false
-
-            if (aSupportsAbout && !bSupportsAbout) return -1
-            if (!aSupportsAbout && bSupportsAbout) return 1
-
-            return a.localeCompare(b)
-        })
-    }, [remotes, remoteConfigQueries])
+    const sortedRemotes = useMemo(
+        () => [...remotes].sort((a, b) => a.localeCompare(b)),
+        [remotes]
+    )
 
     const [searchQuery, setSearchQuery] = useState('')
 
@@ -333,7 +309,9 @@ function RemoteCard({
 
     const type = useMemo(() => remoteConfigData?.type ?? null, [remoteConfigData?.type])
     const provider = useMemo(() => remoteConfigData?.provider ?? null, [remoteConfigData?.provider])
-    const supportsAbout = useMemo(() => !!type && SUPPORTS_ABOUT.includes(type), [type])
+
+    const fsInfoQuery = useFsInfo(remote)
+    const supportsAbout = hasFeature(fsInfoQuery.data, 'About')
 
     const { data: remoteAboutData } = useQuery({
         queryKey: ['remotes', remote, 'about'],

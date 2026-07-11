@@ -1,4 +1,5 @@
 import { sep } from '@tauri-apps/api/path'
+import type { RcloneFeatures } from '../types/rclone'
 import { getToolbarAction, getToolbarActions } from './actions'
 import type {
     ToolbarActionArgs,
@@ -22,13 +23,14 @@ export interface ResolvedToolbarResult {
 export function runToolbarEngine(
     query: string,
     remotes: string[],
-    remoteTypes?: Record<string, string>
+    remoteTypes?: Record<string, string>,
+    capabilitiesByRemote?: Record<string, RcloneFeatures>
 ) {
     const actions = getToolbarActions()
 
     const trimmed = query.trim()
 
-    const parsedPaths = extractPaths(trimmed, remotes, remoteTypes)
+    const parsedPaths = extractPaths(trimmed, remotes, remoteTypes, capabilitiesByRemote)
 
     const cleanedQuery = trimmed.replace(parsedPaths.map((path) => path.full).join(' '), '').trim()
 
@@ -120,7 +122,8 @@ const NON_WHITESPACE_TOKEN_REGEX = /^(\S+)/
 function extractPaths(
     input: string,
     remotes: string[],
-    remoteTypes?: Record<string, string>
+    remoteTypes?: Record<string, string>,
+    capabilitiesByRemote?: Record<string, RcloneFeatures>
 ): ToolbarActionPath[] {
     const seen = new Set<string>()
     const results: ToolbarActionPath[] = []
@@ -178,6 +181,7 @@ function extractPaths(
                 isLocal,
                 remoteName,
                 remoteType,
+                features: remoteName ? capabilitiesByRemote?.[remoteName] : undefined,
             })
         }
     }
