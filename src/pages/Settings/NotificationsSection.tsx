@@ -14,14 +14,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
-import {
-    MessageCircleIcon,
-    PencilIcon,
-    SendIcon,
-    SettingsIcon,
-    Trash2Icon,
-    TriangleAlertIcon,
-} from 'lucide-react'
+import { PencilIcon, SendIcon, SettingsIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
 import {
     FREE_MAX_TARGETS,
@@ -40,7 +33,7 @@ import type {
     NotificationTarget,
 } from '../../../types/notifications'
 import NotificationTargetDrawer from '../../components/NotificationTargetDrawer'
-import ProviderIcon from '../../components/icons/ProviderIcon'
+import ProviderIcon, { TelegramIcon, WhatsAppIcon } from '../../components/icons/ProviderIcon'
 import BaseSection from './BaseSection'
 
 const PROVIDER_ORDER: NotificationProvider[] = ['discord', 'slack', 'telegram', 'webhook']
@@ -100,7 +93,7 @@ export default function NotificationsSection() {
                         <DummyProviderCard
                             label="Telegram (bot-less)"
                             description="Get messages without your own bot"
-                            icon={<SendIcon className="text-sky-500 size-8 shrink-0" />}
+                            icon={<TelegramIcon className="text-sky-500 size-8 shrink-0" />}
                             onPress={() =>
                                 message(
                                     'Telegram without your own bot is coming in v4. Upgrade to v4 to use it.',
@@ -111,7 +104,7 @@ export default function NotificationsSection() {
                         <DummyProviderCard
                             label="WhatsApp"
                             description="Get messages on WhatsApp"
-                            icon={<MessageCircleIcon className="text-green-500 size-8 shrink-0" />}
+                            icon={<WhatsAppIcon className="text-green-500 size-8 shrink-0" />}
                             onPress={() =>
                                 message(
                                     'WhatsApp notifications are coming in v4. Upgrade to v4 to use them.',

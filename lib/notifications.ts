@@ -196,7 +196,7 @@ export const NOTIFICATION_PROVIDERS: Record<
         titleLabel: 'Discord Webhook',
         description: 'Post to a Discord channel',
         urlPlaceholder: 'https://discord.com/api/webhooks/1234567890/AbCdEf...',
-        accentClass: 'text-indigo-500',
+        accentClass: 'text-[#5865F2]',
         helpUrl: 'https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks',
         helpLabel: 'How to create a webhook',
     },
