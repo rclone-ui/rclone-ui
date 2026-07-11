@@ -301,7 +301,8 @@ pub async fn open_small_window(
 
 	#[cfg(target_os = "linux")]
     {
-        builder = builder.transparent(true);
+        // Transparent WebKitGTK windows can fail to render with Wayland DMA-BUF backends.
+        builder = builder.transparent(false);
     }
 
     let window = builder.build().map_err(|e| e.to_string())?;

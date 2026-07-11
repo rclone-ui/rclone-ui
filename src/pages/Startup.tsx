@@ -84,10 +84,11 @@ export default function Startup() {
     }, [startupStatus])
 
     // Close window when it loses focus
+    // Wayland can report a transient focus loss while the window is being shown.
     useEffect(() => {
         const currentWindow = getCurrentWindow()
         const unlisten = currentWindow.onFocusChanged(async ({ payload: focused }) => {
-            if (!focused) {
+            if (!focused && platform() !== 'linux') {
                 await currentWindow.hide()
                 await currentWindow.destroy()
             }
