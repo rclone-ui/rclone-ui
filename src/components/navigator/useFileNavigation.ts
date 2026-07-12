@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import { Channel, invoke } from '@tauri-apps/api/core'
 import { homeDir } from '@tauri-apps/api/path'
-import { readDir } from '@tauri-apps/plugin-fs'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import rclone from '../../../lib/rclone/client.ts'
 import { useHostStore } from '../../../store/host.ts'
@@ -74,10 +74,14 @@ export default function useFileNavigation({
     const canShowRemotes = useMemo(() => allowedKeys.includes('REMOTES'), [allowedKeys])
 
     const cacheRef = useRef<Map<string, Entry[]>>(new Map())
+    const localCompleteCacheRef = useRef<Set<string>>(new Set())
     const entryByKeyRef = useRef<Map<string, Entry>>(new Map())
     const abortControllerRef = useRef<AbortController | null>(null)
     const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const isNavigatingRef = useRef(false)
+    const localRequestIdRef = useRef<string | null>(null)
+    const localRequestPrefixRef = useRef(Math.random().toString(36).slice(2))
+    const localRequestSequenceRef = useRef(0)
 
     const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
     const selectedTypesRef = useRef<Map<string, 'file' | 'folder'>>(new Map())
@@ -314,6 +318,7 @@ export default function useFileNavigation({
     const refresh = useCallback(() => {
         const cKey = cacheKey(selectedRemote, cwd)
         cacheRef.current.delete(cKey)
+        localCompleteCacheRef.current.delete(cKey)
         startTransition(() => setItems([]))
         setIsLoading(true)
         setRefreshKey((k) => k + 1)
@@ -380,6 +385,7 @@ export default function useFileNavigation({
     // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional re-run trigger the body doesn't read — refresh() evicts the cacheRef entry, clears items, and bumps it to force a refetch of the current directory; removing it breaks the Refresh button (empty panel, isLoading stuck true)
     useEffect(() => {
         if (!isActive) return
+        const cKey = cacheKey(selectedRemote, cwd)
 
         async function loadDir() {
             log('loadDir: start', { selectedRemote, cwd, isRemote })
@@ -410,12 +416,23 @@ export default function useFileNavigation({
                 }
             }, 200)
 
-            const cKey = cacheKey(selectedRemote, cwd)
             if (cacheRef.current.has(cKey)) {
                 log('loadDir: cache hit', cKey)
                 const cached = cacheRef.current.get(cKey)!
                 startTransition(() => setItems(cached))
                 isNavigatingRef.current = false
+                if (
+                    selectedRemote === 'UI_LOCAL_FS' &&
+                    localCompleteCacheRef.current.has(cKey)
+                ) {
+                    finished = true
+                    if (loadingTimerRef.current) {
+                        clearTimeout(loadingTimerRef.current)
+                        loadingTimerRef.current = null
+                    }
+                    setIsLoading(false)
+                    return
+                }
             }
 
             let nextItems: Entry[] = []
@@ -527,10 +544,130 @@ export default function useFileNavigation({
                     })
                     .filter((e) => !e.name.startsWith('.'))
             } else if (cwd) {
-                let entries: Awaited<ReturnType<typeof readDir>> | null = null
+                const requestId = `${localRequestPrefixRef.current}-${++localRequestSequenceRef.current}`
+                localRequestIdRef.current = requestId
+                let streamedItems: Entry[] = []
+                let streamedIndexes = new Map<string, number>()
+                const pendingSizes = new Map<string, number | undefined>()
+                let sizeFrame: number | null = null
+                let streamFailed = false
+                const channel = new Channel<
+                    | {
+                          event: 'entries'
+                          entries: {
+                              name: string
+                              fullPath: string
+                              isDir: boolean
+                              size: number | null
+                              modTime: string | null
+                          }[]
+                      }
+                    | { event: 'size'; fullPath: string; size: number | null }
+                    | { event: 'error'; message: string }
+                    | { event: 'complete' }
+                >()
+                const cancelSizeFrame = () => {
+                    if (sizeFrame !== null) cancelAnimationFrame(sizeFrame)
+                    sizeFrame = null
+                }
+                const flushSizeUpdates = () => {
+                    if (controller.signal.aborted || pendingSizes.size === 0) {
+                        pendingSizes.clear()
+                        return
+                    }
+
+                    const nextItems = [...streamedItems]
+                    for (const [fullPath, size] of pendingSizes) {
+                        const index = streamedIndexes.get(fullPath)
+                        if (index === undefined) continue
+                        const updated = { ...nextItems[index], size }
+                        nextItems[index] = updated
+                        entryByKeyRef.current.set(updated.key, updated)
+                    }
+                    pendingSizes.clear()
+                    streamedItems = nextItems
+                    cacheRef.current.set(cKey, streamedItems)
+                    startTransition(() => setItems(streamedItems))
+                }
                 try {
-                    entries = await readDir(cwd)
+                    await new Promise<void>((resolve, reject) => {
+                        channel.onmessage = (event) => {
+                            if (event.event === 'complete') {
+                                cancelSizeFrame()
+                                flushSizeUpdates()
+                                if (!controller.signal.aborted && !streamFailed) {
+                                    localCompleteCacheRef.current.add(cKey)
+                                }
+                                if (localRequestIdRef.current === requestId) {
+                                    localRequestIdRef.current = null
+                                }
+                                resolve()
+                                return
+                            }
+                            if (controller.signal.aborted) return
+                            if (event.event === 'error') {
+                                streamFailed = true
+                                cancelSizeFrame()
+                                pendingSizes.clear()
+                                cacheRef.current.delete(cKey)
+                                localCompleteCacheRef.current.delete(cKey)
+                                reject(new Error(event.message))
+                                return
+                            }
+                            if (event.event === 'entries') {
+                                streamedItems = event.entries.map(
+                                    (entry) =>
+                                        ({
+                                            key: entry.fullPath,
+                                            name: entry.name,
+                                            isDir: entry.isDir,
+                                            size: entry.size ?? undefined,
+                                            modTime: entry.modTime ?? undefined,
+                                            remote: 'UI_LOCAL_FS',
+                                            fullPath: entry.fullPath,
+                                        }) as Entry
+                                )
+                                streamedItems.sort((a, b) => {
+                                    if (a.isDir && !b.isDir) return -1
+                                    if (!a.isDir && b.isDir) return 1
+                                    return a.name.localeCompare(b.name)
+                                })
+                                streamedIndexes = new Map(
+                                    streamedItems.map((entry, index) => [entry.fullPath, index])
+                                )
+                                finished = true
+                                if (loadingTimerRef.current) {
+                                    clearTimeout(loadingTimerRef.current)
+                                    loadingTimerRef.current = null
+                                }
+                                cacheRef.current.set(cKey, streamedItems)
+                                localCompleteCacheRef.current.delete(cKey)
+                                const map = entryByKeyRef.current
+                                for (const entry of streamedItems) map.set(entry.key, entry)
+                                setItems(streamedItems)
+                                setIsLoading(false)
+                                isNavigatingRef.current = false
+                                return
+                            }
+
+                            pendingSizes.set(event.fullPath, event.size ?? undefined)
+                            if (sizeFrame === null) {
+                                sizeFrame = requestAnimationFrame(() => {
+                                    sizeFrame = null
+                                    flushSizeUpdates()
+                                })
+                            }
+                        }
+
+                        invoke<void>('list_local_directory', {
+                            path: cwd,
+                            requestId,
+                            onEvent: channel,
+                        }).catch(reject)
+                    })
                 } catch {
+                    cacheRef.current.delete(cKey)
+                    localCompleteCacheRef.current.delete(cKey)
                     if (!controller.signal.aborted) {
                         finished = true
                         if (loadingTimerRef.current) {
@@ -543,22 +680,15 @@ export default function useFileNavigation({
                         isNavigatingRef.current = false
                     }
                     return
+                } finally {
+                    cancelSizeFrame()
+                    pendingSizes.clear()
+                    if (localRequestIdRef.current === requestId) {
+                        localRequestIdRef.current = null
+                    }
                 }
 
-                if (controller.signal.aborted) return
-
-                const processedEntries: Entry[] = []
-                for (const e of entries || []) {
-                    if (e.isSymlink) continue
-                    const full = await joinLocal(cwd, e.name)
-                    processedEntries.push({
-                        key: full,
-                        name: e.name,
-                        isDir: e.isDirectory,
-                        fullPath: full,
-                    } as Entry)
-                }
-                nextItems = processedEntries.filter((e) => !e.name.startsWith('.'))
+                return
             } else {
                 nextItems = []
             }
@@ -590,6 +720,14 @@ export default function useFileNavigation({
 
         return () => {
             if (abortControllerRef.current) abortControllerRef.current.abort()
+            if (localRequestIdRef.current) {
+                cacheRef.current.delete(cKey)
+                localCompleteCacheRef.current.delete(cKey)
+                invoke('cancel_local_directory', {
+                    requestId: localRequestIdRef.current,
+                }).catch(() => {})
+                localRequestIdRef.current = null
+            }
             if (loadingTimerRef.current) {
                 clearTimeout(loadingTimerRef.current)
                 loadingTimerRef.current = null

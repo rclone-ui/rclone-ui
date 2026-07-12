@@ -12,6 +12,7 @@ mod shortcut;
 #[path = "../common/window.rs"]
 mod window;
 
+mod local_fs;
 mod notifications;
 mod scheduler;
 mod zookeeper;
@@ -819,6 +820,7 @@ pub fn run() {
     }
 
     let mut app = builder
+        .manage(local_fs::LocalFsState::default())
         .manage::<zookeeper::SharedDaemonState>(std::sync::Mutex::new(
             zookeeper::DaemonState::default(),
         ))
@@ -853,6 +855,8 @@ pub fn run() {
             is_flatpak,
             is_linux_mint,
             has_flatpak_permissions,
+            local_fs::list_local_directory,
+            local_fs::cancel_local_directory,
             open_full_window,
             open_window,
             open_small_window,

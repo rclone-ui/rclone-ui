@@ -250,7 +250,7 @@ export default function FileList({
                             </div>
 
                             <div className="truncate text-small text-default-500">
-                                {!entry.isDir && typeof entry.size === 'number'
+                                {typeof entry.size === 'number' && entry.size >= 0
                                     ? formatBytes(entry.size)
                                     : '—'}
                             </div>
