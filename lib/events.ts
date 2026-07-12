@@ -15,6 +15,10 @@ export interface RestartRclonePayload {
     configFiles?: ConfigFile[]
     activeConfigId?: string | null
     proxy?: { url: string; ignoredHosts: string[] } | undefined
+    // The config-sync intent + ownership marker, so the main window's post-restart reconcile uses
+    // fresh values instead of not-yet-rehydrated (stale) ones from its own store.
+    syncConfigToSystem?: boolean
+    syncConfigLinkTarget?: string | null
 }
 
 export type AppEventPayload = {

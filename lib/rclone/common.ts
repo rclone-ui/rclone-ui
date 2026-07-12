@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, sep } from '@tauri-apps/api/path'
 import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
-import { useHostStore } from '../../store/host'
+import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import { getConfigParentFolder } from '../format'
 import rclone from './client'
 import { DOUBLE_BACKSLASH_REGEX } from './constants'
@@ -55,6 +55,41 @@ export async function getConfigPath({ id, validate = true }: { id: string; valid
     }
 
     return configPath
+}
+
+/**
+ * The on-disk path of a specific config file, mirroring initRclone's resolution: an external `sync`
+ * folder yields `<folder>/rclone.conf`, otherwise the config's own path (which for `default` honors
+ * the persisted defaultConfigPath). With `validate`, throws if the file is missing — including for a
+ * `sync` config, which `getConfigPath` cannot see (it only knows the app-private id-based path).
+ *
+ * Note: pointing a `sync` folder at the system rclone config dir (~/.config/rclone) is unsupported —
+ * it collides with the path config-sync manages. Config-sync treats it as circular (no ELOOP), but a
+ * switch-away/back cycle can shadow it; the sync-folder feature is meant for external/shared dirs.
+ */
+export async function resolveConfigFilePath(
+    config: { id?: string; sync?: string } | null | undefined,
+    { validate = false }: { validate?: boolean } = {}
+): Promise<string> {
+    if (config?.sync) {
+        const folder = config.sync.endsWith(sep()) ? config.sync : `${config.sync}${sep()}`
+        const path = `${folder}rclone.conf`
+        if (validate && !(await exists(path))) {
+            console.error('[resolveConfigFilePath] synced config file does not exist', path)
+            throw new Error('Config file does not exist')
+        }
+        return path
+    }
+
+    return getConfigPath({ id: config?.id ?? 'default', validate })
+}
+
+/**
+ * The on-disk path of the app's active config file — the single source of truth for config sync.
+ * Defaults to no existence check so it stays usable during startup reconcile.
+ */
+export async function resolveActiveConfigPath(opts: { validate?: boolean } = {}): Promise<string> {
+    return resolveConfigFilePath(selectActiveConfigFile(useHostStore.getState()), opts)
 }
 
 export async function createConfigFile(path: string) {

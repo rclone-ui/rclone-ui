@@ -25,6 +25,7 @@ import { listTransfers, startMount } from './lib/rclone/api'
 import rcloneClient from './lib/rclone/client'
 import { compareVersions } from './lib/rclone/common'
 import { initRclone } from './lib/rclone/init'
+import { reconcileConfigSync } from './lib/rclone/versions'
 import { initScheduler } from './lib/scheduler'
 import { initTray } from './lib/tray'
 import { openSmallWindow } from './lib/window'
@@ -375,22 +376,38 @@ async function registerRcloneWindowListeners() {
             if (payload.proxy !== undefined) {
                 useHostStore.setState({ proxy: payload.proxy })
             }
+            // Apply BEFORE startRclone so the post-spawn reconcileConfigSync reads fresh intent +
+            // ownership marker (a stale marker would let it miss or misattribute the link).
+            if (payload.syncConfigToSystem !== undefined) {
+                useHostStore.setState({ syncConfigToSystem: payload.syncConfigToSystem })
+            }
+            if (payload.syncConfigLinkTarget !== undefined) {
+                useHostStore.setState({ syncConfigLinkTarget: payload.syncConfigLinkTarget })
+            }
         }
 
         if (useStore.getState().isRestartingRclone) {
-            console.log('[restart-rclone] restart already in progress, ignoring request')
+            // Don't DROP an overlapping request — that would leave the daemon on the old config while
+            // the store/symlink already point at the new one. The payload's state was applied above,
+            // so flag a re-run and let the in-flight restart pick it up when it finishes.
+            console.log('[restart-rclone] restart in progress, coalescing into a pending re-run')
+            useStore.setState({ rcloneRestartPending: true })
             return
         }
 
-        useStore.setState({ isRestartingRclone: true })
+        useStore.setState({ isRestartingRclone: true, rcloneRestartPending: false })
 
         try {
-            await killRcloneDaemon()
+            // Loop so a request that arrived (and applied its state) mid-restart still takes effect.
+            do {
+                useStore.setState({ rcloneRestartPending: false })
+                await killRcloneDaemon()
 
-            // Jobids do not survive a daemon restart — polling them would only 404.
-            clearWatchedJobs()
+                // Jobids do not survive a daemon restart — polling them would only 404.
+                clearWatchedJobs()
 
-            await startRclone()
+                await startRclone()
+            } while (useStore.getState().rcloneRestartPending)
         } catch (error) {
             console.error('[restart-rclone] failed to restart rclone', error)
             Sentry.captureException(error)
@@ -519,6 +536,12 @@ async function startRclone() {
         return await exit(0)
     }
     console.log('[startRclone] running rclone, pid', pid)
+
+    // Heal the config-sync symlink against the now-settled active config: with intent on, re-point a
+    // stale link or recreate one deleted out-of-band; with intent off but a marker still recorded
+    // (a disable that crashed before persisting), remove the link we own. A true no-op only when
+    // both intent and marker are clear. Marker-proven, so a user's own symlink is never touched.
+    await reconcileConfigSync()
 
     await new Promise((resolve) => setTimeout(resolve, 500))
 }

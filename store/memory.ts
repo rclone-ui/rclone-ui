@@ -24,6 +24,10 @@ interface State {
     startupDisplayed: boolean
 
     isRestartingRclone: boolean
+    // Set when a restart is requested while one is already running: instead of dropping the request
+    // (which would leave the daemon on a stale config while the store/symlink point at the new one),
+    // the in-flight restart loops once more after it finishes. See the RESTART_RCLONE listener.
+    rcloneRestartPending: boolean
 
     cloudflaredTunnel: {
         pid: number
@@ -42,6 +46,7 @@ export const useStore = create<State>()(
             startupDisplayed: false,
 
             isRestartingRclone: false,
+            rcloneRestartPending: false,
 
             cloudflaredTunnel: null,
 

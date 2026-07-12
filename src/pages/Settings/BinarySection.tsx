@@ -16,6 +16,7 @@ import {
     compareVersions,
     findSystemRclone,
     probeRcloneBinaryOrThrow,
+    resolveActiveConfigPath,
     validateRcloneBinary,
 } from '../../../lib/rclone/common'
 import { MIN_RCLONE_VERSION } from '../../../lib/rclone/constants'
@@ -26,11 +27,14 @@ import {
     deleteVersion,
     downloadVersion,
     fetchAvailableVersions,
+    getConfigSync,
     getPathIntegration,
     listDownloadedVersions,
+    setConfigSync,
     setPathIntegration,
+    withConfigSyncLock,
 } from '../../../lib/rclone/versions'
-import { useHostStore } from '../../../store/host'
+import { flushHostStore, useHostStore } from '../../../store/host'
 import { usePersistedStore } from '../../../store/persisted'
 import BaseSection from './BaseSection'
 
@@ -174,16 +178,17 @@ export default function BinarySection() {
                 </div>
             </div>
 
-            {/* ---- PATH integration ---- */}
+            {/* ---- Integration ---- */}
             <div className="flex flex-row justify-center w-full gap-8 px-8">
                 <div className="flex flex-col items-end flex-1 gap-2">
-                    <h3 className="font-medium">Path</h3>
+                    <h3 className="font-medium">Integration</h3>
                 </div>
-                <div className="flex flex-col w-3/5 gap-3">
+                <div className="flex flex-col w-3/5 gap-6">
                     <PathIntegrationRow
                         rclonePath={rclonePath}
                         isSystemActive={active?.kind === 'system'}
                     />
+                    <ConfigSyncRow hasSystemRclone={!!systemQuery.data} />
                 </div>
             </div>
 
@@ -575,6 +580,137 @@ function PathIntegrationRow({
             {status?.warning && !isSystemActive && (
                 <span className="text-xs text-warning">{status.warning}</span>
             )}
+        </div>
+    )
+}
+
+function ConfigSyncRow({ hasSystemRclone }: { hasSystemRclone: boolean }) {
+    const queryClient = useQueryClient()
+    const activeConfigId = useHostStore((state) => state.activeConfigId)
+    const syncIntent = useHostStore((state) => state.syncConfigToSystem)
+    const syncMarker = useHostStore((state) => state.syncConfigLinkTarget)
+    const setConfigSyncState = useHostStore((state) => state.setConfigSyncState)
+    const setDefaultConfigPath = useHostStore((state) => state.setDefaultConfigPath)
+
+    // The active config's on-disk path (the symlink target); re-resolves when the active config changes.
+    const configPathQuery = useQuery({
+        queryKey: ['rclone', 'active-config-path', activeConfigId],
+        queryFn: () => resolveActiveConfigPath(),
+    })
+    const appConfigPath = configPathQuery.data
+
+    // Shares the PATH-integration cache so this stays in step with the checkbox above.
+    const pathQuery = useQuery({
+        queryKey: ['rclone', 'path-integration'],
+        queryFn: getPathIntegration,
+    })
+    // Only meaningful if a terminal rclone would read the system config path. But an ALREADY-enabled
+    // sync must always be switch-off-able even if availability later disappears (PATH turned off, no
+    // system binary) — otherwise the user is stuck with a link they can't remove.
+    const available = hasSystemRclone || Boolean(pathQuery.data?.enabled)
+    const canToggle = available || syncIntent
+
+    const statusQuery = useQuery({
+        queryKey: ['rclone', 'config-sync', appConfigPath, syncMarker],
+        queryFn: () => getConfigSync(appConfigPath!, syncMarker),
+        enabled: !!appConfigPath,
+    })
+    const status = statusQuery.data
+
+    const toggleMutation = useMutation({
+        // Serialized against reconcile (startup/switch/activation) via the shared config-sync lock, so
+        // a toggle and a stale reconcile can't interleave their read→invoke→persist sequences.
+        mutationFn: (enable: boolean) =>
+            withConfigSyncLock(async () => {
+                // Resolve the target fresh INSIDE the lock (a switch just before us may have moved it).
+                const path = await resolveActiveConfigPath()
+                const host = useHostStore.getState()
+                const result = await setConfigSync(
+                    enable,
+                    path,
+                    host.syncConfigLinkTarget,
+                    host.defaultConfigPath ?? null
+                )
+                // If the file we moved aside was the app's own default config, follow it to the
+                // relocated copy so switching back to `default` still reads the user's remotes.
+                if (result.defaultBackedUp && result.backupPath) {
+                    setDefaultConfigPath(result.backupPath)
+                }
+                // Persist intent + ownership marker together (one store write): the marker is the
+                // active path when we now hold a link, else null. Startup reconcile uses these to
+                // self-heal. Flush durably so a crash can't desync the store from the on-disk link.
+                setConfigSyncState({
+                    intent: enable,
+                    linkTarget: enable && result.managed ? path : null,
+                })
+                await flushHostStore()
+                return result
+            }),
+        onSuccess: async (result) => {
+            if (result.backupPath) {
+                await message(`Your existing rclone config was moved to:\n${result.backupPath}`, {
+                    title: 'Config backed up',
+                    kind: 'info',
+                })
+            }
+            queryClient.invalidateQueries({ queryKey: ['rclone', 'config-sync'] })
+            queryClient.invalidateQueries({ queryKey: ['rclone', 'active-config-path'] })
+        },
+        onError: async (e) => {
+            await reportError(e, { title: 'Config sync', fallback: String(e), capture: false })
+            queryClient.invalidateQueries({ queryKey: ['rclone', 'config-sync'] })
+        },
+    })
+
+    // The checkbox reflects the user's opt-in (persisted intent), not the momentary filesystem state.
+    // This keeps the circular/direct-use case honest: it reads "on" only when the user actually
+    // enabled sync, so switching to another config then re-points the system path as the UI implied.
+    const isSynced = syncIntent
+    // Circular/direct-use: the active config IS the system file, so there is no link to manage — but
+    // it stays toggleable so the user can opt in (intent) to have the terminal follow future switches.
+    const circular = Boolean(status?.enabled && !status?.managed)
+    // Intent is on but the link is not currently applied to the active config (drift, or a missing/
+    // blocked link) — surface it so the terminal isn't silently left on a different config.
+    const notApplied = syncIntent && !!status && !status.enabled && !circular
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Checkbox
+                isSelected={isSynced}
+                isDisabled={
+                    toggleMutation.isPending ||
+                    statusQuery.isLoading ||
+                    configPathQuery.isLoading ||
+                    !canToggle
+                }
+                onValueChange={(checked) => toggleMutation.mutate(checked)}
+            >
+                Sync config
+            </Checkbox>
+            <span className="text-xs text-neutral-500">
+                Keeps your selected config in sync with the system rclone config, so rclone in your
+                terminal shares the app's remotes.
+            </span>
+            {!available && (
+                <span className="text-xs text-neutral-500">
+                    {syncIntent
+                        ? 'No terminal rclone is available right now (system rclone missing and “Add rclone to PATH” is off), so the shell won’t see this config until one is. You can still turn sync off.'
+                        : 'Requires a system rclone or “Add rclone to PATH”.'}
+                </span>
+            )}
+            {circular && (
+                <span className="text-xs text-neutral-500">
+                    The app already uses the system rclone config directly.
+                </span>
+            )}
+            {status?.warning ? (
+                <span className="text-xs text-warning">{status.warning}</span>
+            ) : notApplied ? (
+                <span className="text-xs text-warning">
+                    Sync is on, but the system config link isn’t in place yet; it will be re-applied
+                    on the next config switch or restart.
+                </span>
+            ) : null}
         </div>
     )
 }

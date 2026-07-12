@@ -368,7 +368,9 @@ export async function runRcloneCli(args: string[], input: string[] = []) {
     }
 }
 
-export async function restartActiveRclone() {
+/** Requests the main window to restart the daemon with a full lifecycle snapshot. Returns false if
+ * the event could not even be emitted, so callers can roll back optimistic state on failure. */
+export async function restartActiveRclone(): Promise<boolean> {
     try {
         // The main window's store may not have rehydrated this webview's writes before the restart
         // runs — carry a full lifecycle snapshot from THIS webview's fresh stores in the payload.
@@ -380,9 +382,13 @@ export async function restartActiveRclone() {
             configFiles: host.configFiles,
             activeConfigId: host.activeConfigId,
             proxy: host.proxy,
+            syncConfigToSystem: host.syncConfigToSystem,
+            syncConfigLinkTarget: host.syncConfigLinkTarget,
         })
+        return true
     } catch (error) {
         Sentry.captureException(error)
         console.error('[restartActiveRclone] failed to emit restart event', error)
+        return false
     }
 }

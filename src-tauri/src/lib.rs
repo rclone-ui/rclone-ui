@@ -876,6 +876,8 @@ pub fn run() {
             zookeeper::update_path_pointer,
             zookeeper::get_rclone_path_integration,
             zookeeper::set_rclone_path_integration,
+            zookeeper::get_config_sync_status,
+            zookeeper::set_config_sync,
             scheduler::scheduler_supported,
             scheduler::scheduler_validate_cron,
             scheduler::scheduler_register,

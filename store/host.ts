@@ -39,6 +39,23 @@ export async function initHostStore(hostId: string) {
     await useHostStore.persist.rehydrate()
 }
 
+/**
+ * Durably flushes the host store to disk and awaits it. The persist middleware writes asynchronously
+ * (a bare `set()` returns before the file is written), leaving a crash window between a Rust
+ * filesystem mutation and its state being persisted. Call this right after a config-sync state write
+ * so the on-disk store matches the filesystem before proceeding. tauri-plugin-store serializes its
+ * operations, so the middleware's set lands before this save. Best-effort: a failed flush is logged,
+ * not thrown — the divergence carries no config-file data loss and self-heals on the next reconcile.
+ */
+export async function flushHostStore(): Promise<void> {
+    if (!activeStore) return
+    try {
+        await activeStore.save()
+    } catch (error) {
+        console.error('[flushHostStore] failed to flush host store', error)
+    }
+}
+
 export interface RemoteConfig {
     mountOnStart?: {
         enabled: boolean
@@ -83,6 +100,22 @@ interface HostState {
     // the rclone binary never relocates where the user's remotes are read from.
     defaultConfigPath: string | undefined
     setDefaultConfigPath: (path: string | undefined) => void
+
+    // User intent to keep the system rclone config path symlinked to the active config, so a
+    // terminal `rclone` shares the app's remotes. Drives reconcile on startup/switch/activation.
+    // Set together with the ownership marker via setConfigSyncState.
+    syncConfigToSystem: boolean
+
+    // Positive ownership marker: the exact target our config-sync symlink currently points at (null
+    // when we hold no link). The ONLY proof that the system-path symlink is ours — target *location*
+    // is not proof, so a user's own symlink is never misattributed to us. Passed to the config-sync
+    // commands and updated from their result. Note it records the link's target, not its location, so
+    // if the system path itself moves (XDG_CONFIG_HOME set/unset between sessions) a stale link at the
+    // old location is left orphaned — harmless (it points at a valid app config), intentionally unswept.
+    syncConfigLinkTarget: string | null
+    // Atomically set both the intent and the ownership marker (a single store write, so a crash can
+    // never land between them and desync intent from what we actually linked).
+    setConfigSyncState: (state: { intent: boolean; linkTarget: string | null }) => void
 }
 
 export const useHostStore = create<HostState>()(
@@ -150,6 +183,11 @@ export const useHostStore = create<HostState>()(
             defaultConfigPath: undefined,
             setDefaultConfigPath: (path: string | undefined) =>
                 set((_) => ({ defaultConfigPath: path })),
+
+            syncConfigToSystem: false,
+            syncConfigLinkTarget: null,
+            setConfigSyncState: ({ intent, linkTarget }) =>
+                set((_) => ({ syncConfigToSystem: intent, syncConfigLinkTarget: linkTarget })),
         }),
         {
             name: 'host-store',

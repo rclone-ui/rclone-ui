@@ -32,7 +32,8 @@ import { onErrorDialog } from '../../../lib/errors'
 import { removeConfigPassword, setConfigPassword } from '../../../lib/rclone/api'
 import { promptForConfigPassword, restartActiveRclone } from '../../../lib/rclone/cli'
 import rclone from '../../../lib/rclone/client'
-import { getConfigPath } from '../../../lib/rclone/common'
+import { getConfigPath, resolveConfigFilePath } from '../../../lib/rclone/common'
+import { reconcileConfigSync } from '../../../lib/rclone/versions'
 import { selectActiveConfigFile, useHostStore } from '../../../store/host'
 import { usePersistedStore } from '../../../store/persisted'
 import type { ConfigFile } from '../../../types/config'
@@ -73,24 +74,46 @@ export default function ConfigSection() {
 
             const shouldRestartRclone =
                 Boolean(activeConfigFile?.isEncrypted) || Boolean(configFile.isEncrypted)
+            const prevActiveId = activeConfigFile?.id ?? 'default'
 
-            useHostStore.getState().setActiveConfigFile(configFile.id!)
+            const reconcileSyncLink = async () => {
+                const sync = await reconcileConfigSync()
+                if (sync.error && useHostStore.getState().syncConfigToSystem) {
+                    await message(
+                        `Switched config, but the terminal config sync link could not be updated:\n${sync.error}`,
+                        { title: 'Config sync', kind: 'warning', okLabel: 'OK' }
+                    )
+                }
+            }
 
             if (shouldRestartRclone) {
-                await restartActiveRclone()
+                // Encrypted path: the daemon re-inits from the restart snapshot, which reads the
+                // store — so update the store and re-point the sync link (capturing any relocated
+                // defaultConfigPath) BEFORE emitting the restart. If the emit itself fails, roll the
+                // store + link back so all of store/terminal/daemon stay on the previous config.
+                useHostStore.getState().setActiveConfigFile(configFile.id!)
+                await reconcileSyncLink()
+                if (!(await restartActiveRclone())) {
+                    useHostStore.getState().setActiveConfigFile(prevActiveId)
+                    await reconcileConfigSync()
+                    throw new Error('Could not restart rclone to apply the config switch.')
+                }
             } else {
-                const configPath = await getConfigPath({
-                    id: configFile.id!,
-                    validate: true,
-                })
-
+                // Live path: resolve + validate the target's real path (honoring an external `sync`
+                // folder) and move the RUNNING daemon FIRST — the throwable step. Only once it
+                // succeeds do we commit the store + re-point the sync link, so a /config/setpath
+                // failure leaves store, terminal, and daemon all on the previous config (no
+                // divergence, nothing to roll back).
+                const setpathTarget = await resolveConfigFilePath(configFile, { validate: true })
                 await rclone('/config/setpath', {
                     params: {
                         query: {
-                            'path': configPath,
+                            'path': setpathTarget,
                         },
                     },
                 })
+                useHostStore.getState().setActiveConfigFile(configFile.id!)
+                await reconcileSyncLink()
             }
             await queryClient.cancelQueries()
             await queryClient.resetQueries()
@@ -467,6 +490,7 @@ function ConfigCard({
     exportConfigMutation: any
 }) {
     const isActive = configFile.id === activeConfigFile?.id
+    const queryClient = useQueryClient()
 
     const disabledKeys = useMemo(() => {
         if (!isActive) {
@@ -725,15 +749,102 @@ function ConfigCard({
                                                     }
                                                 }
 
-                                                if (activeConfigFile?.id === configFile.id) {
+                                                const deletedWasActive =
+                                                    activeConfigFile?.id === configFile.id
+
+                                                // Deleting the active config falls back to
+                                                // 'default': move the running daemon AND any
+                                                // config-sync link off the now-deleted file,
+                                                // mirroring a normal switch (otherwise both keep
+                                                // pointing at a config that no longer exists). The
+                                                // sync link is recognized as ours via the persisted
+                                                // marker, so ordering vs removeConfigFile no longer
+                                                // affects ownership — but removeConfigFile must still
+                                                // precede any restart so the snapshot can't resurrect
+                                                // the deleted config, and reconcile must precede the
+                                                // restart so the snapshot carries any relocated
+                                                // defaultConfigPath.
+                                                if (deletedWasActive) {
                                                     useHostStore
                                                         .getState()
                                                         .setActiveConfigFile('default')
+
+                                                    const sync = await reconcileConfigSync()
+                                                    if (
+                                                        sync.error &&
+                                                        useHostStore.getState().syncConfigToSystem
+                                                    ) {
+                                                        await message(
+                                                            `Deleted the config, but the terminal config sync link could not be updated:\n${sync.error}`,
+                                                            {
+                                                                title: 'Config sync',
+                                                                kind: 'warning',
+                                                                okLabel: 'OK',
+                                                            }
+                                                        )
+                                                    }
                                                 }
 
                                                 useHostStore
                                                     .getState()
                                                     .removeConfigFile(configFile.id!)
+
+                                                if (deletedWasActive) {
+                                                    // The delete has already committed; a transient
+                                                    // re-point failure must not read as "Delete
+                                                    // failed" nor skip the cache reset below. The
+                                                    // daemon re-points to default on the next
+                                                    // restart/reconcile regardless.
+                                                    try {
+                                                        const defaultCfg = useHostStore
+                                                            .getState()
+                                                            .configFiles.find(
+                                                                (c) => c.id === 'default'
+                                                            )
+                                                        if (
+                                                            Boolean(configFile.isEncrypted) ||
+                                                            Boolean(defaultCfg?.isEncrypted)
+                                                        ) {
+                                                            // Emit-only. If the restart can't even be
+                                                            // requested, the daemon may keep serving
+                                                            // the deleted config until the next app
+                                                            // restart. The delete is already
+                                                            // committed, so warn (don't roll back) —
+                                                            // startup reconcile re-points regardless.
+                                                            if (!(await restartActiveRclone())) {
+                                                                await message(
+                                                                    'Deleted the config, but rclone could not be restarted onto the default config. It will switch over on the next app restart.',
+                                                                    {
+                                                                        title: 'Config deleted',
+                                                                        kind: 'warning',
+                                                                        okLabel: 'OK',
+                                                                    }
+                                                                )
+                                                            }
+                                                        } else {
+                                                            const path = await getConfigPath({
+                                                                id: 'default',
+                                                                validate: true,
+                                                            })
+                                                            await rclone('/config/setpath', {
+                                                                params: { query: { path } },
+                                                            })
+                                                        }
+                                                    } catch (repointError) {
+                                                        console.warn(
+                                                            '[deleteConfig] daemon re-point after delete failed',
+                                                            repointError
+                                                        )
+                                                    }
+                                                }
+
+                                                // Mirror switchConfigMutation's cache reset so the
+                                                // UI doesn't keep showing the deleted config's data
+                                                // after the daemon moved to default.
+                                                if (deletedWasActive) {
+                                                    await queryClient.cancelQueries()
+                                                    await queryClient.resetQueries()
+                                                }
                                             } catch (error) {
                                                 await onErrorDialog('Delete Config')(error)
                                             }
