@@ -534,9 +534,9 @@ export default function Mount() {
                         </Button>
                     </Tooltip>
                     <CommandInfoButton
-                        content={`Mounts a remote as a local file system using FUSE.
+                        content={`Mounts a remote as a local file system.
 
-Mount allows you to access any of rclone's cloud storage systems as if they were a local folder on your computer. Files appear in your file browser and can be opened directly by applications. This requires FUSE support on your system (macFUSE on macOS, WinFsp on Windows).
+Mount allows you to access any of rclone's cloud storage systems as if they were a local folder on your computer. Files appear in your file browser and can be opened directly by applications. On Windows this requires WinFsp; macOS mounts use the system's built-in NFS client, so no extra software is needed.
 
 On Linux/macOS/FreeBSD, the mount point must be an empty existing directory. On Windows, you can mount to an unused drive letter, or to a path representing a nonexistent subdirectory of an existing parent directory.
 

@@ -29,6 +29,7 @@ import {
 } from './requests'
 
 const RE_BACKSLASH = /\\/g
+const RE_DASH = /-/g
 const RE_PATH_SEPARATOR = /[/\\]/
 const RE_WINDOWS_EXTENDED_PATH = /(\/\/\?\/|\\\\\?\\)/
 const RE_WINDOWS_DRIVE_LETTER = /^[a-zA-Z]:$/
@@ -410,11 +411,50 @@ async function startMountInner({
         mountOptions.volname = `${sourcePath}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
     }
 
+    // Only genuinely global flags can ride the connection string (`global.` keys) — mount and
+    // VFS options go through the dedicated mountOpt/vfsOpt params below instead. Filter options
+    // have no per-mount channel at all (rclone builds the mount's VFS on a background context,
+    // so per-call filters never reach it) and are kept here as a no-op until upstream fixes it.
     const mergedOptions = {
-        ...mountOptions,
         ...(options.config || {}),
-        ...(options.vfs || {}),
         ...(options.filter || {}),
+    }
+
+    const vfsOptions = { ...(options.vfs || {}) }
+
+    // mountOpt/vfsOpt take JSON keyed by Go field names, so rekey the flag-name groups
+    // ("vfs_cache_mode" → "CacheMode") via the options/info registry before sending. Unknown
+    // keys pass through untouched — rclone ignores unrecognized fields.
+    const toStructOptions = (
+        flags: Record<string, FlagValue>,
+        infos: { Name: string; FieldName: string }[] | undefined
+    ) => {
+        const fieldNames = new Map((infos || []).map((info) => [info.Name, info.FieldName]))
+        return JSON.stringify(
+            Object.fromEntries(
+                Object.entries(flags).map(([key, value]) => [
+                    fieldNames.get(key.replace(RE_DASH, '_')) || key,
+                    value,
+                ])
+            )
+        )
+    }
+
+    let structOptions: { mountOpt?: string; vfsOpt?: string } = {}
+    if (Object.keys(mountOptions).length > 0 || Object.keys(vfsOptions).length > 0) {
+        const optionsInfo = await pRetry(
+            async () =>
+                await rclone('/options/info', { params: { query: { blocks: 'mount,vfs' } } }),
+            RETRY_OPTIONS
+        )
+        structOptions = {
+            ...(Object.keys(mountOptions).length > 0
+                ? { mountOpt: toStructOptions(mountOptions, optionsInfo?.mount) }
+                : {}),
+            ...(Object.keys(vfsOptions).length > 0
+                ? { vfsOpt: toStructOptions(vfsOptions, optionsInfo?.vfs) }
+                : {}),
+        }
     }
 
     const { fullDirPath: srcFullDirPath, remoteName: srcRemoteName } = getFsInfo(source)
@@ -435,7 +475,8 @@ async function startMountInner({
                                 remote: srcOptions,
                             }),
                             mountPoint: '*',
-                            mount: 'nfsmount',
+                            // No mountType — Windows uses rclone's default resolution (cmount/WinFsp)
+                            ...structOptions,
                         },
                     },
                 }),
@@ -567,7 +608,8 @@ async function startMountInner({
                             }
                             return mp
                         })(),
-                        mount: 'nfsmount',
+                        ...(currentPlatform === 'macos' ? { mountType: 'nfsmount' } : {}),
+                        ...structOptions,
                     },
                 },
             }),
