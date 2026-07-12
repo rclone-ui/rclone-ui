@@ -161,17 +161,20 @@ export default function Sync() {
         if (!source || !dest) {
             throw new Error('Please select both a source and destination path')
         }
-        return startDryRun(() =>
-            startSync({
-                source,
-                destination: dest,
-                options: {
-                    config: { ...configGroup.options, dry_run: true },
-                    sync: syncGroup.options,
-                    filter: filterGroup.options,
-                    remotes: remotesGroup.options,
+        return startDryRun((isDryRun) =>
+            startSync(
+                {
+                    source,
+                    destination: dest,
+                    options: {
+                        config: { ...configGroup.options, dry_run: true },
+                        sync: syncGroup.options,
+                        filter: filterGroup.options,
+                        remotes: remotesGroup.options,
+                    },
                 },
-            })
+                isDryRun
+            )
         )
     })
 

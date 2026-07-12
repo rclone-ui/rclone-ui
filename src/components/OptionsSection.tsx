@@ -1083,10 +1083,15 @@ export default function OptionsSection({
                                             globalOptions[
                                                 option.FieldName as keyof typeof globalOptions
                                             ]
+                                        const isUnsafeInteger =
+                                            typeof defaultGlobalValue === 'number' &&
+                                            Number.isInteger(defaultGlobalValue) &&
+                                            !Number.isSafeInteger(defaultGlobalValue)
 
                                         if (
                                             defaultGlobalValue !== null &&
-                                            defaultGlobalValue !== undefined
+                                            defaultGlobalValue !== undefined &&
+                                            !isUnsafeInteger
                                         ) {
                                             value = toOptionValue(defaultGlobalValue, option.Type)
                                         } else {

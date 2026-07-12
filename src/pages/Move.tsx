@@ -146,17 +146,20 @@ export default function Move() {
         if (!sources || sources.length === 0 || !dest) {
             throw new Error('Please select both a source and destination path')
         }
-        return startDryRun(() =>
-            startMove({
-                sources,
-                destination: dest,
-                options: {
-                    config: { ...configGroup.options, dry_run: true },
-                    move: moveGroup.options,
-                    filter: filterGroup.options,
-                    remotes: remotesGroup.options,
+        return startDryRun((isDryRun) =>
+            startMove(
+                {
+                    sources,
+                    destination: dest,
+                    options: {
+                        config: { ...configGroup.options, dry_run: true },
+                        move: moveGroup.options,
+                        filter: filterGroup.options,
+                        remotes: remotesGroup.options,
+                    },
                 },
-            })
+                isDryRun
+            )
         )
     })
 

@@ -12,8 +12,8 @@ export const RCLONE_CONFIG_DEFAULTS = {
         'checkers': 16,
     },
     vfs: {
-        'chunk_size': '4M',
-        'chunk_streams': 16,
+        'vfs_read_chunk_size': '4M',
+        'vfs_read_chunk_streams': 16,
     },
 } as const
 

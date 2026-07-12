@@ -7,6 +7,157 @@ import { getFsInfo } from '../format'
 // save/run always happen on the same machine.
 
 const RE_WINDOWS_DRIVE_ROOT = /^:local:[a-zA-Z]:\/$/
+const RE_DASH = /-/g
+
+function normalizeOptionName(name: string) {
+    return (name.startsWith('--') ? name.slice(2) : name).replace(RE_DASH, '_')
+}
+
+function normalizeArrayValue(value: FlagValue): FlagValue {
+    return Array.isArray(value) || value === null ? value : [String(value)]
+}
+
+// A blank (empty or whitespace-only) string means the user cleared the field, i.e. "unset". It
+// must be dropped before building _config/_filter: rclone reshapes those params all-or-nothing, so
+// a single blank in a typed field (Duration/SizeSuffix/int/…) rejects the ENTIRE param and fails
+// the whole operation. Omitting the key is exactly what "unset" should mean.
+function isBlankString(value: FlagValue): boolean {
+    return typeof value === 'string' && value.trim() === ''
+}
+
+const FILTER_FIELD_NAMES: Record<string, string> = {
+    filter: 'FilterRule',
+    filter_from: 'FilterFrom',
+    exclude: 'ExcludeRule',
+    exclude_from: 'ExcludeFrom',
+    include: 'IncludeRule',
+    include_from: 'IncludeFrom',
+    exclude_if_present: 'ExcludeFile',
+    files_from: 'FilesFrom',
+    files_from_raw: 'FilesFromRaw',
+    delete_excluded: 'DeleteExcluded',
+    min_age: 'MinAge',
+    max_age: 'MaxAge',
+    min_size: 'MinSize',
+    max_size: 'MaxSize',
+    ignore_case: 'IgnoreCase',
+    hash_filter: 'HashFilter',
+}
+
+const METADATA_FILTER_FIELD_NAMES: Record<string, string> = {
+    metadata_filter: 'FilterRule',
+    metadata_filter_from: 'FilterFrom',
+    metadata_exclude: 'ExcludeRule',
+    metadata_exclude_from: 'ExcludeFrom',
+    metadata_include: 'IncludeRule',
+    metadata_include_from: 'IncludeFrom',
+}
+
+const FILTER_ARRAY_OPTIONS = new Set([
+    'filter',
+    'filter_from',
+    'exclude',
+    'exclude_from',
+    'include',
+    'include_from',
+    'exclude_if_present',
+    'files_from',
+    'files_from_raw',
+    ...Object.keys(METADATA_FILTER_FIELD_NAMES),
+])
+
+export function toFilterParam(filter: Record<string, FlagValue> | undefined): string | undefined {
+    if (!filter || Object.keys(filter).length === 0) {
+        return undefined
+    }
+
+    const result: Record<string, FlagValue | Record<string, FlagValue>> = {}
+    const metadataRules: Record<string, FlagValue> = {}
+
+    for (const [key, value] of Object.entries(filter)) {
+        if (isBlankString(value)) {
+            continue
+        }
+        const normalized = normalizeOptionName(key)
+        let normalizedValue = FILTER_ARRAY_OPTIONS.has(normalized)
+            ? normalizeArrayValue(value)
+            : value
+        if (
+            (normalized === 'min_age' || normalized === 'max_age') &&
+            typeof normalizedValue === 'number' &&
+            Number.isInteger(normalizedValue) &&
+            !Number.isSafeInteger(normalizedValue)
+        ) {
+            normalizedValue = 'off'
+        }
+        const metadataFieldName = METADATA_FILTER_FIELD_NAMES[normalized]
+
+        if (metadataFieldName) {
+            metadataRules[metadataFieldName] = normalizedValue
+        } else {
+            result[FILTER_FIELD_NAMES[normalized] ?? key] = normalizedValue
+        }
+    }
+
+    if (Object.keys(metadataRules).length > 0) {
+        result.MetaRules = metadataRules
+    }
+
+    if (Object.keys(result).length === 0) {
+        return undefined
+    }
+
+    return JSON.stringify(result)
+}
+
+const CONFIG_FIELD_NAMES: Record<string, string> = {
+    contimeout: 'ConnectTimeout',
+    no_check_certificate: 'InsecureSkipVerify',
+    retries_sleep: 'RetriesInterval',
+    update: 'UpdateOlder',
+    no_gzip_encoding: 'NoGzip',
+    fast_list: 'UseListR',
+    stats_unit: 'DataRateUnit',
+    use_cookies: 'Cookie',
+    color: 'TerminalColorMode',
+}
+
+const CONFIG_ARRAY_OPTIONS = new Set(['compare_dest', 'copy_dest', 'ca_cert', 'name_transform'])
+const CONFIG_SPACE_SEPARATED_OPTIONS = new Set(['password_command', 'metadata_mapper'])
+
+export function toConfigParam(config: Record<string, FlagValue> | undefined): string | undefined {
+    if (!config) {
+        return undefined
+    }
+    const entries = Object.entries(config).filter(([, value]) => !isBlankString(value))
+    if (entries.length === 0) {
+        return undefined
+    }
+    return JSON.stringify(
+        Object.fromEntries(
+            entries.map(([key, value]) => {
+                const normalized = normalizeOptionName(key)
+                const fieldName =
+                    CONFIG_FIELD_NAMES[normalized] ??
+                    normalized
+                        .split('_')
+                        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                        .join('')
+                let normalizedValue = value
+                if (CONFIG_ARRAY_OPTIONS.has(normalized)) {
+                    normalizedValue = normalizeArrayValue(value)
+                } else if (
+                    CONFIG_SPACE_SEPARATED_OPTIONS.has(normalized) &&
+                    !Array.isArray(value) &&
+                    value !== null
+                ) {
+                    normalizedValue = String(value).trim().split(/\s+/).filter(Boolean)
+                }
+                return [fieldName, normalizedValue]
+            })
+        )
+    )
+}
 
 export interface CopyArgs {
     sources: string[]
@@ -80,13 +231,12 @@ export interface RcRequest {
     body: Record<string, any>
 }
 
-// Encodes a path as an rclone connection string with inlined per-remote and global options:
-// "<remoteName>,<k>=\"v\",global.<gk>=\"gv\":<path>".
+// Encodes a path as an rclone connection string with inlined per-remote options:
+// "<remoteName>,<k>=\"v\":<path>".
 export function serializeOptions(
     remotePath: string,
     options: {
         remote?: Record<string, FlagValue>
-        global?: Record<string, FlagValue>
     }
 ) {
     console.log('[serializeRemoteOptions] ', remotePath)
@@ -101,22 +251,13 @@ export function serializeOptions(
 
     let serialized = `${remoteName}`
 
-    if (
-        Object.keys(options.remote || {}).length > 0 ||
-        Object.keys(options.global || {}).length > 0
-    ) {
+    if (Object.keys(options.remote || {}).length > 0) {
         serialized += ','
     }
 
     if (options.remote && Object.keys(options.remote).length > 0) {
         serialized += Object.entries(options.remote)
             .map(([key, value]) => `${key}="${value}"`)
-            .join(',')
-    }
-
-    if (options.global && Object.keys(options.global).length > 0) {
-        serialized += Object.entries(options.global)
-            .map(([key, value]) => `global.${key}="${value}"`)
             .join(',')
     }
 
@@ -149,9 +290,29 @@ export function serializeOptions(
     return serialized
 }
 
+// Names of the filter options the user actually set — blank (cleared) values are treated as unset
+// here exactly as toFilterParam drops them, so a cleared field never trips these guards.
+function activeFilterNames(filter?: Record<string, FlagValue>): Set<string> {
+    return new Set(
+        Object.entries(filter || {})
+            .filter(([, value]) => !isBlankString(value))
+            .map(([key]) => normalizeOptionName(key))
+    )
+}
+
 function assertIncludeRules(sources: string[], filter?: Record<string, FlagValue>) {
-    if (sources.length > 1 && filter && ('include' in filter || 'include_from' in filter)) {
+    const filterNames = activeFilterNames(filter)
+    if (sources.length > 1 && (filterNames.has('include') || filterNames.has('include_from'))) {
         throw new Error('Include rules are not supported with multiple sources')
+    }
+}
+
+function assertFolderFilters(sources: string[], filter?: Record<string, FlagValue>) {
+    if (
+        activeFilterNames(filter).size > 0 &&
+        sources.some((path) => !path.endsWith('/') && !path.endsWith('\\'))
+    ) {
+        throw new Error('Filters are only supported when every selected source is a folder')
     }
 }
 
@@ -167,7 +328,8 @@ function remoteOptionsFor(
 function buildTransferInputs(
     args: CopyArgs | MoveArgs,
     paths: { folder: string; file: string },
-    mergedOptions: Record<string, FlagValue>
+    configParam: string | undefined,
+    filterParam: string | undefined
 ): BatchInput[] {
     const { sources, destination, options } = args
 
@@ -208,12 +370,13 @@ function buildTransferInputs(
                 _path: paths.folder,
                 srcFs: serializeOptions(srcFullDirPath, {
                     remote: srcOptions,
-                    global: mergedOptions,
                 }),
                 dstFs: serializeOptions(`${dstFullDirPath}${srcName}`, {
                     remote: dstOptions,
                 }),
                 createEmptySrcDirs: true,
+                ...(configParam ? { _config: configParam } : {}),
+                ...(filterParam ? { _filter: filterParam } : {}),
             })
             continue
         }
@@ -227,8 +390,8 @@ function buildTransferInputs(
             _path: paths.file,
             srcFs: serializeOptions(srcRoot, {
                 remote: srcOptions,
-                global: mergedOptions,
             }),
+            ...(configParam ? { _config: configParam } : {}),
             srcRemote: srcFilePath,
             dstFs: serializeOptions(dstRoot, {
                 remote: dstOptions,
@@ -242,42 +405,61 @@ function buildTransferInputs(
 
 export function buildCopyRequests(args: CopyArgs): RcRequest[] {
     assertIncludeRules(args.sources, args.options.filter)
-    const mergedOptions = {
-        ...(args.options.config || {}),
+    assertFolderFilters(args.sources, args.options.filter)
+    const configParam = toConfigParam({
         ...(args.options.copy || {}),
-        ...(args.options.filter || {}),
-    }
+        ...(args.options.config || {}),
+    })
+    const filterParam = toFilterParam(args.options.filter)
     const inputs = buildTransferInputs(
         args,
         { folder: 'sync/copy', file: 'operations/copyfile' },
-        mergedOptions
+        configParam,
+        filterParam
     )
-    return [{ endpoint: '/job/batch', body: { inputs, _async: true } }]
+    return [
+        {
+            endpoint: '/job/batch',
+            body: {
+                inputs,
+                ...(configParam ? { _config: configParam } : {}),
+                _async: true,
+            },
+        },
+    ]
 }
 
 export function buildMoveRequests(args: MoveArgs): RcRequest[] {
     assertIncludeRules(args.sources, args.options.filter)
-    const mergedOptions = {
-        ...(args.options.config || {}),
+    assertFolderFilters(args.sources, args.options.filter)
+    const configParam = toConfigParam({
         ...(args.options.move || {}),
-        ...(args.options.filter || {}),
-    }
+        ...(args.options.config || {}),
+    })
+    const filterParam = toFilterParam(args.options.filter)
     const inputs = buildTransferInputs(
         args,
         { folder: 'sync/move', file: 'operations/movefile' },
-        mergedOptions
+        configParam,
+        filterParam
     )
-    return [{ endpoint: '/job/batch', body: { inputs, _async: true } }]
+    return [
+        {
+            endpoint: '/job/batch',
+            body: {
+                inputs,
+                ...(configParam ? { _config: configParam } : {}),
+                _async: true,
+            },
+        },
+    ]
 }
 
 export function buildSyncRequests(args: SyncArgs): RcRequest[] {
     const { source, destination, options } = args
 
-    const mergedOptions = {
-        ...(options.config || {}),
-        ...(options.sync || {}),
-        ...(options.filter || {}),
-    }
+    const configParam = toConfigParam({ ...(options.sync || {}), ...(options.config || {}) })
+    const filterParam = toFilterParam(options.filter)
 
     const { fullDirPath: srcFullDirPath, remoteName: srcRemoteName } = getFsInfo(source)
     const { fullDirPath: dstFullDirPath, remoteName: dstRemoteName } = getFsInfo(destination)
@@ -287,13 +469,14 @@ export function buildSyncRequests(args: SyncArgs): RcRequest[] {
             endpoint: '/sync/sync',
             body: {
                 srcFs: serializeOptions(srcFullDirPath, {
-                    global: mergedOptions,
                     remote: remoteOptionsFor(options.remotes, srcRemoteName),
                 }),
                 dstFs: serializeOptions(dstFullDirPath, {
                     remote: remoteOptionsFor(options.remotes, dstRemoteName),
                 }),
                 createEmptySrcDirs: true,
+                ...(configParam ? { _config: configParam } : {}),
+                ...(filterParam ? { _filter: filterParam } : {}),
                 _async: true,
             },
         },
@@ -303,11 +486,8 @@ export function buildSyncRequests(args: SyncArgs): RcRequest[] {
 export function buildBisyncRequests(args: BisyncArgs): RcRequest[] {
     const { source, destination, options } = args
 
-    const mergedOptions = {
-        ...(options.config || {}),
-        ...(options.bisync || {}),
-        ...(options.filter || {}),
-    }
+    const configParam = toConfigParam({ ...(options.bisync || {}), ...(options.config || {}) })
+    const filterParam = toFilterParam(options.filter)
 
     const { fullDirPath: srcFullDirPath, remoteName: srcRemoteName } = getFsInfo(source)
     const { fullDirPath: dstFullDirPath, remoteName: dstRemoteName } = getFsInfo(destination)
@@ -317,12 +497,13 @@ export function buildBisyncRequests(args: BisyncArgs): RcRequest[] {
             endpoint: '/sync/bisync',
             body: {
                 path1: serializeOptions(srcFullDirPath, {
-                    global: mergedOptions,
                     remote: remoteOptionsFor(options.remotes, srcRemoteName),
                 }),
                 path2: serializeOptions(dstFullDirPath, {
                     remote: remoteOptionsFor(options.remotes, dstRemoteName),
                 }),
+                ...(configParam ? { _config: configParam } : {}),
+                ...(filterParam ? { _filter: filterParam } : {}),
                 ...(options.outer && Object.keys(options.outer).length > 0
                     ? Object.fromEntries(
                           Object.entries(options.outer).map(([key, value]) => [
@@ -341,11 +522,10 @@ export function buildDeleteRequests(args: DeleteArgs): RcRequest[] {
     const { sources, options } = args
 
     assertIncludeRules(sources, options.filter)
+    assertFolderFilters(sources, options.filter)
 
-    const mergedOptions = {
-        ...(options.config || {}),
-        ...(options.filter || {}),
-    }
+    const configParam = toConfigParam(options.config || {})
+    const filterParam = toFilterParam(options.filter)
 
     const inputs: BatchInput[] = []
     const handledSourcePaths: Record<string, true> = {}
@@ -372,9 +552,10 @@ export function buildDeleteRequests(args: DeleteArgs): RcRequest[] {
             inputs.push({
                 _path: 'operations/delete',
                 fs: serializeOptions(source, {
-                    global: mergedOptions,
                     remote: srcOptions,
                 }),
+                ...(configParam ? { _config: configParam } : {}),
+                ...(filterParam ? { _filter: filterParam } : {}),
             })
             continue
         }
@@ -387,19 +568,29 @@ export function buildDeleteRequests(args: DeleteArgs): RcRequest[] {
         inputs.push({
             _path: 'operations/deletefile',
             fs: serializeOptions(srcRoot, {
-                global: mergedOptions,
                 remote: srcOptions,
             }),
+            ...(configParam ? { _config: configParam } : {}),
             remote: srcFilePath,
         })
     }
 
-    return [{ endpoint: '/job/batch', body: { inputs, _async: true } }]
+    return [
+        {
+            endpoint: '/job/batch',
+            body: {
+                inputs,
+                ...(configParam ? { _config: configParam } : {}),
+                _async: true,
+            },
+        },
+    ]
 }
 
 export function buildPurgeRequests(args: PurgeArgs): RcRequest[] {
     const { sources, options } = args
 
+    const configParam = toConfigParam(options.config || {})
     const inputs: BatchInput[] = []
     const handledSourcePaths: Record<string, true> = {}
 
@@ -413,7 +604,7 @@ export function buildPurgeRequests(args: PurgeArgs): RcRequest[] {
 
         const {
             root: srcRoot,
-            dirPath: srcDirPath,
+            filePath: srcDirPath,
             type: srcType,
             remoteName: srcRemoteName,
         } = getFsInfo(source)
@@ -425,14 +616,23 @@ export function buildPurgeRequests(args: PurgeArgs): RcRequest[] {
         inputs.push({
             _path: 'operations/purge',
             fs: serializeOptions(srcRoot, {
-                global: options.config,
                 remote: remoteOptionsFor(options.remotes, srcRemoteName),
             }),
+            ...(configParam ? { _config: configParam } : {}),
             remote: srcDirPath,
         })
     }
 
-    return [{ endpoint: '/job/batch', body: { inputs, _async: true } }]
+    return [
+        {
+            endpoint: '/job/batch',
+            body: {
+                inputs,
+                ...(configParam ? { _config: configParam } : {}),
+                _async: true,
+            },
+        },
+    ]
 }
 
 /** Discriminated operation/args pair — ScheduledTask satisfies this. */

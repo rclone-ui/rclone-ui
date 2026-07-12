@@ -11,7 +11,6 @@ import { getFsInfo } from '../format'
 import { dispatchNotification } from '../notifications'
 import { restartActiveRclone, runRcloneCli } from './cli'
 import rclone, { rcloneAsync } from './client'
-import { parseRcloneOptions } from './common'
 import {
     type BisyncArgs,
     type CopyArgs,
@@ -26,6 +25,8 @@ import {
     buildPurgeRequests,
     buildSyncRequests,
     serializeOptions,
+    toConfigParam,
+    toFilterParam,
 } from './requests'
 
 const RE_BACKSLASH = /\\/g
@@ -39,34 +40,10 @@ const RETRY_OPTIONS = {
     shouldRetry: ({ error }: { error: unknown }) => !(error instanceof UserCancelledError),
 }
 
-// Non-zero while a dry run is in flight. The start* functions capture this at submission time
-// so a dry-run job is never registered with the watcher — checking it at registration time
-// instead would wrongly suppress a real job that overlaps a concurrent dry run.
-let dryRunDepth = 0
-
-export async function startDryRun<T>(operation: () => Promise<T>): Promise<T> {
-    await rclone('/options/set', {
-        body: {
-            main: { DryRun: true },
-        },
-    })
-    dryRunDepth++
-    try {
-        const result = await operation()
-        if (typeof result === 'number') {
-            useStore.setState((state) => ({
-                dryRunJobIds: [...state.dryRunJobIds, result],
-            }))
-        }
-        return result
-    } finally {
-        dryRunDepth--
-        await rclone('/options/set', {
-            body: {
-                main: { DryRun: false },
-            },
-        })
-    }
+// Dry-run state travels with each submission so a preview never changes daemon-global options or
+// suppresses a real job that overlaps it.
+export function startDryRun<T>(operation: (isDryRun: true) => Promise<T>): Promise<T> {
+    return operation(true)
 }
 
 // Makes a freshly submitted job visible to the main window's job watcher (via the shared
@@ -89,66 +66,112 @@ function registerWatchedJob(
     }))
 }
 
-async function hasStat(path: string) {
+function registerSubmittedJob(
+    jobid: number,
+    job: Pick<WatchedJob, 'operation' | 'sources' | 'destination'>,
+    isDryRun: boolean
+) {
+    if (isDryRun) {
+        useStore.setState((state) => ({
+            dryRunJobIds: state.dryRunJobIds.includes(jobid)
+                ? state.dryRunJobIds
+                : [...state.dryRunJobIds, jobid],
+        }))
+        return
+    }
+    registerWatchedJob(jobid, job)
+}
+
+async function hasStat(
+    path: string,
+    options?: {
+        configParam?: string
+        remotes?: Record<string, Record<string, FlagValue>>
+    }
+) {
     // No try/catch: a transport failure must propagate as the real error instead of being
     // masked as "Source does not exist". A genuinely missing path returns a response with no
     // item, which still yields false.
-    const { root, filePath } = getFsInfo(path)
+    const { root, filePath, remoteName } = getFsInfo(path)
+    const remoteOptions = options?.remotes?.[remoteName]
+    let fs = root === ':local:' ? ':local:/' : root
+    if (remoteOptions && Object.keys(remoteOptions).length > 0) {
+        fs = serializeOptions(root.endsWith('/') ? root.slice(0, -1) : root, {
+            remote: remoteOptions,
+        })
+    }
     const r = await rclone('/operations/stat', {
         params: {
             query: {
-                fs: root === ':local:' ? ':local:/' : root,
+                fs,
                 remote: filePath,
+                ...(options?.configParam ? { _config: options.configParam } : {}),
             },
         },
     })
     return !!r?.item
 }
 
-export async function startCopy(args: CopyArgs) {
+export async function startCopy(args: CopyArgs, isDryRun = false) {
     console.log('[startCopy] starting', {
         sources: args.sources,
         destination: args.destination,
         optionKeys: Object.keys(args.options),
     })
 
+    const [request] = buildCopyRequests(args)
+
     for (const source of args.sources) {
-        const sourceExists = await hasStat(source)
+        const sourceExists = await hasStat(source, {
+            configParam: request.body._config,
+            remotes: args.options.remotes,
+        })
         if (!sourceExists) {
             throw new Error(`Source does not exist, ${source} is missing`)
         }
     }
 
-    const [request] = buildCopyRequests(args)
     console.log('[startCopy] submitting batch', { jobCount: request.body.inputs.length })
-    return startBatch(request.body.inputs, {
-        operation: 'copy',
-        sources: args.sources,
-        destination: args.destination,
-    })
+    return startBatch(
+        request.body.inputs,
+        {
+            operation: 'copy',
+            sources: args.sources,
+            destination: args.destination,
+        },
+        { isDryRun, configParam: request.body._config }
+    )
 }
 
-export async function startMove(args: MoveArgs) {
+export async function startMove(args: MoveArgs, isDryRun = false) {
     console.log('[startMove] starting', {
         sources: args.sources,
         destination: args.destination,
         optionKeys: Object.keys(args.options),
     })
 
+    const [request] = buildMoveRequests(args)
+
     for (const source of args.sources) {
-        const sourceExists = await hasStat(source)
+        const sourceExists = await hasStat(source, {
+            configParam: request.body._config,
+            remotes: args.options.remotes,
+        })
         if (!sourceExists) {
             throw new Error(`Source does not exist, ${source} is missing`)
         }
     }
 
-    const [request] = buildMoveRequests(args)
     console.log('[startMove] submitting batch', { jobCount: request.body.inputs.length })
-    return startBatch(request.body.inputs, {
-        operation: 'move',
-        sources: args.sources,
-        destination: args.destination,
-    })
+    return startBatch(
+        request.body.inputs,
+        {
+            operation: 'move',
+            sources: args.sources,
+            destination: args.destination,
+        },
+        { isDryRun, configParam: request.body._config }
+    )
 }
 
 /* JOBS */
@@ -411,14 +434,14 @@ async function startMountInner({
         mountOptions.volname = `${sourcePath}-${Math.random().toString(36).substring(2, 3).toUpperCase()}`
     }
 
-    // Only genuinely global flags can ride the connection string (`global.` keys) — mount and
-    // VFS options go through the dedicated mountOpt/vfsOpt params below instead. Filter options
-    // have no per-mount channel at all (rclone builds the mount's VFS on a background context,
-    // so per-call filters never reach it) and are kept here as a no-op until upstream fixes it.
-    const mergedOptions = {
-        ...(options.config || {}),
-        ...(options.filter || {}),
-    }
+    // `_filter` is the correct RC channel for mount filters (rclone's own RC docs say so), so we
+    // send it as a proper param rather than smuggling it into the fs string. Note: current rclone
+    // ignores it for mounts — mountRc has the filter on its ctx, but Mount() builds the VFS with
+    // context.Background() and discards it (only the *global* filter, set via CLI --exclude, reaches
+    // a mount). Rclone still parses this value, but it only affects the mount if upstream threads
+    // that request context into the VFS.
+    const configParam = toConfigParam(options.config)
+    const filterParam = toFilterParam(options.filter)
 
     const vfsOptions = { ...(options.vfs || {}) }
 
@@ -427,15 +450,24 @@ async function startMountInner({
     // keys pass through untouched — rclone ignores unrecognized fields.
     const toStructOptions = (
         flags: Record<string, FlagValue>,
-        infos: { Name: string; FieldName: string }[] | undefined
+        infos: { Name: string; FieldName: string; Type: string }[] | undefined
     ) => {
-        const fieldNames = new Map((infos || []).map((info) => [info.Name, info.FieldName]))
+        const optionsByName = new Map((infos || []).map((info) => [info.Name, info]))
         return JSON.stringify(
             Object.fromEntries(
-                Object.entries(flags).map(([key, value]) => [
-                    fieldNames.get(key.replace(RE_DASH, '_')) || key,
-                    value,
-                ])
+                Object.entries(flags).map(([key, value]) => {
+                    const normalized = (key.startsWith('--') ? key.slice(2) : key).replace(
+                        RE_DASH,
+                        '_'
+                    )
+                    const option = optionsByName.get(normalized)
+                    return [
+                        option?.FieldName || key,
+                        option?.Type === 'stringArray' && !Array.isArray(value) && value !== null
+                            ? [String(value)]
+                            : value,
+                    ]
+                })
             )
         )
     }
@@ -471,12 +503,13 @@ async function startMountInner({
                     params: {
                         query: {
                             fs: serializeOptions(srcFullDirPath, {
-                                global: mergedOptions,
                                 remote: srcOptions,
                             }),
                             mountPoint: '*',
                             // No mountType — Windows uses rclone's default resolution (cmount/WinFsp)
                             ...structOptions,
+                            ...(configParam ? { _config: configParam } : {}),
+                            ...(filterParam ? { _filter: filterParam } : {}),
                         },
                     },
                 }),
@@ -592,7 +625,6 @@ async function startMountInner({
                 params: {
                     query: {
                         fs: serializeOptions(srcFullDirPath, {
-                            global: mergedOptions,
                             remote: srcOptions,
                         }),
                         mountPoint: (() => {
@@ -610,6 +642,8 @@ async function startMountInner({
                         })(),
                         ...(currentPlatform === 'macos' ? { mountType: 'nfsmount' } : {}),
                         ...structOptions,
+                        ...(configParam ? { _config: configParam } : {}),
+                        ...(filterParam ? { _filter: filterParam } : {}),
                     },
                 },
             }),
@@ -622,13 +656,12 @@ async function startMountInner({
 async function submitAsyncQuery(
     endpoint: '/sync/sync' | '/sync/bisync',
     body: Record<string, any>,
-    watch: Pick<WatchedJob, 'operation' | 'sources' | 'destination'>
+    watch: Pick<WatchedJob, 'operation' | 'sources' | 'destination'>,
+    isDryRun = false
 ) {
     // The builders emit body-form requests for the headless runner; the live client submits the
     // same parameters as a query (rclone's RC treats them identically).
     const { _async, ...query } = body
-
-    const submittedDuringDryRun = dryRunDepth > 0
 
     const r = await pRetry(
         async () =>
@@ -645,9 +678,7 @@ async function submitAsyncQuery(
         throw new Error('Failed to start operation')
     }
 
-    if (!submittedDuringDryRun) {
-        registerWatchedJob(r.jobid, watch)
-    }
+    registerSubmittedJob(r.jobid, watch, isDryRun)
 
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
@@ -679,12 +710,15 @@ async function submitAsyncQuery(
 }
 
 export async function startBisync(args: BisyncArgs) {
-    const sourceExists = await hasStat(args.source)
+    const [request] = buildBisyncRequests(args)
+    const sourceExists = await hasStat(args.source, {
+        configParam: request.body._config,
+        remotes: args.options.remotes,
+    })
     if (!sourceExists) {
         throw new Error(`Source does not exist, ${args.source} is missing`)
     }
 
-    const [request] = buildBisyncRequests(args)
     return submitAsyncQuery('/sync/bisync', request.body, {
         operation: 'bisync',
         sources: [args.source],
@@ -692,42 +726,64 @@ export async function startBisync(args: BisyncArgs) {
     })
 }
 
-export async function startSync(args: SyncArgs) {
-    const sourceExists = await hasStat(args.source)
+export async function startSync(args: SyncArgs, isDryRun = false) {
+    const [request] = buildSyncRequests(args)
+    const sourceExists = await hasStat(args.source, {
+        configParam: request.body._config,
+        remotes: args.options.remotes,
+    })
     if (!sourceExists) {
         throw new Error(`Source does not exist, ${args.source} is missing`)
     }
 
-    const [request] = buildSyncRequests(args)
-    return submitAsyncQuery('/sync/sync', request.body, {
-        operation: 'sync',
-        sources: [args.source],
-        destination: args.destination,
-    })
+    return submitAsyncQuery(
+        '/sync/sync',
+        request.body,
+        {
+            operation: 'sync',
+            sources: [args.source],
+            destination: args.destination,
+        },
+        isDryRun
+    )
 }
 
-export async function startDelete({ sources, options }: DeleteArgs) {
+export async function startDelete({ sources, options }: DeleteArgs, isDryRun = false) {
+    const [request] = buildDeleteRequests({ sources, options })
     for (const source of sources) {
-        const sourceExists = await hasStat(source)
+        const sourceExists = await hasStat(source, {
+            configParam: request.body._config,
+            remotes: options.remotes,
+        })
         if (!sourceExists) {
             throw new Error(`Source does not exist, ${source} is missing`)
         }
     }
 
-    const [request] = buildDeleteRequests({ sources, options })
-    return startBatch(request.body.inputs, { operation: 'delete', sources })
+    return startBatch(
+        request.body.inputs,
+        { operation: 'delete', sources },
+        { isDryRun, configParam: request.body._config }
+    )
 }
 
 export async function startPurge({ sources, options }: PurgeArgs) {
+    const [request] = buildPurgeRequests({ sources, options })
     for (const source of sources) {
-        const sourceExists = await hasStat(source)
+        const sourceExists = await hasStat(source, {
+            configParam: request.body._config,
+            remotes: options.remotes,
+        })
         if (!sourceExists) {
             throw new Error(`Source does not exist, ${source} is missing`)
         }
     }
 
-    const [request] = buildPurgeRequests({ sources, options })
-    return startBatch(request.body.inputs, { operation: 'purge', sources })
+    return startBatch(
+        request.body.inputs,
+        { operation: 'purge', sources },
+        { configParam: request.body._config }
+    )
 }
 
 export async function startServe({
@@ -750,14 +806,8 @@ export async function startServe({
                 type,
                 fs,
                 addr,
-                _filter:
-                    _filter && Object.keys(_filter).length > 0
-                        ? JSON.stringify(parseRcloneOptions(_filter))
-                        : undefined,
-                _config:
-                    _config && Object.keys(_config).length > 0
-                        ? JSON.stringify(parseRcloneOptions(_config))
-                        : undefined,
+                _filter: toFilterParam(_filter),
+                _config: toConfigParam(_config),
                 ...(props && Object.keys(props).length > 0
                     ? Object.fromEntries(
                           Object.entries(props).map(([key, value]) => [
@@ -773,7 +823,8 @@ export async function startServe({
 
 export async function startBatch(
     inputs: ({ _path: string } & Record<string, any>)[],
-    meta?: Partial<Pick<WatchedJob, 'operation' | 'sources' | 'destination'>>
+    meta?: Partial<Pick<WatchedJob, 'operation' | 'sources' | 'destination'>>,
+    options?: { isDryRun?: boolean; configParam?: string }
 ) {
     console.log('[startBatch] starting batch operation', {
         inputCount: inputs.length,
@@ -781,13 +832,12 @@ export async function startBatch(
     })
     console.log('[startBatch] inputs', JSON.stringify(inputs, null, 2))
 
-    const submittedDuringDryRun = dryRunDepth > 0
-
     const r = await pRetry(
         async () =>
             await rclone('/job/batch', {
                 body: {
                     inputs,
+                    ...(options?.configParam ? { _config: options.configParam } : {}),
                     _async: true,
                 },
             }),
@@ -796,13 +846,15 @@ export async function startBatch(
 
     console.log('[startBatch] job created', { jobid: r.jobid })
 
-    if (!submittedDuringDryRun) {
-        registerWatchedJob(r.jobid, {
+    registerSubmittedJob(
+        r.jobid,
+        {
             operation: meta?.operation ?? 'batch',
             sources: meta?.sources,
             destination: meta?.destination,
-        })
-    }
+        },
+        options?.isDryRun ?? false
+    )
 
     await new Promise((resolve) => setTimeout(resolve, 1000))
 

@@ -96,14 +96,7 @@ export default function RemoteOptionsSection({
                                         !IGNORED_OPTIONS.includes(o.Name) &&
                                         !!o.Help
                                 )
-                                .map((o) => {
-                                    const newName = `s3_${o.Name}`
-                                    return {
-                                        ...o,
-                                        Name: newName,
-                                        FieldName: newName,
-                                    }
-                                })
+                                .map((o) => ({ ...o, FieldName: o.Name }))
                                 .filter(Boolean)
                             console.log('[RemoteOptionsSection] providerOptions', providerOptions)
                             return {
@@ -121,14 +114,7 @@ export default function RemoteOptionsSection({
                         options: [
                             ...(backends.find((b) => b.Name === config.type)?.Options || [])
                                 .filter((o) => !IGNORED_OPTIONS.includes(o.Name) && !!o.Help)
-                                .map((o) => {
-                                    const newName = `${config.type}_${o.Name}`
-                                    return {
-                                        ...o,
-                                        Name: newName,
-                                        FieldName: newName,
-                                    }
-                                })
+                                .map((o) => ({ ...o, FieldName: o.Name }))
                                 .filter(Boolean),
                         ],
                     }

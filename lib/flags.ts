@@ -1,6 +1,8 @@
 import type { FlagValue } from '../types/rclone'
 import { SERVE_TYPES } from './rclone/constants'
 
+const RE_DASH = /-/g
+
 export const FLAG_CATEGORIES = [
     'copy',
     'sync',
@@ -26,7 +28,7 @@ export function getFlagCategory(
     flags: Record<string, { Name: string; Groups?: string }[]>
 ) {
     console.log('[getFlagCategory] flag', flag)
-    const normalizedFlag = (flag.startsWith('--') ? flag.slice(2) : flag).replace(/-/g, '_')
+    const normalizedFlag = (flag.startsWith('--') ? flag.slice(2) : flag).replace(RE_DASH, '_')
 
     console.log('[getFlagCategory] normalized flag', normalizedFlag)
     let foundFlag = null
@@ -68,6 +70,31 @@ export function getFlagCategory(
     return null
 }
 
+/**
+ * Resolves a flag's option definition using the SAME blocks and priority order as getFlagCategory
+ * (main, vfs, filter, mount, then the serve backends), so a flag is typed from the exact block it
+ * will later be grouped into. Blocks getFlagCategory never routes to (rc, log, proxy) are excluded
+ * so a flag that also lives there can't be mis-typed or spuriously matched.
+ */
+export function findFlagOption(
+    flag: string,
+    allFlags: Record<string, { Name: string; Type?: string; Groups?: string }[]>
+) {
+    const normalizedFlag = (flag.startsWith('--') ? flag.slice(2) : flag).replace(RE_DASH, '_')
+    const blocks = [
+        allFlags.main,
+        allFlags.vfs,
+        allFlags.filter,
+        allFlags.mount,
+        ...SERVE_TYPES.map((type) => allFlags[type]),
+    ]
+    for (const block of blocks) {
+        const found = block?.find((f) => f.Name === normalizedFlag)
+        if (found) return found
+    }
+    return undefined
+}
+
 export function sortByName(flag1: { Name: string }, flag2: { Name: string }) {
     return flag1.Name.localeCompare(flag2.Name)
 }
@@ -107,7 +134,7 @@ export function groupByCategory(
     }
 
     for (const [k, v] of Object.entries(flags)) {
-        const normalizedKey = k.replace(/-/g, '_')
+        const normalizedKey = k.replace(RE_DASH, '_')
         const category = getFlagCategory(k, allFlags)
         if (!category) continue
         if (category.category.startsWith('serve.')) {

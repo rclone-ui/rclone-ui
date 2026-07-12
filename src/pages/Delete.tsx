@@ -132,14 +132,17 @@ export default function Delete() {
         if (!sourceFs) {
             throw new Error('Please select a source path to delete')
         }
-        return startDryRun(() =>
-            startDelete({
-                sources: [sourceFs],
-                options: {
-                    filter: filterGroup.options,
-                    config: { ...configGroup.options, dry_run: true },
+        return startDryRun((isDryRun) =>
+            startDelete(
+                {
+                    sources: [sourceFs],
+                    options: {
+                        filter: filterGroup.options,
+                        config: { ...configGroup.options, dry_run: true },
+                    },
                 },
-            })
+                isDryRun
+            )
         )
     })
 

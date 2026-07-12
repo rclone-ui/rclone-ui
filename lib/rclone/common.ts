@@ -2,7 +2,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, sep } from '@tauri-apps/api/path'
 import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { useHostStore } from '../../store/host'
-import type { FlagValue } from '../../types/rclone'
 import { getConfigParentFolder } from '../format'
 import rclone from './client'
 import { DOUBLE_BACKSLASH_REGEX } from './constants'
@@ -157,12 +156,6 @@ export async function resolveDefaultConfigPath(): Promise<string> {
     }
 
     return appPrivate
-}
-
-export function parseRcloneOptions(options: Record<string, FlagValue>) {
-    console.log('[parseRcloneOptions]', options)
-
-    return options
 }
 
 export function compareVersions(version1: string, version2: string): number {

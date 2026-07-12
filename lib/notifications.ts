@@ -428,12 +428,13 @@ export function initJobWatcher() {
 /**
  * Forget all watched jobs — jobids do not survive a daemon restart or crash. The dedupe sets
  * must go too: a fresh daemon issues jobids from 1 again, guaranteed to collide with old ones.
+ * Dry-run IDs use the same daemon-local namespace and must be cleared with them.
  */
 export function clearWatchedJobs() {
     statusFailures.clear()
     seenJobIds.clear()
     handledJobIds.clear()
-    useStore.setState({ watchedJobs: {} })
+    useStore.setState({ watchedJobs: {}, dryRunJobIds: [] })
 }
 
 function onWatchedJobsChange(watchedJobs: Record<number, WatchedJob>) {

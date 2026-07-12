@@ -138,7 +138,9 @@ export default function JobDetailsDrawer({
             input,
         }: { key: string; input: { _path: string } & Record<string, any> }) => {
             setRetryStatus((prev) => new Map(prev).set(key, { status: 'pending' }))
-            const jobId = await startBatch([input])
+            const jobId = await startBatch([input], undefined, {
+                configParam: typeof input._config === 'string' ? input._config : undefined,
+            })
             return { key, jobId }
         },
         onSuccess: ({ key, jobId }) => {

@@ -142,17 +142,20 @@ export default function Copy() {
         if (!sources || sources.length === 0 || !dest) {
             throw new Error('Please select both a source and destination path')
         }
-        return startDryRun(() =>
-            startCopy({
-                sources,
-                destination: dest,
-                options: {
-                    config: { ...configGroup.options, dry_run: true },
-                    copy: copyGroup.options,
-                    filter: filterGroup.options,
-                    remotes: remotesGroup.options,
+        return startDryRun((isDryRun) =>
+            startCopy(
+                {
+                    sources,
+                    destination: dest,
+                    options: {
+                        config: { ...configGroup.options, dry_run: true },
+                        copy: copyGroup.options,
+                        filter: filterGroup.options,
+                        remotes: remotesGroup.options,
+                    },
                 },
-            })
+                isDryRun
+            )
         )
     })
 
