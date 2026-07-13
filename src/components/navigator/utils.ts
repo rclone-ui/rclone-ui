@@ -10,6 +10,7 @@ import {
     UsbIcon,
 } from 'lucide-react'
 import { createRef } from 'react'
+import { getFsInfo } from '../../../lib/format.ts'
 import rclone from '../../../lib/rclone/client.ts'
 import type { SelectItem } from './types'
 
@@ -42,6 +43,7 @@ export const RE_TRAILING_SLASH = /\/+$/g
 export const RE_LEADING_SLASH = /^\/+/
 export const RE_PATH_SEPARATOR = /[/\\]/
 export const RE_TRAILING_SEPARATORS = /[\\/]+$/
+const RE_RCLONE_GLOB_META = /[\\*?[\]{}]/g
 
 export const VIRTUAL_PADDING_COUNT = 2
 
@@ -154,6 +156,63 @@ export async function listRemotePath(
     }
     log('listRemotePath: result count', deduped.length)
     return { list: deduped, baseDir: base }
+}
+
+export async function searchPath(
+    remote: string | 'UI_LOCAL_FS',
+    dir: string,
+    term: string,
+    signal: AbortSignal
+) {
+    const isLocal = remote === 'UI_LOCAL_FS'
+    const localInfo = isLocal ? getFsInfo(dir) : null
+    const fs = localInfo
+        ? localInfo.root === ':local:'
+            ? ':local:/'
+            : localInfo.root
+        : `${remote}:`
+    const base = localInfo ? localInfo.filePath : normalizeRemoteDir(dir)
+    const escapedTerm = term.replace(RE_RCLONE_GLOB_META, '\\$&')
+
+    const run = async (target: string) => {
+        const result = await rclone('/operations/list', {
+            params: {
+                query: {
+                    fs,
+                    remote: target,
+                    opt: JSON.stringify({
+                        recurse: true,
+                        noModTime: false,
+                        noMimeType: true,
+                    }),
+                    _filter: JSON.stringify({
+                        IncludeRule: [`*${escapedTerm}*`],
+                        IgnoreCase: true,
+                    }),
+                } as any,
+            },
+            signal,
+        })
+        return Array.isArray(result) ? result : result?.list
+    }
+
+    let list: any[] | undefined
+    try {
+        list = await run(base)
+    } catch (error) {
+        if (signal.aborted || !base) throw error
+        list = await run(`${base}/`)
+    }
+
+    if (!Array.isArray(list)) throw new Error('Invalid search response')
+
+    const seen = new Set<string>()
+    return (list as any[]).filter((item) => {
+        const path = (item?.Path || item?.Name || '') as string
+        if (!path || seen.has(path)) return false
+        seen.add(path)
+        return true
+    })
 }
 
 export async function listLocalPath(dir: string) {

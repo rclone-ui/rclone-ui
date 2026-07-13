@@ -210,7 +210,7 @@ export default function FileList({
                 return (
                     <ListboxItem
                         key={entry.key}
-                        textValue={entry.name}
+                        textValue={entry.displayName ?? entry.name}
                         classNames={{
                             base: 'p-0 m-0 rounded-none !outline-none data-[focus-visible=true]:!outline-none focus:!outline-none',
                             title: 'h-full justify-center flex',
@@ -246,7 +246,9 @@ export default function FileList({
                                 onClick={() => onNavigate(entry)}
                             >
                                 <FileIcon entry={entry} size="md" />
-                                <span className="truncate !cursor-pointer">{entry.name}</span>
+                                <span className="truncate !cursor-pointer" title={entry.fullPath}>
+                                    {entry.displayName ?? entry.name}
+                                </span>
                             </div>
 
                             <div className="truncate text-small text-default-500">

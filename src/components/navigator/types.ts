@@ -5,6 +5,7 @@ export type RemoteString = string | 'UI_LOCAL_FS' | 'UI_FAVORITES' | null
 export type Entry = {
     key: string
     name: string
+    displayName?: string
     isDir: boolean
     size?: number
     modTime?: string

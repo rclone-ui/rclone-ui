@@ -4,6 +4,7 @@ import { homeDir } from '@tauri-apps/api/path'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import rclone from '../../../lib/rclone/client.ts'
 import { useHostStore } from '../../../store/host.ts'
+import { useCurrentHost } from '../../../store/persisted.ts'
 import type {
     AllowedKey,
     Entry,
@@ -24,6 +25,7 @@ import {
     joinLocal,
     listRemotePath,
     log,
+    searchPath,
     serializeRemotePath,
 } from './utils'
 
@@ -48,6 +50,7 @@ export default function useFileNavigation({
     isActive?: boolean
 }) {
     const favoritePaths = useHostStore((state) => state.favoritePaths)
+    const currentHost = useCurrentHost()
 
     const remotesQuery = useQuery({
         queryKey: ['remotes', 'list', 'all'],
@@ -61,6 +64,10 @@ export default function useFileNavigation({
     const [cwd, setCwd] = useState<string>(initialPath ?? '')
     const [pathInput, setPathInput] = useState<string>('')
     const [searchTerm, setSearchTerm] = useState<string>('')
+    const [searchInSubfolders, setSearchInSubfolders] = useState(false)
+    const [recursiveSearchItems, setRecursiveSearchItems] = useState<Entry[] | null>(null)
+    const [isSearching, setIsSearching] = useState(false)
+    const [searchError, setSearchError] = useState<string | null>(null)
     const [sortDescriptor, setSortDescriptor] = useState<{
         column: 'name' | 'size' | 'modTime'
         direction: 'ascending' | 'descending'
@@ -91,14 +98,19 @@ export default function useFileNavigation({
     const localRequestIdRef = useRef<string | null>(null)
     const localRequestPrefixRef = useRef(Math.random().toString(36).slice(2))
     const localRequestSequenceRef = useRef(0)
+    const searchRequestSequenceRef = useRef(0)
 
     const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
     const selectedTypesRef = useRef<Map<string, 'file' | 'folder'>>(new Map())
 
+    const recursiveSearchActive = searchInSubfolders && searchTerm.trim().length > 0
+
     const visibleItems = useMemo(() => {
-        const base = allowFiles ? items : items.filter((it) => it.isDir)
-        const lower = searchTerm.toLowerCase()
-        const filtered = searchTerm
+        const sourceItems = recursiveSearchActive ? (recursiveSearchItems ?? []) : items
+        const base = allowFiles ? sourceItems : sourceItems.filter((it) => it.isDir)
+        const normalizedSearchTerm = recursiveSearchActive ? searchTerm.trim() : searchTerm
+        const lower = normalizedSearchTerm.toLowerCase()
+        const filtered = normalizedSearchTerm
             ? base.filter((item) => item.name.toLowerCase().includes(lower))
             : base
         const direction = sortDescriptor.direction === 'ascending' ? 1 : -1
@@ -106,9 +118,11 @@ export default function useFileNavigation({
         return [...filtered].sort((a, b) => {
             if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
 
+            const aName = a.displayName ?? a.name
+            const bName = b.displayName ?? b.name
             const nameComparison =
-                nameCollator.compare(a.name, b.name) ||
-                a.name.localeCompare(b.name) ||
+                nameCollator.compare(aName, bName) ||
+                aName.localeCompare(bName) ||
                 a.key.localeCompare(b.key)
 
             if (sortDescriptor.column === 'name') return nameComparison * direction
@@ -145,7 +159,14 @@ export default function useFileNavigation({
             }
             return nameComparison
         })
-    }, [allowFiles, items, searchTerm, sortDescriptor])
+    }, [
+        allowFiles,
+        items,
+        recursiveSearchActive,
+        recursiveSearchItems,
+        searchTerm,
+        sortDescriptor,
+    ])
 
     const handleSort = useCallback((column: 'name' | 'size' | 'modTime') => {
         setSortDescriptor((current) => ({
@@ -256,6 +277,13 @@ export default function useFileNavigation({
                 return
             }
             isNavigatingRef.current = true
+            if (recursiveSearchActive) {
+                const resultPath = isRemote
+                    ? entry.fullPath.split(':/').slice(1).join('/')
+                    : entry.fullPath
+                startTransition(() => setCwd(resultPath))
+                return
+            }
             if (isRemote) {
                 const base = cwd ? `${cwd}/` : ''
                 startTransition(() => setCwd(`${base}${entry.name}`))
@@ -264,7 +292,7 @@ export default function useFileNavigation({
                 startTransition(() => setCwd(newPath))
             }
         },
-        [selectedRemote, isRemote, cwd, cleanupSelectionForRemote]
+        [selectedRemote, recursiveSearchActive, isRemote, cwd, cleanupSelectionForRemote]
     )
 
     const navigateUp = useCallback(async () => {
@@ -387,6 +415,124 @@ export default function useFileNavigation({
         setIsLoading(true)
         setRefreshKey((k) => k + 1)
     }, [selectedRemote, cwd])
+
+    useEffect(() => {
+        const requestSequence = ++searchRequestSequenceRef.current
+        const term = searchTerm.trim()
+
+        if (
+            !isActive ||
+            !searchInSubfolders ||
+            !term ||
+            !selectedRemote ||
+            selectedRemote === 'UI_FAVORITES'
+        ) {
+            startTransition(() => {
+                setRecursiveSearchItems(null)
+                setSearchError(null)
+                setIsSearching(false)
+            })
+            return
+        }
+
+        const controller = new AbortController()
+        startTransition(() => {
+            setRecursiveSearchItems(null)
+            setSearchError(null)
+            setIsSearching(true)
+        })
+
+        const timeoutId = setTimeout(async () => {
+            try {
+                const result = await searchPath(
+                    selectedRemote as string | 'UI_LOCAL_FS',
+                    cwd,
+                    term,
+                    controller.signal
+                )
+                if (
+                    controller.signal.aborted ||
+                    searchRequestSequenceRef.current !== requestSequence
+                ) {
+                    return
+                }
+
+                const lowerTerm = term.toLowerCase()
+                const normalizedBase = cwd
+                    .replace(RE_BACKSLASH, '/')
+                    .replace(RE_TRAILING_SLASH, '')
+                const nextItems = result
+                    .map((item) => {
+                        const relativePath = String(item.Path || item.Name || '')
+                            .replace(RE_LEADING_SLASH, '')
+                        const name = String(item.Name || relativePath.split('/').pop() || '')
+                        if (
+                            !relativePath ||
+                            !name ||
+                            relativePath.split('/').some((part) => part.startsWith('.')) ||
+                            !name.toLowerCase().includes(lowerTerm)
+                        ) {
+                            return null
+                        }
+
+                        const relativeToRoot = normalizedBase
+                            ? `${normalizedBase}/${relativePath}`
+                            : relativePath
+                        const fullPath =
+                            selectedRemote === 'UI_LOCAL_FS'
+                                ? normalizedBase
+                                    ? relativeToRoot
+                                    : `/${relativePath}`
+                                : serializeRemotePath(selectedRemote as string, relativeToRoot)
+
+                        return {
+                            key: fullPath,
+                            name,
+                            displayName: relativePath,
+                            isDir: !!(item.IsDir || item.IsBucket),
+                            size: typeof item.Size === 'number' ? item.Size : undefined,
+                            modTime: item.ModTime,
+                            mimeType: item.MimeType,
+                            remote: selectedRemote,
+                            fullPath,
+                        } as Entry
+                    })
+                    .filter((item): item is Entry => item !== null)
+
+                const map = entryByKeyRef.current
+                for (const entry of nextItems) map.set(entry.key, entry)
+                startTransition(() => {
+                    setRecursiveSearchItems(nextItems)
+                    setIsSearching(false)
+                })
+            } catch {
+                if (
+                    controller.signal.aborted ||
+                    searchRequestSequenceRef.current !== requestSequence
+                ) {
+                    return
+                }
+                startTransition(() => {
+                    setRecursiveSearchItems([])
+                    setSearchError('Unable to search this folder')
+                    setIsSearching(false)
+                })
+            }
+        }, 350)
+
+        return () => {
+            clearTimeout(timeoutId)
+            controller.abort()
+        }
+    }, [
+        currentHost?.id,
+        cwd,
+        isActive,
+        searchInSubfolders,
+        searchTerm,
+        refreshKey,
+        selectedRemote,
+    ])
 
     // Initialize once per activation. The guard is set inside the branches (the remotes branch
     // only once the list has loaded, so late data can still finish the job) — after that, dep
@@ -844,9 +990,13 @@ export default function useFileNavigation({
         visibleItems,
         virtualizedItems,
         isLoading,
+        isSearching,
         error,
+        searchError,
         isUpDisabled,
         searchTerm,
+        searchInSubfolders,
+        recursiveSearchActive,
         sortDescriptor,
         selectedPaths,
         selectedCount,
@@ -860,6 +1010,7 @@ export default function useFileNavigation({
         // Actions
         setPathInput,
         setSearchTerm,
+        setSearchInSubfolders,
         handleSort,
         handleNavigate,
         navigateUp,

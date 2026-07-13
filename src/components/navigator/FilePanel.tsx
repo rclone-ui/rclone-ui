@@ -406,8 +406,8 @@ const FilePanel = forwardRef<
                     <div ref={listRef} className="relative flex-1 w-full overflow-hidden">
                         <FileList
                             items={nav.virtualizedItems}
-                            isLoading={nav.isLoading}
-                            error={nav.error}
+                            isLoading={nav.isLoading || nav.isSearching}
+                            error={nav.recursiveSearchActive ? nav.searchError : nav.error}
                             selectedKeys={nav.selectedPaths}
                             onToggleSelect={nav.handleToggleSelect}
                             onNavigate={nav.handleNavigate}
@@ -436,6 +436,8 @@ const FilePanel = forwardRef<
                         isLoading={nav.isLoading}
                         searchTerm={nav.searchTerm}
                         onSearchChange={nav.setSearchTerm}
+                        searchInSubfolders={nav.searchInSubfolders}
+                        onSearchInSubfoldersChange={nav.setSearchInSubfolders}
                         renderToolbar={renderToolbar}
                         visible={toolbarVisible && nav.selectedRemote !== 'UI_FAVORITES'}
                         newFolderButton={newFolderButton}
