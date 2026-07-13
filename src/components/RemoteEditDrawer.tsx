@@ -8,7 +8,7 @@ import { onErrorDialog } from '../../lib/errors'
 import { useRemoteConfig } from '../../lib/hooks'
 import queryClient from '../../lib/query'
 import rclone from '../../lib/rclone/client'
-import { OVERRIDES } from '../../lib/rclone/overrides'
+import { OVERRIDES, OWN_OAUTH_TYPES } from '../../lib/rclone/overrides'
 import RemoteField from './RemoteField'
 
 export default function RemoteEditDrawer({
@@ -82,6 +82,17 @@ export default function RemoteEditDrawer({
                 : [],
         [currentBackend, remoteConfig]
     )
+
+    // Google Drive / Google Photos require the user's own OAuth credentials (rclone is retiring its
+    // shared client-id). Check the effective config (saved values + pending edits) so a legacy
+    // remote missing credentials can't be saved until they're added, while a remote that already
+    // has them stays editable.
+    const missingCredentials = useMemo(() => {
+        const effective = { ...remoteConfig, ...config }
+        return OWN_OAUTH_TYPES.includes(effective.type ?? '')
+            ? ['client_id', 'client_secret'].filter((f) => !(effective[f] || '').trim())
+            : []
+    }, [remoteConfig, config])
 
     const updateRemoteMutation = useMutation({
         mutationFn: async (updatedRemoteConfig: Record<string, any>) => {
@@ -230,7 +241,9 @@ export default function RemoteEditDrawer({
                             </Button>
                             <Button
                                 color="primary"
-                                isDisabled={updateRemoteMutation.isPending}
+                                isDisabled={
+                                    updateRemoteMutation.isPending || missingCredentials.length > 0
+                                }
                                 data-focus-visible="false"
                                 onPress={() => {
                                     updateRemoteMutation.mutate(config)

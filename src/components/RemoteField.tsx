@@ -2,6 +2,7 @@ import { Autocomplete, AutocompleteItem, Button, Checkbox, Input } from '@heroui
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { ExternalLinkIcon } from 'lucide-react'
 import { useMemo } from 'react'
+import { OWN_OAUTH_TYPES } from '../../lib/rclone/overrides'
 import type { BackendOption } from '../../types/rclone'
 
 export default function RemoteField({
@@ -127,6 +128,10 @@ export default function RemoteField({
             )
         }
 
+        const requiresOwnCredentials =
+            OWN_OAUTH_TYPES.includes(config?.type) &&
+            (option.Name === 'client_id' || option.Name === 'client_secret')
+
         return (
             <Input
                 key={option.Name}
@@ -137,7 +142,7 @@ export default function RemoteField({
                 placeholder={helpTitle}
                 type={option.IsPassword ? 'password' : 'text'}
                 classNames={
-                    config?.type && config.type === 'drive' && option.Name === 'client_id'
+                    requiresOwnCredentials
                         ? {
                               description: 'text-warning',
                               'inputWrapper': 'pr-0',
@@ -151,29 +156,29 @@ export default function RemoteField({
                     }))
                 }}
                 endContent={
-                    config?.type &&
-                    config.type === 'drive' &&
-                    option.Name === 'client_id' && (
+                    requiresOwnCredentials && (
                         <Button
                             size="sm"
                             className="h-full gap-1 rounded-l-none"
                             color="warning"
                             endContent={<ExternalLinkIcon className="mb-0.5 size-4 shrink-0" />}
                             onPress={() => {
-                                openUrl('https://rclone.org/drive/#making-your-own-client-id')
+                                openUrl(
+                                    `https://rclone.org/${config?.type === 'google photos' ? 'googlephotos' : 'drive'}/#making-your-own-client-id`
+                                )
                             }}
                         >
                             GUIDE
                         </Button>
                     )
                 }
-                isRequired={option.Required}
+                isRequired={option.Required || requiresOwnCredentials}
                 defaultValue={initialFieldValue}
                 autoComplete="off"
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck="false"
-                description={helpDescription}
+                description={requiresOwnCredentials ? undefined : helpDescription}
                 isDisabled={isDisabled}
             />
         )

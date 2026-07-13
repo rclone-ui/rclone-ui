@@ -1,3 +1,5 @@
+export const OWN_OAUTH_TYPES = ['drive', 'google photos']
+
 export const OVERRIDES = {
     alias: {
         Description: 'ALIAS',

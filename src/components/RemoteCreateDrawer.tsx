@@ -6,7 +6,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import { ChevronDown, ChevronUp, RefreshCcwIcon } from 'lucide-react'
 import { type Key, startTransition, useCallback, useMemo, useState } from 'react'
 import rclone from '../../lib/rclone/client'
-import { OVERRIDES } from '../../lib/rclone/overrides'
+import { OVERRIDES, OWN_OAUTH_TYPES } from '../../lib/rclone/overrides'
 import type { BackendOption } from '../../types/rclone'
 import RemoteField from './RemoteField'
 
@@ -65,6 +65,16 @@ export default function RemoteCreateDrawer({
                   }) || []
                 : [],
         [currentBackend, config.provider, config.type]
+    )
+
+    // Google Drive / Google Photos require the user's own OAuth credentials (rclone is retiring its
+    // shared client-id). Block creation until they're supplied.
+    const missingCredentials = useMemo(
+        () =>
+            OWN_OAUTH_TYPES.includes(config.type)
+                ? ['client_id', 'client_secret'].filter((f) => !(config[f] || '').trim())
+                : [],
+        [config]
     )
 
     const createRemoteMutation = useMutation({
@@ -269,6 +279,7 @@ export default function RemoteCreateDrawer({
                             <Button
                                 color="primary"
                                 isLoading={createRemoteMutation.isPending}
+                                isDisabled={missingCredentials.length > 0}
                                 data-focus-visible="false"
                                 onPress={() => {
                                     setTimeout(() => {
