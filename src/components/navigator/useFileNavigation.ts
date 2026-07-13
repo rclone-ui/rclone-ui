@@ -27,6 +27,11 @@ import {
     serializeRemotePath,
 } from './utils'
 
+const nameCollator = new Intl.Collator(undefined, {
+    numeric: true,
+    sensitivity: 'base',
+})
+
 export default function useFileNavigation({
     initialRemote,
     initialPath,
@@ -56,6 +61,10 @@ export default function useFileNavigation({
     const [cwd, setCwd] = useState<string>(initialPath ?? '')
     const [pathInput, setPathInput] = useState<string>('')
     const [searchTerm, setSearchTerm] = useState<string>('')
+    const [sortDescriptor, setSortDescriptor] = useState<{
+        column: 'name' | 'size' | 'modTime'
+        direction: 'ascending' | 'descending'
+    }>({ column: 'name', direction: 'ascending' })
     const [items, setItems] = useState<Entry[]>([])
     const [isLoading, setIsLoading] = useState<boolean>(false)
     const [error, setError] = useState<string | null>(null)
@@ -88,10 +97,65 @@ export default function useFileNavigation({
 
     const visibleItems = useMemo(() => {
         const base = allowFiles ? items : items.filter((it) => it.isDir)
-        if (!searchTerm) return base
         const lower = searchTerm.toLowerCase()
-        return base.filter((item) => item.name.toLowerCase().includes(lower))
-    }, [allowFiles, items, searchTerm])
+        const filtered = searchTerm
+            ? base.filter((item) => item.name.toLowerCase().includes(lower))
+            : base
+        const direction = sortDescriptor.direction === 'ascending' ? 1 : -1
+
+        return [...filtered].sort((a, b) => {
+            if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
+
+            const nameComparison =
+                nameCollator.compare(a.name, b.name) ||
+                a.name.localeCompare(b.name) ||
+                a.key.localeCompare(b.key)
+
+            if (sortDescriptor.column === 'name') return nameComparison * direction
+
+            const aValue =
+                sortDescriptor.column === 'size'
+                    ? typeof a.size === 'number' && a.size >= 0
+                        ? a.size
+                        : undefined
+                    : a.modTime
+                      ? Date.parse(a.modTime)
+                      : undefined
+            const bValue =
+                sortDescriptor.column === 'size'
+                    ? typeof b.size === 'number' && b.size >= 0
+                        ? b.size
+                        : undefined
+                    : b.modTime
+                      ? Date.parse(b.modTime)
+                      : undefined
+            const normalizedA =
+                aValue !== undefined && Number.isFinite(aValue) ? aValue : undefined
+            const normalizedB =
+                bValue !== undefined && Number.isFinite(bValue) ? bValue : undefined
+
+            if (normalizedA === undefined && normalizedB !== undefined) return 1
+            if (normalizedA !== undefined && normalizedB === undefined) return -1
+            if (
+                normalizedA !== undefined &&
+                normalizedB !== undefined &&
+                normalizedA !== normalizedB
+            ) {
+                return (normalizedA - normalizedB) * direction
+            }
+            return nameComparison
+        })
+    }, [allowFiles, items, searchTerm, sortDescriptor])
+
+    const handleSort = useCallback((column: 'name' | 'size' | 'modTime') => {
+        setSortDescriptor((current) => ({
+            column,
+            direction:
+                current.column === column && current.direction === 'ascending'
+                    ? 'descending'
+                    : 'ascending',
+        }))
+    }, [])
 
     const virtualizedItems: (VirtualizedEntry | PaddingItem)[] = useMemo(() => {
         const base: (VirtualizedEntry | PaddingItem)[] = visibleItems.map((item) => ({
@@ -783,6 +847,7 @@ export default function useFileNavigation({
         error,
         isUpDisabled,
         searchTerm,
+        sortDescriptor,
         selectedPaths,
         selectedCount,
         isRemote,
@@ -795,6 +860,7 @@ export default function useFileNavigation({
         // Actions
         setPathInput,
         setSearchTerm,
+        handleSort,
         handleNavigate,
         navigateUp,
         navigateTo,

@@ -1,6 +1,6 @@
 import { Button, Divider, Tooltip } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
-import { FolderPlusIcon } from 'lucide-react'
+import { ChevronDownIcon, ChevronUpIcon, FolderPlusIcon } from 'lucide-react'
 import {
     forwardRef,
     startTransition,
@@ -352,12 +352,54 @@ const FilePanel = forwardRef<
 
                 <div className="relative flex flex-col w-full h-full overflow-hidden">
                     <div
-                        className={`sticky top-0 z-10 grid ${showPreviewColumn ? 'grid-cols-[2.5rem_1fr_6rem_9rem_11rem]' : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'} items-center py-2 bg-default-100`}
+                        className={`sticky top-0 z-10 grid ${showPreviewColumn ? 'grid-cols-[2.5rem_1fr_6rem_9rem_11rem]' : 'grid-cols-[2.5rem_1fr_6rem_9rem_2.5rem]'} items-stretch bg-default-100`}
                     >
                         <div />
-                        <div className="pl-2 font-semibold text-small">Name</div>
-                        <div className="font-semibold text-small">Size</div>
-                        <div className="font-semibold text-small">Last Modified</div>
+                        {(
+                            [
+                                { column: 'name', label: 'Name', className: 'pl-2' },
+                                { column: 'size', label: 'Size', className: '' },
+                                {
+                                    column: 'modTime',
+                                    label: 'Last Modified',
+                                    className: '',
+                                },
+                            ] as const
+                        ).map(({ column, label, className }) => {
+                            const isSorted = nav.sortDescriptor.column === column
+                            const nextDirection =
+                                isSorted && nav.sortDescriptor.direction === 'ascending'
+                                    ? 'descending'
+                                    : 'ascending'
+                            const sortStatus = isSorted
+                                ? `, sorted ${nav.sortDescriptor.direction}`
+                                : ''
+                            return (
+                                <div key={column}>
+                                    <button
+                                        type="button"
+                                        className={`flex items-center w-full h-full gap-1 py-2 font-semibold text-left rounded-small text-small hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${className}`}
+                                        aria-pressed={isSorted}
+                                        aria-label={`${label}${sortStatus}. Activate to sort ${nextDirection}.`}
+                                        onClick={() => nav.handleSort(column)}
+                                    >
+                                        <span>{label}</span>
+                                        {isSorted &&
+                                            (nav.sortDescriptor.direction === 'ascending' ? (
+                                                <ChevronUpIcon
+                                                    className="size-3.5"
+                                                    aria-hidden="true"
+                                                />
+                                            ) : (
+                                                <ChevronDownIcon
+                                                    className="size-3.5"
+                                                    aria-hidden="true"
+                                                />
+                                            ))}
+                                    </button>
+                                </div>
+                            )
+                        })}
                         <div />
                     </div>
 
