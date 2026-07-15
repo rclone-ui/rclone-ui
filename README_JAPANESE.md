@@ -94,12 +94,12 @@ npx rclone-ui
 </td>
 </tr>
 <tr>
-<td><a href="https://apple.com"><img alt="App Store" src="https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white" /></a></td>
-<td><a href="https://apple.com"><b>ここをタップして Apple App Store を開く</b></a></td>
+<td><a href="https://apps.apple.com/app/rclone-ui/id6756127598"><img alt="App Store" src="https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white" /></a></td>
+<td><a href="https://apps.apple.com/app/rclone-ui/id6756127598"><b>ここをタップして Apple App Store を開く</b></a></td>
 </tr>
 <tr>
-<td><a href="https://google.com"><img alt="Google Play" src="https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white" /></a></td>
-<td><a href="https://google.com"><b>ここをタップして Google Play ストアを開く</b></a></td>
+<td><a href="https://play.google.com/store/apps/details?id=com.rclone.mobile"><img alt="Google Play" src="https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white" /></a></td>
+<td><a href="https://play.google.com/store/apps/details?id=com.rclone.mobile"><b>ここをタップして Google Play ストアを開く</b></a></td>
 </tr>
 </table>
 

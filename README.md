@@ -94,12 +94,12 @@ npx rclone-ui
 </td>
 </tr>
 <tr>
-<td><a href="https://apple.com"><img alt="App Store" src="https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white" /></a></td>
-<td><a href="https://apple.com"><b>Tap here to open the Apple App Store</b></a></td>
+<td><a href="https://apps.apple.com/app/rclone-ui/id6756127598"><img alt="App Store" src="https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white" /></a></td>
+<td><a href="https://apps.apple.com/app/rclone-ui/id6756127598"><b>Tap here to open the Apple App Store</b></a></td>
 </tr>
 <tr>
-<td><a href="https://google.com"><img alt="Google Play" src="https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white" /></a></td>
-<td><a href="https://google.com"><b>Tap here to open the Google Play Store</b></a></td>
+<td><a href="https://play.google.com/store/apps/details?id=com.rclone.mobile"><img alt="Google Play" src="https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white" /></a></td>
+<td><a href="https://play.google.com/store/apps/details?id=com.rclone.mobile"><b>Tap here to open the Google Play Store</b></a></td>
 </tr>
 </table>
 
@@ -134,7 +134,6 @@ Here are some good problems to tackle:
 - Fix an open [**Issue**](https://github.com/rclone-ui/rclone-ui/issues)
 - Upgrade repository to Vite 7 & React 19
 - Introduce React Compiler
-- Move Cron logic to Rust
 
 🎁 **Merged PRs receive a Lifetime License!**
 
