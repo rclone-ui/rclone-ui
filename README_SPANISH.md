@@ -15,36 +15,12 @@
 <br />
 
 <p align="center">
-   <a href="https://github.com/rclone-ui/rclone-ui/releases/latest">
-    <img alt="Latest Release" src="https://img.shields.io/github/actions/workflow/status/rclone-ui/rclone-ui/release.yml?style=for-the-badge" />
+	<a href="https://discord.gg/rclone">
+    <img alt="Discord" src="https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white&style=for-the-badge" />
   </a>
-  &nbsp;
-  <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="Descargas" src="https://img.shields.io/badge/DESCARGAS-blue?style=for-the-badge&label=Tap%20to%20see" />
-  </a>
-  &nbsp;
-  <a href="https://tauri.app/?ref=rclone-ui">
-    <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
-  </a>
-</p>
-
-<p align="center">
-   <a href="#package-managers">
-    <img alt="Choco" src="https://img.shields.io/badge/Choco-42345f?style=for-the-badge&logo=chocolatey" />
-  </a>
- &nbsp;
-   <a href="#package-managers">
-    <img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" />
-  </a>
- &nbsp;
-   <a href="#package-managers">
-    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/rclone-ui/rclone-ui/stargazers">
-    <img alt="Estrellas del repositorio en GitHub" src="https://img.shields.io/github/stars/rclone-ui/rclone-ui" />
+   &nbsp;
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_SPANISH.md#package-managers">
+  <img alt="Downloads on Github" src="https://img.shields.io/github/downloads/rclone-ui/rclone-ui/total?style=for-the-badge">
   </a>
 </p>
 
@@ -54,53 +30,78 @@
   <img src=".github/rclone-video.png" alt="The GUI for Rclone">
 </a>
 
-## Docker/Homelab/Servidor
-Controla tu servidor, homelab o el PC de tu madre con **la solución más fácil para gestionar instancias remotas de **`rclone`**.**
-
-#### Docker Compose
-```yaml
-services:
-  rclone:
-    image: rclone/rclone
-    container_name: rclone
-    command: rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
-    ports:
-      - 5572:5572
-    volumes:
-      - ./config:/config/rclone
-      - /path/to/data:/data
-```
-
-#### Docker CLI
-```bash
-docker run -d \
-  --name rclone \
-  -p 5572:5572 \
-  -v ./config:/config/rclone \
-  -v /path/to/data:/data \
-  rclone/rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
-```
-
-#### Sin Docker
-Simplemente inicia el daemon `rcd` directamente:
-
-```bash
-rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
-```
-
-#### Notas
-- Después de iniciar **`rclone`** usando tu método preferido, abre Rclone UI y navega a Settings > Hosts.
-- Asegúrate de permitir el tráfico en el puerto **`5572`** en tu firewall y/o proxy inverso (nginx/caddy/traefik).
-- Rclone UI puede conectarse a cualquier puerto RCD, por lo que puedes personalizar el puerto predeterminado **`5572`**.
-- Usa **`--rc-user`** y **`--rc-pass`** en lugar de **`--rc-no-auth`** en producción.
-
 ## Package Managers
-- Flathub **`flatpak install com.rcloneui.RcloneUI`** o **[desde la tienda](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
-- Brew **`brew install --cask rclone-ui`**
-- Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
-- Chocolatey **`choco install rclone-ui`**
-- WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
-- NPM **`npx rclone-ui`**
+
+<table>
+<tr>
+<td><img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" /></td>
+<td width="700">
+
+```bash
+flatpak install com.rcloneui.RcloneUI
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="Homebrew" src="https://img.shields.io/badge/Brew-1f1d1a?style=for-the-badge&logo=homebrew" /></td>
+<td>
+
+```bash
+brew install --cask rclone-ui
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="Scoop" src="https://img.shields.io/badge/Scoop-4d2a7a?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4K" /></td>
+<td>
+
+```bash
+scoop bucket add extras && scoop install rclone-ui
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="Chocolatey" src="https://img.shields.io/badge/Chocolatey-42345f?style=for-the-badge&logo=chocolatey" /></td>
+<td>
+
+```bash
+choco install rclone-ui
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="WinGet" src="https://img.shields.io/badge/WinGet-0078d4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4K" /></td>
+<td>
+
+```bash
+winget install --id=RcloneUI.RcloneUI -e
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="NPM" src="https://img.shields.io/badge/NPM-cb3837?style=for-the-badge&logo=npm" /></td>
+<td>
+
+```bash
+npx rclone-ui
+```
+
+</td>
+</tr>
+<tr>
+<td><a href="https://apple.com"><img alt="App Store" src="https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white" /></a></td>
+<td><a href="https://apple.com"><b>Toca aquí para abrir Apple App Store</b></a></td>
+</tr>
+<tr>
+<td><a href="https://google.com"><img alt="Google Play" src="https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white" /></a></td>
+<td><a href="https://google.com"><b>Toca aquí para abrir Google Play Store</b></a></td>
+</tr>
+</table>
 
 ## Descargas
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
@@ -108,9 +109,14 @@ rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
 - **Linux** (**[AppImage](https://get.rcloneui.com/linux)**, **[deb](https://get.rcloneui.com/linux-deb)**, **[rpm](https://get.rcloneui.com/linux-rpm)**)
 - **Linux `Arm`** (**[AppImage](https://get.rcloneui.com/linux-arm)**, **[deb](https://get.rcloneui.com/linux-deb-arm)**, **[rpm](https://get.rcloneui.com/linux-rpm-arm)**)
 
+## Docker/Homelab/Servidor
+Controla tu servidor, homelab o el PC de tu madre con **la solución más fácil para gestionar instancias remotas de **`rclone`**.**
+
+[**Consulta la guía para controlar instancias remotas.**](https://rcloneui.com/docs/ui/docker)
+
 ## Hoja de ruta
 > Los elementos finalizados se han movido a la sección «Funciones».
-### ¡Echa un vistazo a la discusión de la V3!](https://github.com/rclone-ui/rclone-ui/issues/37)
+### [¡Echa un vistazo a la discusión de la V3!](https://github.com/rclone-ui/rclone-ui/issues/37)
 
 ## 1 estrella = 1 café instantáneo
 <a href="https://www.star-history.com/#rclone-ui/rclone-ui&Timeline">

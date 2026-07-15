@@ -15,36 +15,12 @@
 <br />
 
 <p align="center">
-   <a href="https://github.com/rclone-ui/rclone-ui/releases/latest">
-    <img alt="Latest Release" src="https://img.shields.io/github/actions/workflow/status/rclone-ui/rclone-ui/release.yml?style=for-the-badge" />
+	<a href="https://discord.gg/rclone">
+    <img alt="Discord" src="https://img.shields.io/badge/Discord-%235865F2.svg?&logo=discord&logoColor=white&style=for-the-badge" />
   </a>
-  &nbsp;
-  <a href="https://github.com/rclone-ui/rclone-ui?tab=readme-ov-file#downloads">
-    <img alt="下载" src="https://img.shields.io/badge/下载-blue?style=for-the-badge&label=Tap%20to%20see" />
-  </a>
-  &nbsp;
-  <a href="https://tauri.app/?ref=rclone-ui">
-    <img alt="Tauri" src="https://img.shields.io/badge/Tauri-brown?style=for-the-badge&logo=rust&color=f85214" />
-  </a>
-</p>
-
-<p align="center">
-   <a href="#包管理器">
-    <img alt="Choco" src="https://img.shields.io/badge/Choco-42345f?style=for-the-badge&logo=chocolatey" />
-  </a>
- &nbsp;
-   <a href="#包管理器">
-    <img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" />
-  </a>
- &nbsp;
-   <a href="#包管理器">
-    <img alt="Homebrew" src="https://img.shields.io/badge/BREW-1f1d1a?style=for-the-badge&logo=homebrew" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/rclone-ui/rclone-ui/stargazers">
-    <img alt="GitHub Stars" src="https://img.shields.io/github/stars/rclone-ui/rclone-ui" />
+   &nbsp;
+  <a href="https://github.com/rclone-ui/rclone-ui/blob/main/README_CHINESE.md#包管理器">
+  <img alt="Downloads on Github" src="https://img.shields.io/github/downloads/rclone-ui/rclone-ui/total?style=for-the-badge">
   </a>
 </p>
 
@@ -54,59 +30,89 @@
   <img src=".github/rclone-video.png" alt="The GUI for Rclone">
 </a>
 
-## Docker/Homelab/服务器使用
-使用 **最简单的方式** 管理远程 **`rclone`** 实例，控制你的服务器、Homelab 或家人的电脑。
-
-#### Docker Compose
-```yaml
-services:
-  rclone:
-    image: rclone/rclone
-    container_name: rclone
-    command: rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
-    ports:
-      - 5572:5572
-    volumes:
-      - ./config:/config/rclone
-      - /path/to/data:/data
-```
-
-#### Docker CLI
-```bash
-docker run -d \
-  --name rclone \
-  -p 5572:5572 \
-  -v ./config:/config/rclone \
-  -v /path/to/data:/data \
-  rclone/rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
-```
-
-#### 不使用 Docker
-直接启动 `rcd` 守护进程：
-
-```bash
-rclone rcd --rc-addr=0.0.0.0:5572 --rc-no-auth
-```
-
-#### 注意事项
-- 使用你喜欢的方式启动 **`rclone`** 后，打开 Rclone UI 并导航到 Settings > Hosts。
-- 确保在防火墙和/或反向代理（nginx/caddy/traefik）中允许端口 **`5572`** 的流量。
-- Rclone UI 可以连接到任意 RCD 端口，你可以自定义默认的 **`5572`** 端口。
-- 在生产环境中使用 **`--rc-user`** 和 **`--rc-pass`** 而不是 **`--rc-no-auth`**。
-
 ## 包管理器
-- Flathub **`flatpak install com.rcloneui.RcloneUI`** 或 **[从商店获取](https://flathub.org/en/apps/com.rcloneui.RcloneUI)**
-- Brew **`brew install --cask rclone-ui`**
-- Scoop **`scoop bucket add extras`** & **`scoop install rclone-ui`**
-- Chocolatey **`choco install rclone-ui`**
-- WinGet **`winget install --id=RcloneUI.RcloneUI  -e`**
-- NPM **`npx rclone-ui`**
+
+<table>
+<tr>
+<td><img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" /></td>
+<td width="700">
+
+```bash
+flatpak install com.rcloneui.RcloneUI
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="Homebrew" src="https://img.shields.io/badge/Brew-1f1d1a?style=for-the-badge&logo=homebrew" /></td>
+<td>
+
+```bash
+brew install --cask rclone-ui
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="Scoop" src="https://img.shields.io/badge/Scoop-4d2a7a?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4K" /></td>
+<td>
+
+```bash
+scoop bucket add extras && scoop install rclone-ui
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="Chocolatey" src="https://img.shields.io/badge/Chocolatey-42345f?style=for-the-badge&logo=chocolatey" /></td>
+<td>
+
+```bash
+choco install rclone-ui
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="WinGet" src="https://img.shields.io/badge/WinGet-0078d4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4K" /></td>
+<td>
+
+```bash
+winget install --id=RcloneUI.RcloneUI -e
+```
+
+</td>
+</tr>
+<tr>
+<td><img alt="NPM" src="https://img.shields.io/badge/NPM-cb3837?style=for-the-badge&logo=npm" /></td>
+<td>
+
+```bash
+npx rclone-ui
+```
+
+</td>
+</tr>
+<tr>
+<td><a href="https://apple.com"><img alt="App Store" src="https://img.shields.io/badge/App_Store-0D96F6?style=for-the-badge&logo=app-store&logoColor=white" /></a></td>
+<td><a href="https://apple.com"><b>点击此处打开 Apple App Store</b></a></td>
+</tr>
+<tr>
+<td><a href="https://google.com"><img alt="Google Play" src="https://img.shields.io/badge/Google_Play-414141?style=for-the-badge&logo=google-play&logoColor=white" /></a></td>
+<td><a href="https://google.com"><b>点击此处打开 Google Play 商店</b></a></td>
+</tr>
+</table>
 
 ## 下载
 - **Windows**（**[Arm](https://get.rcloneui.com/win-arm)**、**[x64](https://get.rcloneui.com/win)**）
 - **macOS**（**[Apple Silicon](https://get.rcloneui.com/mac)**、**[Intel](https://get.rcloneui.com/mac64)**）
 - **Linux**（**[AppImage](https://get.rcloneui.com/linux)**、**[deb](https://get.rcloneui.com/linux-deb)**、**[rpm](https://get.rcloneui.com/linux-rpm)**）
 - **Linux `Arm`**（**[AppImage](https://get.rcloneui.com/linux-arm)**、**[deb](https://get.rcloneui.com/linux-deb-arm)**、**[rpm](https://get.rcloneui.com/linux-rpm-arm)**）
+
+## Docker/Homelab/服务器使用
+使用 **最简单的方式** 管理远程 **`rclone`** 实例，控制你的服务器、Homelab 或家人的电脑。
+
+[**查看远程实例控制指南。**](https://rcloneui.com/docs/ui/docker)
 
 ## 路线图
 > 已完成的内容已移至「功能」部分。
