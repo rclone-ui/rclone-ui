@@ -37,6 +37,8 @@ interface State {
     dryRunJobIds: number[]
 
     watchedJobs: Record<number, WatchedJob>
+
+    reconnectDialogsShown: string[]
 }
 
 export const useStore = create<State>()(
@@ -53,7 +55,21 @@ export const useStore = create<State>()(
             dryRunJobIds: [],
 
             watchedJobs: {},
+
+            reconnectDialogsShown: [],
         }),
         { name: 'shared-store' }
     )
 )
+
+export function claimReconnectDialog(remoteName: string): boolean {
+    let claimed = false
+
+    useStore.setState((state) => {
+        if (state.reconnectDialogsShown.includes(remoteName)) return state
+        claimed = true
+        return { reconnectDialogsShown: [...state.reconnectDialogsShown, remoteName] }
+    })
+
+    return claimed
+}

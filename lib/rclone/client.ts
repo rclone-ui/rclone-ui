@@ -10,6 +10,7 @@ import createRCDClient, {
     type OpenApiRequiredKeysOf,
     type RCDClient,
 } from 'rclone-sdk'
+import { claimReconnectDialog } from '../../store/memory'
 import { selectCurrentHost, usePersistedStore } from '../../store/persisted'
 import { UserCancelledError } from '../errors'
 
@@ -21,6 +22,7 @@ async function handleReconnectIfNeeded(errorMessage: string) {
     const match = errorMessage.match(RE_RECONNECT)
     if (!match) return false
     const remoteName = match[1]
+    if (!claimReconnectDialog(remoteName)) return true
     const confirmed = await ask(
         `Remote "${remoteName}" needs to be reconnected. This usually means the authentication token has expired.\n\nWould you like to reconnect now?`,
         {
