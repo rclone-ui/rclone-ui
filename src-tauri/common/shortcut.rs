@@ -1,9 +1,9 @@
 use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use super::window::make_transparent;
 #[cfg(target_os = "linux")]
 use super::window::focus_window_linux;
+use super::window::make_transparent;
 
 pub const DEFAULT_TOOLBAR_SHORTCUT: &str = "CmdOrCtrl+Shift+/";
 const TOOLBAR_WINDOW_LABEL: &str = "Toolbar";
@@ -12,6 +12,16 @@ const TOOLBAR_WINDOW_LABEL: &str = "Toolbar";
 const TOOLBAR_WIDTH: f64 = 702.0;
 #[cfg(target_os = "windows")]
 const TOOLBAR_HEIGHT: f64 = 460.0;
+
+#[cfg(target_os = "windows")]
+fn refresh_toolbar_bounds(window: &WebviewWindow) -> Result<(), tauri::Error> {
+    // WebView2 can retain stale bounds when this initially-hidden window is shown.
+    // A real resize (for example maximizing the window) fixes the clipped viewport,
+    // so force the same bounds refresh without leaving the toolbar enlarged.
+    window.set_size(tauri::LogicalSize::new(TOOLBAR_WIDTH + 1.0, TOOLBAR_HEIGHT))?;
+    window.set_size(tauri::LogicalSize::new(TOOLBAR_WIDTH, TOOLBAR_HEIGHT))?;
+    Ok(())
+}
 
 fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri::Error> {
     let monitor = match app_handle.primary_monitor()? {
@@ -119,6 +129,8 @@ pub fn show_toolbar_window(app_handle: &AppHandle) -> Result<(), tauri::Error> {
     if let Some(window) = app_handle.get_webview_window(TOOLBAR_WINDOW_LABEL) {
         window.show()?;
         window.unminimize()?;
+        #[cfg(target_os = "windows")]
+        refresh_toolbar_bounds(&window)?;
         window.set_focus()?;
         #[cfg(target_os = "linux")]
         focus_window_linux(app_handle, &window);
@@ -136,6 +148,8 @@ fn open_toolbar(app_handle: &AppHandle) -> Result<(), tauri::Error> {
         } else {
             window.show()?;
             window.unminimize()?;
+            #[cfg(target_os = "windows")]
+            refresh_toolbar_bounds(&window)?;
             window.set_focus()?;
             #[cfg(target_os = "linux")]
             focus_window_linux(app_handle, &window);
