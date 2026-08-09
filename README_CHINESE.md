@@ -121,9 +121,9 @@ npx rclone-ui
 ## 1 Star = 1 杯速溶咖啡
 <a href="https://www.star-history.com/#rclone-ui/rclone-ui&Timeline">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline" />
-   <img alt="Star 历史图表" src="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline&theme=dark&sealed_token=ymt1q4Qq0l91e5fCgYfVLA1txvhP-b2epzcYv0PUyWAZGMjSwyU4dK7Et21VWygM8k6aZFa30W1IlpScqFoDRO9sITVkSmwI2BzpKv95JBWuJ9ujXftyeO7v0vt3IFBQb4yJSVB77XBU8p6Hr-ycR0Q_nHLbKjQulfdtsjPHgNQyBA_2kjeFFTy45dMO"" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline&sealed_token=ymt1q4Qq0l91e5fCgYfVLA1txvhP-b2epzcYv0PUyWAZGMjSwyU4dK7Et21VWygM8k6aZFa30W1IlpScqFoDRO9sITVkSmwI2BzpKv95JBWuJ9ujXftyeO7v0vt3IFBQb4yJSVB77XBU8p6Hr-ycR0Q_nHLbKjQulfdtsjPHgNQyBA_2kjeFFTy45dMO"" />
+   <img alt="Star 历史图表" src="https://api.star-history.com/svg?repos=rclone-ui/rclone-ui&type=Timeline&sealed_token=ymt1q4Qq0l91e5fCgYfVLA1txvhP-b2epzcYv0PUyWAZGMjSwyU4dK7Et21VWygM8k6aZFa30W1IlpScqFoDRO9sITVkSmwI2BzpKv95JBWuJ9ujXftyeO7v0vt3IFBQb4yJSVB77XBU8p6Hr-ycR0Q_nHLbKjQulfdtsjPHgNQyBA_2kjeFFTy45dMO"" />
  </picture>
 </a>
 
