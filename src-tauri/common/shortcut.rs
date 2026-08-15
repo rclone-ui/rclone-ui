@@ -13,6 +13,16 @@ const TOOLBAR_WIDTH: f64 = 702.0;
 #[cfg(target_os = "windows")]
 const TOOLBAR_HEIGHT: f64 = 460.0;
 
+// #[cfg(target_os = "windows")]
+// fn refresh_toolbar_bounds(window: &WebviewWindow) -> Result<(), tauri::Error> {
+//     // WebView2 can retain stale bounds when this initially-hidden window is shown.
+//     // A real resize (for example maximizing the window) fixes the clipped viewport,
+//     // so force the same bounds refresh without leaving the toolbar enlarged.
+//     window.set_size(tauri::LogicalSize::new(TOOLBAR_WIDTH + 1.0, TOOLBAR_HEIGHT))?;
+//     window.set_size(tauri::LogicalSize::new(TOOLBAR_WIDTH, TOOLBAR_HEIGHT))?;
+//     Ok(())
+// }
+
 fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri::Error> {
     let monitor = match app_handle.primary_monitor()? {
         Some(monitor) => monitor,
@@ -35,9 +45,17 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
         let logical_size = physical_size.to_logical::<f64>(scale_factor);
         let logical_position = physical_position.to_logical::<f64>(scale_factor);
 
+        let toolbar_width = TOOLBAR_WIDTH / scale_factor;
+        let toolbar_height = TOOLBAR_HEIGHT / scale_factor;
+
         // Calculate position in logical pixels, centered on the primary monitor
-        let pos_x = logical_position.x + (logical_size.width - TOOLBAR_WIDTH) / 2.0;
-        let pos_y = logical_position.y + logical_size.height / 4.0;
+        let pos_x =
+            logical_position.x
+            + (logical_size.width - toolbar_width) / 2.0;
+
+        let pos_y =
+            logical_position.y
+            + logical_size.height / 4.0;
 
         WebviewWindowBuilder::new(
             app_handle,
@@ -45,7 +63,7 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
             tauri::WebviewUrl::App("/toolbar".into()),
         )
         .title(TOOLBAR_WINDOW_LABEL)
-        .inner_size(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
+        .inner_size(toolbar_width, toolbar_height)
         .position(pos_x, pos_y)
         .resizable(false)
         .decorations(false)
@@ -119,6 +137,8 @@ pub fn show_toolbar_window(app_handle: &AppHandle) -> Result<(), tauri::Error> {
     if let Some(window) = app_handle.get_webview_window(TOOLBAR_WINDOW_LABEL) {
         window.show()?;
         window.unminimize()?;
+        // #[cfg(target_os = "windows")]
+        // refresh_toolbar_bounds(&window)?;
         window.set_focus()?;
         #[cfg(target_os = "linux")]
         focus_window_linux(app_handle, &window);
@@ -136,6 +156,8 @@ fn open_toolbar(app_handle: &AppHandle) -> Result<(), tauri::Error> {
         } else {
             window.show()?;
             window.unminimize()?;
+            // #[cfg(target_os = "windows")]
+            // refresh_toolbar_bounds(&window)?;
             window.set_focus()?;
             #[cfg(target_os = "linux")]
             focus_window_linux(app_handle, &window);

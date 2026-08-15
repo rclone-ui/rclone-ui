@@ -499,10 +499,15 @@ export default function Toolbar() {
     }, [highlightedIndex, engineResults])
 
     return (
-        <div className="flex flex-col items-center justify-center w-full h-screen pb-[15vh]">
+        <div
+            className={cn(
+                'flex flex-col items-center justify-center w-full h-screen overflow-hidden',
+                !isWindows && 'pb-[15vh]'
+            )}
+        >
             <div
                 ref={activeAreaRef}
-                className="flex border-divider border flex-col items-center justify-center bg-content2/[0.97] w-[700px] rounded-large"
+                className="flex border-divider border flex-col items-center justify-center bg-content2/[0.97] w-full max-w-[700px] max-h-full rounded-large"
             >
                 <div
                     data-tauri-drag-region={true}
@@ -532,7 +537,10 @@ export default function Toolbar() {
 
                 <Divider />
 
-                <ScrollShadow className="h-[400px] w-full p-2" onMouseMove={handleMouseMove}>
+                <ScrollShadow
+                    className="h-[400px] min-h-0 w-full p-2"
+                    onMouseMove={handleMouseMove}
+                >
                     {engineResults.map((result, index) => {
                         const isActive = index === highlightedIndex
                         const elementId = `tb-result-${result.id.replace(ELEMENT_ID_REGEX, '-')}`

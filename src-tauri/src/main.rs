@@ -48,7 +48,7 @@ fn main() {
     }
 	#[cfg(target_os = "windows")]
 	{
-		std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--ignore-gpu-blocklist");
+		std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--ignore-gpu-blocklist --force-device-scale-factor=1 --disable-features=msWebOOUI");
 	}
     let _ = fix_path_env::fix();
     app_lib::run();
