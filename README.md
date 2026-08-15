@@ -34,7 +34,7 @@
 
 <table>
 <tr>
-<td><img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" /></td>
+<td><a href="https://flathub.org/en/apps/com.rcloneui.RcloneUI"><img alt="Flathub" src="https://img.shields.io/badge/Flathub-000000?style=for-the-badge&logo=flathub" /></a></td>
 <td width="700">
 
 ```bash
@@ -44,7 +44,7 @@ flatpak install com.rcloneui.RcloneUI
 </td>
 </tr>
 <tr>
-<td><img alt="Homebrew" src="https://img.shields.io/badge/Brew-1f1d1a?style=for-the-badge&logo=homebrew" /></td>
+<td><a href="https://formulae.brew.sh/cask/rclone-ui"><img alt="Homebrew" src="https://img.shields.io/badge/Brew-1f1d1a?style=for-the-badge&logo=homebrew" /></a></td>
 <td>
 
 ```bash
@@ -54,7 +54,7 @@ brew install --cask rclone-ui
 </td>
 </tr>
 <tr>
-<td><img alt="Scoop" src="https://img.shields.io/badge/Scoop-4d2a7a?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4K" /></td>
+<td><a href="https://scoop.sh"><img alt="Scoop" src="https://img.shields.io/badge/Scoop-4d2a7a?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4K" /></a></td>
 <td>
 
 ```bash
@@ -64,7 +64,7 @@ scoop bucket add extras && scoop install rclone-ui
 </td>
 </tr>
 <tr>
-<td><img alt="Chocolatey" src="https://img.shields.io/badge/Chocolatey-42345f?style=for-the-badge&logo=chocolatey" /></td>
+<td><a href="https://community.chocolatey.org/packages/rclone-ui"><img alt="Chocolatey" src="https://img.shields.io/badge/Chocolatey-42345f?style=for-the-badge&logo=chocolatey" /></a></td>
 <td>
 
 ```bash
@@ -74,7 +74,7 @@ choco install rclone-ui
 </td>
 </tr>
 <tr>
-<td><img alt="WinGet" src="https://img.shields.io/badge/WinGet-0078d4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4K" /></td>
+<td><a href="https://winstall.app/apps/RcloneUI.RcloneUI"><img alt="WinGet" src="https://img.shields.io/badge/WinGet-0078d4?style=for-the-badge&logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0wIDMuNDQ5TDkuNzUgMi4xdjkuNDUxSDBtMTAuOTQ5LTkuNjAyTDI0IDB2MTEuNEgxMC45NDlNMCAxMi42aDkuNzV2OS40NTFMMCAyMC42OTlNMTAuOTQ5IDEyLjZIMjRWMjRsLTEyLjktMS44MDEiLz48L3N2Zz4K" /></a></td>
 <td>
 
 ```bash
@@ -84,7 +84,7 @@ winget install --id=RcloneUI.RcloneUI -e
 </td>
 </tr>
 <tr>
-<td><img alt="NPM" src="https://img.shields.io/badge/NPM-cb3837?style=for-the-badge&logo=npm" /></td>
+<td><a href="https://www.npmjs.com/package/rclone-ui"><img alt="NPM" src="https://img.shields.io/badge/NPM-cb3837?style=for-the-badge&logo=npm" /></a></td>
 <td>
 
 ```bash
