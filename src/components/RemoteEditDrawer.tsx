@@ -104,6 +104,7 @@ export default function RemoteEditDrawer({
                         query: {
                             name: remoteName,
                             parameters: JSON.stringify(updatedRemoteConfig),
+                            opt: JSON.stringify({ obscure: true }),
                         },
                     },
                 })

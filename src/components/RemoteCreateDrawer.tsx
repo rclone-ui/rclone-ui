@@ -91,6 +91,7 @@ export default function RemoteCreateDrawer({
                         name,
                         type,
                         parameters: JSON.stringify(parameters),
+                        opt: JSON.stringify({ obscure: true }),
                     },
                 },
             })
