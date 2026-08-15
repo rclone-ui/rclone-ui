@@ -45,9 +45,17 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
         let logical_size = physical_size.to_logical::<f64>(scale_factor);
         let logical_position = physical_position.to_logical::<f64>(scale_factor);
 
+        let toolbar_width = TOOLBAR_WIDTH / scale_factor;
+        let toolbar_height = TOOLBAR_HEIGHT / scale_factor;
+
         // Calculate position in logical pixels, centered on the primary monitor
-        let pos_x = logical_position.x + (logical_size.width - TOOLBAR_WIDTH) / 2.0;
-        let pos_y = logical_position.y + logical_size.height / 4.0;
+        let pos_x =
+            logical_position.x
+            + (logical_size.width - toolbar_width) / 2.0;
+
+        let pos_y =
+            logical_position.y
+            + logical_size.height / 4.0;
 
         WebviewWindowBuilder::new(
             app_handle,
@@ -55,7 +63,7 @@ fn create_toolbar_window(app_handle: &AppHandle) -> Result<WebviewWindow, tauri:
             tauri::WebviewUrl::App("/toolbar".into()),
         )
         .title(TOOLBAR_WINDOW_LABEL)
-        .inner_size(TOOLBAR_WIDTH, TOOLBAR_HEIGHT)
+        .inner_size(toolbar_width, toolbar_height)
         .position(pos_x, pos_y)
         .resizable(false)
         .decorations(false)

@@ -157,16 +157,30 @@ pub async fn open_window(
         return Ok(());
     }
 
-	let os = std::env::consts::OS;
-
-    let default_height = if os == "windows" { 755.0 } else { 725.0 };
     let width = width.unwrap_or(840.0);
-    let height = height.unwrap_or(default_height);
+    let height = height.unwrap_or(725.0);
+
+    #[cfg(target_os = "windows")]
+	{
+    	let monitor = match app_handle.primary_monitor().map_err(|e| e.to_string())? {
+            Some(monitor) => monitor,
+            None => app_handle
+                .available_monitors()
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .next()
+                .ok_or("No monitors available")?,
+        };
+
+	    let scale_factor = monitor.scale_factor();
+	    width = width / scale_factor;
+        height = height / scale_factor;
+	}
 
     let mut builder = WebviewWindowBuilder::new(&app_handle, &name, WebviewUrl::App(url.into()))
         .title(&name)
         .inner_size(width, height)
-        .min_inner_size(700.0, 700.0)
+        .min_inner_size(650.0, 500.0)
         .max_inner_size(1000.0, 1000.0)
         .resizable(true)
         .visible(false)
