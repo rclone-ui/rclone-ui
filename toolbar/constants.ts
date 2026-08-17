@@ -31,7 +31,7 @@ const COMMANDER_DESCRIPTION = 'Open the Commander screen.'
 
 export const COMMAND_CONFIG = {
     copy: { route: '/copy', windowLabel: 'Copy' },
-    'copy-verify': { route: '/copy-verify', windowLabel: 'Copy + Verify' },
+    'copy-verify': { route: '/copy-verify', windowLabel: 'Copy-Verify' },
     move: { route: '/move', windowLabel: 'Move' },
     sync: { route: '/sync', windowLabel: 'Sync' },
     mount: { route: '/mount', windowLabel: 'Mount' },
