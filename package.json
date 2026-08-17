@@ -12,11 +12,21 @@
         "url": "https://github.com/rclone-ui/rclone-ui"
     },
     "homepage": "https://rcloneui.com",
-    "keywords": ["rclone", "gui", "drive", "s3", "cloud", "storage", "sync", "backup"],
+    "keywords": [
+        "rclone",
+        "gui",
+        "drive",
+        "s3",
+        "cloud",
+        "storage",
+        "sync",
+        "backup"
+    ],
     "license": "Apache-2.0",
     "scripts": {
         "dev": "node scripts/buildExternal.js && vite",
         "build": "node scripts/buildExternal.js && tsc && vite build",
+        "test": "vitest run --passWithNoTests",
         "preview": "node scripts/buildExternal.js && vite preview",
         "tauri": "tauri",
         "info": "tauri info",
@@ -89,6 +99,7 @@
         "tailwindcss": "^3.4.17",
         "typescript": "~5.9.3",
         "vite": "^6.3.6",
+        "vitest": "^4.1.10",
         "yaml": "^2.9.0"
     }
 }
