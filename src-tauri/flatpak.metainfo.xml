@@ -112,18 +112,18 @@
       <caption>Customizable</caption>
     </screenshot>
   </screenshots>
-	
+
   <releases>
-    <release version="3.7.1" date="2026-07-14">
-      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v3.7.1</url>
+    <release version="3.7.2" date="2026-07-14">
+      <url type="details">https://github.com/rclone-ui/rclone-ui/releases/tag/v3.7.2</url>
       <description>
-	    <p>3.7.1 Release</p>
+	    <p>3.7.2 Release</p>
     	<ul>
 		  <li>Improved Linux stability and overall performance.</li>
         </ul>
       </description>
     </release>
   </releases>
-  
+
   <launchable type="desktop-id">com.rcloneui.RcloneUI.desktop</launchable>
 </component>
