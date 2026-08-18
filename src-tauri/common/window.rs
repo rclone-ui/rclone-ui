@@ -161,8 +161,8 @@ pub async fn open_window(
     let height = height.unwrap_or(725.0);
 
     #[cfg(target_os = "windows")]
-	{
-    	let monitor = match app_handle.primary_monitor().map_err(|e| e.to_string())? {
+    let (width, height) = {
+        let monitor = match app_handle.primary_monitor().map_err(|e| e.to_string())? {
             Some(monitor) => monitor,
             None => app_handle
                 .available_monitors()
@@ -172,10 +172,9 @@ pub async fn open_window(
                 .ok_or("No monitors available")?,
         };
 
-	    let scale_factor = monitor.scale_factor();
-	    width = width / scale_factor;
-        height = height / scale_factor;
-	}
+        let scale_factor = monitor.scale_factor();
+        (width / scale_factor, height / scale_factor)
+    };
 
     let mut builder = WebviewWindowBuilder::new(&app_handle, &name, WebviewUrl::App(url.into()))
         .title(&name)
