@@ -395,19 +395,27 @@ async fn prompt_text(
 
         let default_value = default.unwrap_or_default();
         let is_sensitive = sensitive.unwrap_or(false);
+
+        // AppleScript string literals can't contain a raw newline, so a multi-line message (e.g. a
+        // numbered choice list) must have its newlines turned into the `\n` escape sequence. Escape
+        // backslashes and quotes first so the conversions don't collide.
+        let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+        let esc_message = esc(&message)
+            .replace("\r\n", "\\n")
+            .replace('\n', "\\n")
+            .replace('\r', "\\n");
+        let esc_title = esc(&title);
+        let esc_default = esc(&default_value);
+
         let script = if is_sensitive {
             format!(
                 r#"display dialog "{}" with title "{}" default answer "{}" with hidden answer"#,
-                message.replace("\"", "\\\""),
-                title.replace("\"", "\\\""),
-                default_value.replace("\"", "\\\""),
+                esc_message, esc_title, esc_default,
             )
         } else {
             format!(
                 r#"display dialog "{}" with title "{}" default answer "{}""#,
-                message.replace("\"", "\\\""),
-                title.replace("\"", "\\\""),
-                default_value.replace("\"", "\\\""),
+                esc_message, esc_title, esc_default,
             )
         };
 
@@ -446,11 +454,19 @@ async fn prompt_text(
         let default_value = default.unwrap_or_default();
         let is_sensitive = sensitive.unwrap_or(false);
 
-        // Use PowerShell to create a simple text input dialog
+        // Use PowerShell to create a simple text input dialog. PowerShell single-quoted strings keep
+        // literal newlines, so a multi-line message (e.g. a numbered choice list) renders across
+        // lines in the label — we just have to grow the label/form to fit its line count.
         let ps_default = default_value.replace('\'', "''");
         let ps_title = title.replace('\'', "''");
         let ps_message = message.replace('\'', "''");
         let ps_password_flag = if is_sensitive { "$true" } else { "$false" };
+
+        let line_count = message.lines().count().max(1) as i32;
+        let label_height = (line_count * 18 + 8).clamp(40, 380);
+        let textbox_y = 15 + label_height + 8;
+        let button_y = textbox_y + 34;
+        let form_height = button_y + 70;
 
         let powershell_script = format!(
             r#"
@@ -459,7 +475,7 @@ async fn prompt_text(
 
             $form = New-Object System.Windows.Forms.Form
             $form.Text = '{title}'
-            $form.Size = New-Object System.Drawing.Size(350, 180)
+            $form.Size = New-Object System.Drawing.Size(350, {form_height})
             $form.StartPosition = 'CenterScreen'
             $form.FormBorderStyle = 'FixedDialog'
             $form.MaximizeBox = $false
@@ -468,19 +484,19 @@ async fn prompt_text(
 
             $label = New-Object System.Windows.Forms.Label
             $label.Location = New-Object System.Drawing.Point(10, 15)
-            $label.Size = New-Object System.Drawing.Size(320, 40)
+            $label.Size = New-Object System.Drawing.Size(320, {label_height})
             $label.Text = '{message}'
             $form.Controls.Add($label)
 
             $textBox = New-Object System.Windows.Forms.TextBox
-            $textBox.Location = New-Object System.Drawing.Point(10, 60)
+            $textBox.Location = New-Object System.Drawing.Point(10, {textbox_y})
             $textBox.Size = New-Object System.Drawing.Size(320, 20)
             $textBox.Text = '{default}'
             $textBox.UseSystemPasswordChar = {password}
             $form.Controls.Add($textBox)
 
             $okButton = New-Object System.Windows.Forms.Button
-            $okButton.Location = New-Object System.Drawing.Point(175, 100)
+            $okButton.Location = New-Object System.Drawing.Point(175, {button_y})
             $okButton.Size = New-Object System.Drawing.Size(75, 23)
             $okButton.Text = 'OK'
             $okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
@@ -488,7 +504,7 @@ async fn prompt_text(
             $form.Controls.Add($okButton)
 
             $cancelButton = New-Object System.Windows.Forms.Button
-            $cancelButton.Location = New-Object System.Drawing.Point(255, 100)
+            $cancelButton.Location = New-Object System.Drawing.Point(255, {button_y})
             $cancelButton.Size = New-Object System.Drawing.Size(75, 23)
             $cancelButton.Text = 'Cancel'
             $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
@@ -505,7 +521,11 @@ async fn prompt_text(
             title = ps_title,
             message = ps_message,
             default = ps_default,
-            password = ps_password_flag
+            password = ps_password_flag,
+            form_height = form_height,
+            label_height = label_height,
+            textbox_y = textbox_y,
+            button_y = button_y,
         );
 
         let output = Command::new("powershell")
