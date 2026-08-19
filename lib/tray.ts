@@ -4,8 +4,7 @@ import { Menu, MenuItem, PredefinedMenuItem } from '@tauri-apps/api/menu'
 import { resolveResource } from '@tauri-apps/api/path'
 import { TrayIcon, type TrayIconEvent } from '@tauri-apps/api/tray'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { ask, message } from '@tauri-apps/plugin-dialog'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { usePersistedStore } from '../store/persisted'
@@ -62,6 +61,18 @@ async function buildMenu() {
         menuItems.push(item)
     })
 
+    const commanderMenuItem = await MenuItem.new({
+        id: 'commander',
+        text: 'Commander',
+        action: async () => {
+            await openWindow({
+                name: 'Commander',
+                url: '/commander',
+            })
+        },
+    })
+    menuItems.push(commanderMenuItem)
+
     const transfersMenuItem = await MenuItem.new({
         id: 'transfers',
         text: 'Transfers',
@@ -115,23 +126,6 @@ async function buildMenu() {
         },
     })
     menuItems.push(settingsItem)
-
-    const issuesItem = await MenuItem.new({
-        id: 'issues',
-        text: 'Issues?',
-        action: async () => {
-            const confirmed = await ask(`Please open an issue on Github and we'll get it sorted.`, {
-                title: 'Sorry ):',
-                kind: 'info',
-                okLabel: 'Open Github',
-                cancelLabel: 'Cancel',
-            })
-            if (confirmed) {
-                await openUrl('https://github.com/rclone-ui/rclone-ui/issues')
-            }
-        },
-    })
-    menuItems.push(issuesItem)
 
     const quitItem = await MenuItem.new({
         id: 'quit',

@@ -33,7 +33,7 @@ import {
     SearchCheckIcon,
     XCircleIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { onErrorDialog, reportError } from '../../lib/errors'
 import { getFsInfo } from '../../lib/format'
@@ -77,6 +77,16 @@ export default function Browser() {
 
     const remotes = remotesQuery.data ?? []
     const firstRemote = remotes[0] ?? null
+
+    const rightPanelTarget = useMemo(() => {
+        const raw = new URLSearchParams(window.location.search).get('path')
+        if (!raw) return null
+        if (raw.includes(':/')) {
+            const [remote, ...rest] = raw.split(':/')
+            return { remote, path: rest.join('/') }
+        }
+        return { remote: 'UI_LOCAL_FS', path: raw }
+    }, [])
     const handleDrop = useCallback(
         (items: SelectItem[], destination: string, _sourceSide: 'left' | 'right') => {
             setDropOperation({ items, destination })
@@ -297,7 +307,8 @@ export default function Browser() {
                     <FilePanel
                         ref={rightPanelRef}
                         sidebarPosition="right"
-                        initialRemote={firstRemote ?? 'UI_LOCAL_FS'}
+                        initialRemote={rightPanelTarget?.remote ?? firstRemote ?? 'UI_LOCAL_FS'}
+                        initialPath={rightPanelTarget?.path}
                         selectionMode="both"
                         allowFiles={true}
                         allowMultiple={true}
