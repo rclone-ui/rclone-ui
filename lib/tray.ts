@@ -9,7 +9,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import { exit } from '@tauri-apps/plugin-process'
 import { usePersistedStore } from '../store/persisted'
 import { CLOSE_APP, emitToMain } from './events'
-import { openWindow } from './window'
+import { openFullWindow, openWindow } from './window'
 
 async function buildMenu() {
     console.log('[buildMenu]')
@@ -65,7 +65,7 @@ async function buildMenu() {
         id: 'commander',
         text: 'Commander',
         action: async () => {
-            await openWindow({
+            await openFullWindow({
                 name: 'Commander',
                 url: '/commander',
             })
