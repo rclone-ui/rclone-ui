@@ -34,6 +34,52 @@ import RemoteCreateDrawer from '../../components/RemoteCreateDrawer'
 import RemoteEditDrawer from '../../components/RemoteEditDrawer'
 import BaseSection from './BaseSection'
 
+const REMOTE_ROW_SIZE = 90
+const SECTION_HEADER_SIZE = 36
+
+type RemoteRow = { type: 'header'; key: string } | { type: 'remote'; remote: string }
+
+// Section a remote falls under. Letters group by their uppercase initial; digits collapse into '0-9'
+// and everything else into '#', both of which sort ahead of A–Z.
+function sectionKeyFor(name: string): string {
+    const first = name[0]?.toUpperCase() ?? '#'
+    if (first >= 'A' && first <= 'Z') return first
+    if (first >= '0' && first <= '9') return '0-9'
+    return '#'
+}
+
+function sectionRank(key: string): number {
+    if (key === '#') return 0
+    if (key === '0-9') return 1
+    return 2
+}
+
+// Groups the (already alphabetically sorted) remotes into '#' / '0-9' / A–Z sections, emitting a header
+// row before each run. Buckets keep their incoming order, so remotes stay sorted within a section.
+function buildRemoteRows(remotes: string[]): RemoteRow[] {
+    const buckets = new Map<string, string[]>()
+    for (const remote of remotes) {
+        const key = sectionKeyFor(remote)
+        const bucket = buckets.get(key)
+        if (bucket) bucket.push(remote)
+        else buckets.set(key, [remote])
+    }
+
+    const orderedKeys = [...buckets.keys()].sort((a, b) => {
+        const rank = sectionRank(a) - sectionRank(b)
+        return rank !== 0 ? rank : a.localeCompare(b)
+    })
+
+    const rows: RemoteRow[] = []
+    for (const key of orderedKeys) {
+        rows.push({ type: 'header', key })
+        for (const remote of buckets.get(key) ?? []) {
+            rows.push({ type: 'remote', remote })
+        }
+    }
+    return rows
+}
+
 export default function RemotesSection() {
     const queryClient = useQueryClient()
     const [searchParams] = useSearchParams()
@@ -66,14 +112,27 @@ export default function RemotesSection() {
     )
 
     // Virtualize the remotes list: each RemoteCard is a fixed-height (h-20 = 80px) card with a
-    // gap-2.5 (10px) between rows, so a row slot is 90px. Each card also fires its own queries,
-    // so windowing keeps a long list from mounting every card (and its request fan-out) at once.
+    // gap-2.5 (10px) between rows, so a row slot is 90px. Section headers are shorter. Each card also
+    // fires its own queries, so windowing keeps a long list from mounting every card (and its request
+    // fan-out) at once.
     const scrollRef = useRef<HTMLDivElement>(null)
 
+    // Past 10 remotes, break the list into '#' / '0-9' / A–Z sections (a bare letter row, no box).
+    const showSections = filteredRemotes.length > 10
+
+    const rows = useMemo<RemoteRow[]>(
+        () =>
+            showSections
+                ? buildRemoteRows(filteredRemotes)
+                : filteredRemotes.map((remote) => ({ type: 'remote', remote })),
+        [filteredRemotes, showSections]
+    )
+
     const rowVirtualizer = useVirtualizer({
-        count: filteredRemotes.length,
+        count: rows.length,
         getScrollElement: () => scrollRef.current,
-        estimateSize: () => 90,
+        estimateSize: (index) =>
+            rows[index].type === 'header' ? SECTION_HEADER_SIZE : REMOTE_ROW_SIZE,
         overscan: 6,
     })
 
@@ -241,20 +300,31 @@ export default function RemotesSection() {
                             }}
                         >
                             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                                const remote = filteredRemotes[virtualRow.index]
+                                const row = rows[virtualRow.index]
+                                const style = {
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: `${virtualRow.size}px`,
+                                    transform: `translateY(${virtualRow.start}px)`,
+                                } as const
+
+                                if (row.type === 'header') {
+                                    return (
+                                        <div key={`h-${row.key}`} style={style}>
+                                            <div className="flex items-end h-full px-1 pb-1">
+                                                <span className="text-xs font-semibold tracking-wide uppercase text-default-400">
+                                                    {row.key}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )
+                                }
+
+                                const remote = row.remote
                                 return (
-                                    <div
-                                        key={remote}
-                                        className="pb-2.5"
-                                        style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            height: `${virtualRow.size}px`,
-                                            transform: `translateY(${virtualRow.start}px)`,
-                                        }}
-                                    >
+                                    <div key={`r-${remote}`} className="pb-2.5" style={style}>
                                         <RemoteCard
                                             remote={remote}
                                             onAutoMountPress={() => {
