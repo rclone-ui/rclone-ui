@@ -16,7 +16,7 @@
     "license": "Apache-2.0",
     "scripts": {
         "dev": "node scripts/buildExternal.js && vite",
-        "build": "node scripts/buildExternal.js && tsc && vite build",
+        "build": "node scripts/buildExternal.js && tsc && node --max-old-space-size=4096 node_modules/vite/bin/vite.js build",
         "preview": "node scripts/buildExternal.js && vite preview",
         "tauri": "tauri",
         "info": "tauri info",
