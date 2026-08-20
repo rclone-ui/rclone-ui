@@ -10,6 +10,7 @@ import {
     Spinner,
 } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ask, message } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import {
@@ -21,7 +22,7 @@ import {
     SettingsIcon,
     Trash2Icon,
 } from 'lucide-react'
-import { type ReactNode, startTransition, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, startTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { onErrorDialog } from '../../../lib/errors'
 import { formatBytes } from '../../../lib/format'
@@ -63,6 +64,18 @@ export default function RemotesSection() {
                 : sortedRemotes,
         [sortedRemotes, searchQuery]
     )
+
+    // Virtualize the remotes list: each RemoteCard is a fixed-height (h-20 = 80px) card with a
+    // gap-2.5 (10px) between rows, so a row slot is 90px. Each card also fires its own queries,
+    // so windowing keeps a long list from mounting every card (and its request fan-out) at once.
+    const scrollRef = useRef<HTMLDivElement>(null)
+
+    const rowVirtualizer = useVirtualizer({
+        count: filteredRemotes.length,
+        getScrollElement: () => scrollRef.current,
+        estimateSize: () => 90,
+        overscan: 6,
+    })
 
     const [pickedRemote, setPickedRemote] = useState<string | null>(null)
 
@@ -201,7 +214,7 @@ export default function RemotesSection() {
             {Placeholder}
 
             {!Placeholder && (
-                <div className="flex flex-col gap-2.5 px-4 pb-10">
+                <div className="flex flex-col gap-2.5 px-4">
                     {sortedRemotes.length > 5 && (
                         <Input
                             placeholder="Search remotes..."
@@ -216,36 +229,67 @@ export default function RemotesSection() {
                             classNames={{ inputWrapper: 'bg-content2/60' }}
                         />
                     )}
-                    {filteredRemotes.map((remote) => (
-                        <RemoteCard
-                            key={remote}
-                            remote={remote}
-                            onAutoMountPress={() => {
-                                startTransition(() => {
-                                    setPickedRemote(remote)
-                                    setAutoMountDrawerOpen(true)
-                                })
+                    <div
+                        ref={scrollRef}
+                        className="overflow-y-auto overscroll-none max-h-[calc(100dvh-14rem)] pb-10"
+                    >
+                        <div
+                            style={{
+                                height: `${rowVirtualizer.getTotalSize()}px`,
+                                position: 'relative',
+                                width: '100%',
                             }}
-                            onConfigPress={() => {
-                                startTransition(() => {
-                                    setPickedRemote(remote)
-                                    setEditingDrawerOpen(true)
-                                })
-                            }}
-                            onDeletePress={async () => {
-                                const confirmation = await ask(
-                                    `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
-                                    { title: `Removing ${remote}`, kind: 'warning' }
+                        >
+                            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                const remote = filteredRemotes[virtualRow.index]
+                                return (
+                                    <div
+                                        key={remote}
+                                        className="pb-2.5"
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: `${virtualRow.size}px`,
+                                            transform: `translateY(${virtualRow.start}px)`,
+                                        }}
+                                    >
+                                        <RemoteCard
+                                            remote={remote}
+                                            onAutoMountPress={() => {
+                                                startTransition(() => {
+                                                    setPickedRemote(remote)
+                                                    setAutoMountDrawerOpen(true)
+                                                })
+                                            }}
+                                            onConfigPress={() => {
+                                                startTransition(() => {
+                                                    setPickedRemote(remote)
+                                                    setEditingDrawerOpen(true)
+                                                })
+                                            }}
+                                            onDeletePress={async () => {
+                                                const confirmation = await ask(
+                                                    `Are you sure you want to remove ${remote}? This action cannot be reverted.`,
+                                                    {
+                                                        title: `Removing ${remote}`,
+                                                        kind: 'warning',
+                                                    }
+                                                )
+
+                                                if (!confirmation) {
+                                                    return
+                                                }
+
+                                                deleteRemoteMutation.mutate(remote)
+                                            }}
+                                        />
+                                    </div>
                                 )
-
-                                if (!confirmation) {
-                                    return
-                                }
-
-                                deleteRemoteMutation.mutate(remote)
-                            }}
-                        />
-                    ))}
+                            })}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -337,7 +381,7 @@ function RemoteCard({
             key={remote}
             shadow="sm"
             isBlurred={true}
-            className="h-20 border-[0.5px] dark:border-none border-divider bg-content3/50 dark:bg-content2/90"
+            className="w-full h-20 border-[0.5px] dark:border-none border-divider bg-content3/50 dark:bg-content2/90"
             isPressable={true}
             onPress={onConfigPress}
         >
