@@ -1,6 +1,6 @@
 import { Button, Checkbox, Listbox, ListboxItem, cn } from '@heroui/react'
 import { platform } from '@tauri-apps/plugin-os'
-import { DownloadIcon, EyeIcon, PencilIcon, Share2Icon, StarIcon, Trash2Icon } from 'lucide-react'
+import { DownloadIcon, PencilIcon, Share2Icon, StarIcon, Trash2Icon } from 'lucide-react'
 import { useCallback } from 'react'
 import { formatBytes } from '../../../lib/format.ts'
 import FileIcon from './FileIcon'
@@ -243,7 +243,13 @@ export default function FileList({
 
                             <div
                                 className="flex items-center h-full gap-2 pl-2 overflow-hidden cursor-pointer"
-                                onClick={() => onNavigate(entry)}
+                                // Folders navigate in; files open the preview (falls back
+                                // to onNavigate — a no-op for files — where preview is off).
+                                onClick={() =>
+                                    entry.isDir || !onPreviewClick
+                                        ? onNavigate(entry)
+                                        : onPreviewClick(entry)
+                                }
                             >
                                 <FileIcon entry={entry} size="md" />
                                 <span className="truncate !cursor-pointer" title={entry.fullPath}>
@@ -278,17 +284,6 @@ export default function FileList({
                                                     isFavorited && 'fill-warning'
                                                 )}
                                             />
-                                        </Button>
-                                    )}
-                                    {!entry.isDir && onPreviewClick && (
-                                        <Button
-                                            isIconOnly={true}
-                                            size="sm"
-                                            variant="light"
-                                            className="transition-opacity duration-300 opacity-0 group-hover:opacity-100"
-                                            onPress={() => onPreviewClick(entry)}
-                                        >
-                                            <EyeIcon className="size-5" />
                                         </Button>
                                     )}
                                     {onDownload && (
