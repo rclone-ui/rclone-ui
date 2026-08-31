@@ -12,6 +12,8 @@ mod shortcut;
 #[path = "../common/window.rs"]
 mod window;
 
+#[cfg(target_os = "linux")]
+mod jenky;
 mod local_fs;
 mod notifications;
 mod scheduler;
@@ -610,14 +612,14 @@ async fn start_cloudflared_tunnel(app: tauri::AppHandle) -> Result<(u32, String)
         .path()
         .app_local_data_dir()
         .map_err(|e| format!("Failed to get app local data directory: {}", e))?;
-    
+
     #[cfg(target_os = "windows")]
     let binary_name = "cloudflared.exe";
     #[cfg(not(target_os = "windows"))]
     let binary_name = "cloudflared";
-    
+
     let cloudflared_path = app_local_data_dir.join(binary_name);
-    
+
     if !cloudflared_path.exists() {
         return Err("Cloudflared binary not found".to_string());
     }
@@ -675,14 +677,14 @@ async fn start_cloudflared_tunnel(app: tauri::AppHandle) -> Result<(u32, String)
 #[tauri::command]
 async fn stop_cloudflared_tunnel(pid: u32) -> Result<(), String> {
     use std::time::Duration;
-    
+
     // Cloudflared takes ~5s to gracefully shut down, so give it enough time
     match kill_pid(pid, Some(6000)).await {
         Ok(()) => Ok(()),
         Err(e) => {
             // Wait a bit for the process to fully terminate
             std::thread::sleep(Duration::from_millis(200));
-            
+
             // Even if we get an error, the process might have stopped
             // Check one more time if the process is actually gone
             #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -692,31 +694,31 @@ async fn stop_cloudflared_tunnel(pid: u32) -> Result<(), String> {
                     .status()
                     .map(|s| s.success())
                     .unwrap_or(false);
-                
+
                 if !alive {
                     // Process is gone, consider it a success
                     return Ok(());
                 }
             }
-            
+
             #[cfg(target_os = "windows")]
             {
                 let output = std::process::Command::new("tasklist")
                     .args(&["/FI", &format!("PID eq {}", pid), "/FO", "CSV", "/NH"])
                     .output();
-                
+
                 if let Ok(output) = output {
                     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-                    if stdout.trim().is_empty() 
-                        || stdout.contains("No tasks are running") 
-                        || !stdout.contains(&pid.to_string()) 
+                    if stdout.trim().is_empty()
+                        || stdout.contains("No tasks are running")
+                        || !stdout.contains(&pid.to_string())
                     {
                         // Process is gone, consider it a success
                         return Ok(());
                     }
                 }
             }
-            
+
             // As a last resort, check if a process with this PID is still a cloudflared process
             let system = System::new_all();
             let mut cloudflared_still_running = false;
@@ -839,6 +841,11 @@ pub fn run() {
             }));
     }
 
+    #[cfg(target_os = "linux")]
+    {
+        builder = builder.plugin(jenky::init());
+    }
+
     let mut app = builder
         .manage(local_fs::LocalFsState::default())
         .manage::<zookeeper::SharedDaemonState>(std::sync::Mutex::new(
@@ -924,6 +931,9 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "linux")]
             {
+                // The quirk decided before the log plugin was live; restate it into the log file.
+                log::info!("jenky: {}", jenky::summary());
+
                 // Flatpak/Flathub sandbox typically cannot write to system desktop/mime locations.
                 // Deep-link registration is best-effort; never fail app startup.
                 if is_flatpak() {
@@ -934,7 +944,7 @@ pub fn run() {
                         log::warn!("deep-link registration failed (continuing): {}", err);
                     }
                 }
-				
+
                 let cache_dir = app.path().cache_dir()?;
                 let package_info = app.package_info();
                 let app_name = package_info.name.as_str();
