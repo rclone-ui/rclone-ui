@@ -1,9 +1,11 @@
 import * as Sentry from '@sentry/browser'
 import { message } from '@tauri-apps/plugin-dialog'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { platform } from '@tauri-apps/plugin-os'
 import pRetry from 'p-retry'
 import { selectActiveConfigFile, useHostStore } from '../../store/host'
 import { type WatchedJob, useStore } from '../../store/memory'
+import { selectCurrentHost, usePersistedStore } from '../../store/persisted'
 import type { JobItem } from '../../types/jobs'
 import type { FlagValue } from '../../types/rclone'
 import { UserCancelledError, formatErrorMessage } from '../errors'
@@ -1027,5 +1029,28 @@ export async function fetchMountList() {
     } catch (error) {
         console.error('[fetchMountList] failed to fetch active mounts', error)
         return []
+    }
+}
+
+export async function uploadEmptyFile(fs: string, remote: string) {
+    const currentHost = selectCurrentHost(usePersistedStore.getState())
+    if (!currentHost) throw new Error('No current host')
+
+    let authHeader = ''
+    if (currentHost.authUser && currentHost.authPassword) {
+        authHeader = `Basic ${btoa(`${currentHost.authUser}:${currentHost.authPassword}`)}`
+    }
+
+    const body = new FormData()
+    body.append('file0', new File([], '.empty'))
+
+    const params = new URLSearchParams({ fs, remote })
+    const response = await tauriFetch(`${currentHost.url}/operations/uploadfile?${params}`, {
+        method: 'POST',
+        headers: authHeader ? { 'Authorization': authHeader } : undefined,
+        body,
+    })
+    if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}`)
     }
 }
