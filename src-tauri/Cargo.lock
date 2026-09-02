@@ -252,6 +252,7 @@ dependencies = [
  "dirs 6.0.0",
  "fix-path-env",
  "flate2",
+ "gdkx11",
  "gtk",
  "libc",
  "log",
