@@ -103,8 +103,6 @@ npx rclone-ui
 </tr>
 </table>
 
-> You may run into incompatibilities if you run the app on a machine or VM with Nvidia. In that case you can open it from the terminal with a special flag: `flatpak override --user --env=WEBKIT_DISABLE_DMABUF_RENDERER=1 com.rcloneui.RcloneUI`
-
 ## Downloads
 - **Windows** (**[Arm](https://get.rcloneui.com/win-arm)**, **[x64](https://get.rcloneui.com/win)**)
 - **macOS** (**[Apple Silicon](https://get.rcloneui.com/mac)**, **[Intel](https://get.rcloneui.com/mac64)**)
